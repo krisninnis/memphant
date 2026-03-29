@@ -1,0 +1,131 @@
+/* ===== Project list ===== */
+
+.project-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sidebar .project-list {
+  gap: 12px;
+}
+
+.project-list-item {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  width: 100%;
+  position: relative;
+}
+
+.project-button {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 1px solid #d8e2f0;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.88);
+  color: #1d4ed8;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  box-shadow:
+    0 1px 2px rgba(16, 24, 40, 0.04),
+    0 8px 20px rgba(15, 23, 42, 0.04);
+  transition:
+    transform 0.15s ease,
+    border-color 0.2s ease,
+    background-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.project-button:hover {
+  border-color: #9bbcff;
+  background: #f8fbff;
+  box-shadow:
+    0 1px 2px rgba(16, 24, 40, 0.04),
+    0 10px 24px rgba(37, 99, 235, 0.08);
+  transform: translateY(-1px);
+}
+
+.project-delete-button {
+  align-self: flex-start;
+  min-height: 30px;
+  padding: 0 8px;
+  border-radius: 8px;
+  border: none;
+  background: #ff4d4f;
+  color: white;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0;
+  transform: translateY(-4px);
+  pointer-events: none;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.project-list-item:hover .project-delete-button {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.project-delete-button:hover {
+  background: #d9363e;
+}
+
+.project-delete-button:active {
+  transform: translateY(0);
+}
+
+.sidebar .project-button {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+.project-list-item-active {
+  padding: 6px;
+  border-radius: 12px;
+  background: rgba(37, 99, 235, 0.08);
+}
+
+.project-button-active {
+  border-color: #60a5fa;
+  background: #eff6ff;
+  color: #1d4ed8;
+  box-shadow:
+    0 1px 2px rgba(16, 24, 40, 0.04),
+    0 10px 24px rgba(37, 99, 235, 0.12);
+}
+
+@media (max-width: 900px) {
+  .project-delete-button {
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .project-list-item-active {
+    background: rgba(59, 130, 246, 0.14);
+  }
+
+  .project-button-active {
+    background: rgba(30, 41, 59, 0.98);
+    border-color: #60a5fa;
+    color: #bfdbfe;
+  }
+}

@@ -1,7 +1,7 @@
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { ProjectMemory } from "./types/project";
-import { AIPlatform } from "./config/aiPlatforms";
+import { AIPlatform, PLATFORM_CONFIG } from "./config/aiPlatforms";
 import { sanitizeForAiExport } from "./utils/projectUtils";
 import ProjectList from "./components/ProjectList";
 import ProjectEditor from "./components/ProjectEditor";
@@ -33,6 +33,7 @@ function App() {
     useState<ProjectMemory | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const projectNameInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     fetchProjects();
@@ -43,13 +44,13 @@ function App() {
       const result = await invoke<string[]>("load_projects");
       setProjects(result);
     } catch (error) {
-      setMessage(`Failed to load projects: ${error}`);
+      setMessage(`We couldn't load your projects: ${error}`);
     }
   };
 
   const createProject = async () => {
     if (!projectName.trim()) {
-      setMessage("Please enter a project name");
+      setMessage("Please enter a project name first.");
       return;
     }
 
@@ -58,11 +59,15 @@ function App() {
       await saveProjectData(project);
 
       setProjectName("");
-      setMessage(`Project "${project.projectName}" created ✅`);
-      fetchProjects();
-      setPage("projects");
+      setMessage(
+        `New project created! "${project.projectName}" is now open. Start by filling in what the project is about, then copy it into your AI when you're ready.`,
+      );
+      await fetchProjects();
+      setSelectedProject(project);
+      setPage("editor");
+      window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (error) {
-      setMessage(`Error: ${error}`);
+      setMessage(`We couldn't create that project: ${error}`);
     }
   };
 
@@ -70,34 +75,36 @@ function App() {
     try {
       const project = await loadProjectData(fileName);
       setSelectedProject(project);
-      setMessage(`Opened ${fileName}`);
+      setMessage(
+        `"${project.projectName}" is now open. Review the details below, then copy it into your AI when you're ready.`,
+      );
+      window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (error) {
-      setMessage(`Failed to open project: ${error}`);
+      setMessage(`We couldn't open that project: ${error}`);
     }
   };
 
   const deleteProject = async (fileName: string) => {
-    const confirmed = window.confirm(
-      `Are you sure you want to delete "${fileName}"? This cannot be undone.`,
-    );
-
-    if (!confirmed) return;
-
     try {
       await invoke("delete_project_file", { fileName });
 
-      if (
+      const wasCurrentProject =
         selectedProject &&
-        `${selectedProject.projectName.replace(/ /g, "_")}.json` === fileName
-      ) {
+        `${selectedProject.projectName.replace(/ /g, "_")}.json` === fileName;
+
+      if (wasCurrentProject) {
         setSelectedProject(null);
         setPage("projects");
       }
 
-      setMessage(`Deleted ${fileName} ✅`);
-      fetchProjects();
+      setMessage(`"${fileName}" was removed.`);
+      await fetchProjects();
+
+      if (wasCurrentProject) {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
     } catch (error) {
-      setMessage(`Delete failed: ${error}`);
+      setMessage(`We couldn't remove that project: ${error}`);
     }
   };
 
@@ -123,9 +130,12 @@ function App() {
       await saveProjectData(updated);
       setSelectedProject(updated);
       setPreAiBackupProject(null);
-      setMessage("Project saved successfully ✅");
+      setMessage(
+        `"${updated.projectName}" was saved successfully. You can keep editing or copy it into your AI.`,
+      );
+      window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (error) {
-      setMessage(`Save failed: ${error}`);
+      setMessage(`We couldn't save your project: ${error}`);
     }
   };
 
@@ -143,11 +153,13 @@ function App() {
 
       setSelectedProject(importedProject);
       setPage("editor");
-      setMessage(`Imported and opened "${file.name}" ✅`);
-      fetchProjects();
+      setMessage(
+        `"${importedProject.projectName}" is now open. Review the details below, then copy it into your AI when you're ready.`,
+      );
+      await fetchProjects();
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (error) {
-      setMessage(`Import failed: ${error}`);
+      setMessage(`We couldn't open that saved project: ${error}`);
     } finally {
       event.target.value = "";
     }
@@ -164,16 +176,18 @@ function App() {
       );
 
       setSelectedProject(updatedProject);
-      setMessage(`Project analysed as: ${detectedType} ✅`);
+      setMessage(
+        `Project folder scanned! We found a ${detectedType} project and updated the important files list.`,
+      );
       event.target.value = "";
     } catch (error) {
-      setMessage(`Project scan failed: ${error}`);
+      setMessage(`We couldn't scan that project folder: ${error}`);
     }
   };
 
   const importAiUpdate = () => {
     if (!selectedProject || !aiImportText.trim()) {
-      setMessage("Paste an AI update first");
+      setMessage("Paste an AI update first.");
       return;
     }
 
@@ -206,24 +220,26 @@ function App() {
       setSelectedProject(updated);
       setAiImportText("");
       setMessage(
-        `AI update applied ✅ Goals: ${addedGoals}, Rules: ${addedRules}, Decisions: ${addedDecisions}, Next Steps: ${addedNextSteps}, Open Questions: ${addedOpenQuestions}`,
+        `Project updated from AI! Goals: ${addedGoals}, Rules: ${addedRules}, Decisions: ${addedDecisions}, Next Steps: ${addedNextSteps}, Open Questions: ${addedOpenQuestions}.`,
       );
 
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch {
-      setMessage("Invalid AI JSON ❌");
+      setMessage(
+        "That update doesn't look right. Please paste a valid Project Brain AI update.",
+      );
     }
   };
 
   const rollbackLastAiImport = () => {
     if (!preAiBackupProject) {
-      setMessage("No AI import backup available");
+      setMessage("There isn't an AI update to undo.");
       return;
     }
 
     setSelectedProject(preAiBackupProject);
     setPreAiBackupProject(null);
-    setMessage("Rolled back last AI import ✅");
+    setMessage("Undone. The last AI update was rolled back.");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -344,6 +360,21 @@ Extra guidance:
 - Keep output strict JSON only`;
   }, [selectedProject, targetPlatform]);
 
+  const targetPlatformLabel =
+    PLATFORM_CONFIG[targetPlatform]?.label || "ChatGPT";
+
+  const handleCopyToClipboard = async () => {
+    try {
+      await navigator.clipboard.writeText(exportPrompt);
+      setMessage(
+        `Copied! Open ${targetPlatformLabel} and paste this in to continue your project.`,
+      );
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch {
+      setMessage("We couldn't copy that text. Please try again.");
+    }
+  };
+
   return (
     <div className="app-shell">
       <Sidebar
@@ -355,6 +386,7 @@ Extra guidance:
         projects={projects}
         openProject={openProject}
         deleteProject={deleteProject}
+        projectNameInputRef={projectNameInputRef}
       />
 
       <main className="main-content">
@@ -363,18 +395,62 @@ Extra guidance:
         <p className="message">{message}</p>
 
         {page === "home" && (
-          <div className="nav-pill">
-            👋 Welcome to Project Brain
-            <br />
-            Create or open a project to begin.
+          <div className="project-panel">
+            <h2 className="panel-title">👋 Welcome to Project Brain</h2>
+
+            <p className="meta-item editor-helper-text">
+              Keep your project details in one place, then use them with
+              ChatGPT, Claude, Grok, or another AI without losing context.
+            </p>
+
+            <h3 className="section-title">Start here</h3>
+            <ul className="info-list">
+              <li>Create a new project from the left sidebar.</li>
+              <li>Or open one of your saved projects.</li>
+              <li>
+                Then copy the project into your chosen AI and continue working.
+              </li>
+            </ul>
+
+            <div className="input-row">
+              <button className="button" onClick={() => setPage("projects")}>
+                📂 Go to My Projects
+              </button>
+
+              <button
+                className="button export-button"
+                onClick={() => {
+                  setPage("projects");
+
+                  setTimeout(() => {
+                    projectNameInputRef.current?.focus();
+                  }, 100);
+                }}
+              >
+                ➕ Create a New Project
+              </button>
+            </div>
           </div>
         )}
 
         {page === "projects" && (
-          <div>
-            <h2 className="section-heading">📂 Projects</h2>
+          <div className="project-panel">
+            <h2 className="panel-title">📂 My Projects</h2>
+
+            <p className="meta-item editor-helper-text">
+              Open a saved project to continue working, or remove one you no
+              longer need.
+            </p>
+
+            {selectedProject && (
+              <p className="current-project-name">
+                Currently open: <span>{selectedProject.projectName}</span>
+              </p>
+            )}
+
             <ProjectList
               projects={projects}
+              currentProjectName={selectedProject?.projectName ?? null}
               onOpen={(name) => {
                 openProject(name);
                 setPage("editor");
@@ -393,9 +469,7 @@ Extra guidance:
             onTargetPlatformChange={setTargetPlatform}
             onSaveProject={saveProject}
             onRollbackLastAiImport={rollbackLastAiImport}
-            onCopyToClipboard={() =>
-              navigator.clipboard.writeText(exportPrompt)
-            }
+            onCopyToClipboard={handleCopyToClipboard}
             onUpdateSummary={(v) =>
               setSelectedProject({ ...selectedProject, summary: v })
             }
@@ -415,8 +489,16 @@ Extra guidance:
         )}
 
         {page === "editor" && !selectedProject && (
-          <div className="nav-pill">
-            Open a project from the sidebar to start editing.
+          <div className="project-panel">
+            <h2 className="panel-title">✏️ Project Details</h2>
+            <p className="meta-item editor-helper-text">
+              You do not have a project open yet.
+            </p>
+            <ul className="info-list">
+              <li>Create a new project from the left sidebar.</li>
+              <li>Or open one of your saved projects.</li>
+              <li>Then come back here to edit the project details.</li>
+            </ul>
           </div>
         )}
       </main>
@@ -426,7 +508,7 @@ Extra guidance:
           className="mobile-bottom-button"
           onClick={() => setPage("home")}
         >
-          Home
+          Welcome
         </button>
         <button
           className="mobile-bottom-button"
@@ -438,7 +520,7 @@ Extra guidance:
           className="mobile-bottom-button"
           onClick={() => setPage("editor")}
         >
-          Editor
+          Details
         </button>
       </nav>
     </div>

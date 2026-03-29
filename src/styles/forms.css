@@ -1,0 +1,137 @@
+/* ===== Inputs / Buttons ===== */
+
+.input-row {
+  display: flex;
+  align-items: stretch;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.input,
+.button,
+.textarea {
+  font: inherit;
+}
+
+.input {
+  flex: 1 1 260px;
+  min-width: 220px;
+  min-height: 48px;
+  padding: 0.82rem 1rem;
+  border-radius: 14px;
+  border: 1px solid #d0d7e2;
+  background: rgba(255, 255, 255, 0.9);
+  color: #0f172a;
+  outline: none;
+  box-shadow:
+    0 1px 2px rgba(16, 24, 40, 0.05),
+    0 8px 24px rgba(15, 23, 42, 0.04);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.15s ease,
+    background-color 0.2s ease;
+}
+
+.input:hover {
+  border-color: #b7c5d8;
+}
+
+.input:focus,
+.textarea:focus {
+  border-color: #5b8cff;
+  box-shadow:
+    0 0 0 4px rgba(91, 140, 255, 0.14),
+    0 10px 24px rgba(37, 99, 235, 0.08);
+  background: #ffffff;
+}
+
+.button {
+  min-height: 48px;
+  padding: 0.82rem 1.15rem;
+  border-radius: 14px;
+  border: 1px solid #d0d7e2;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.96) 0%,
+    #eef4ff 100%
+  );
+  color: #0f172a;
+  font-weight: 650;
+  cursor: pointer;
+  box-shadow:
+    0 1px 2px rgba(16, 24, 40, 0.05),
+    0 10px 24px rgba(15, 23, 42, 0.06);
+  transition:
+    transform 0.15s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
+}
+
+.button:hover {
+  border-color: #7ea6ff;
+  box-shadow:
+    0 1px 2px rgba(16, 24, 40, 0.05),
+    0 14px 28px rgba(37, 99, 235, 0.12);
+  transform: translateY(-1px);
+}
+
+.button:active {
+  transform: translateY(0);
+}
+
+.export-button {
+  background: linear-gradient(180deg, #dff7ee 0%, #c7f0e1 100%);
+  border-color: #86d6b8;
+  color: #0f5132;
+}
+
+.export-button:hover {
+  border-color: #4dbb8a;
+  margin-bottom: 0;
+  box-shadow:
+    0 1px 2px rgba(16, 24, 40, 0.05),
+    0 14px 28px rgba(16, 185, 129, 0.18);
+}
+.export-button:hover {
+  border-color: #4dbb8a;
+  box-shadow:
+    0 1px 2px rgba(16, 24, 40, 0.05),
+    0 14px 28px rgba(16, 185, 129, 0.18);
+}
+
+/* ===== File inputs ===== */
+
+input[type="file"] {
+  max-width: 100%;
+  padding: 12px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.68);
+  color: #334155;
+  box-shadow:
+    0 1px 2px rgba(16, 24, 40, 0.04),
+    0 6px 16px rgba(15, 23, 42, 0.03);
+}
+
+input[type="file"]::file-selector-button {
+  margin-right: 12px;
+  padding: 0.72rem 1rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #0f172a;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease;
+}
+
+input[type="file"]::file-selector-button:hover {
+  background: #eef4ff;
+  border-color: #93b4ff;
+}

@@ -1,0 +1,164 @@
+/* ===== Dark mode ===== */
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color: #e5edf7;
+    background: radial-gradient(
+      circle at top left,
+      #0f172a 0%,
+      #111827 45%,
+      #0b1220 100%
+    );
+  }
+
+  body {
+    color: #e5edf7;
+  }
+
+  .title,
+  .section-heading,
+  .section-title,
+  .panel-title,
+  .sidebar-title {
+    color: #f8fafc;
+  }
+
+  .message {
+    color: #d8e1ee;
+    border-color: rgba(71, 85, 105, 0.9);
+    background: rgba(15, 23, 42, 0.72);
+  }
+
+  .sidebar {
+    border-right-color: rgba(71, 85, 105, 0.75);
+    background: rgba(15, 23, 42, 0.72);
+  }
+
+  .sidebar-label {
+    color: #94a3b8;
+  }
+
+  .input,
+  .button,
+  .textarea {
+    color: #f8fafc;
+    background: rgba(15, 23, 42, 0.88);
+    border-color: rgba(71, 85, 105, 0.95);
+  }
+
+  .input:focus,
+  .textarea:focus {
+    background: rgba(15, 23, 42, 0.98);
+  }
+
+  .button {
+    background: linear-gradient(
+      180deg,
+      rgba(30, 41, 59, 0.95) 0%,
+      rgba(15, 23, 42, 0.98) 100%
+    );
+  }
+
+  input[type="file"] {
+    color: #d8e1ee;
+    border-color: rgba(71, 85, 105, 0.95);
+    background: rgba(15, 23, 42, 0.72);
+  }
+
+  input[type="file"]::file-selector-button {
+    background: rgba(15, 23, 42, 0.95);
+    color: #f8fafc;
+    border-color: rgba(71, 85, 105, 0.95);
+  }
+
+  .project-button {
+    background: rgba(15, 23, 42, 0.84);
+    color: #8ec5ff;
+    border-color: rgba(71, 85, 105, 0.9);
+  }
+
+  .project-button:hover {
+    background: rgba(15, 23, 42, 0.96);
+    border-color: #7ea6ff;
+  }
+
+  .project-delete-button {
+    background: #ef4444;
+  }
+
+  .project-delete-button:hover {
+    background: #dc2626;
+  }
+
+  .project-panel {
+    background: linear-gradient(
+      180deg,
+      rgba(15, 23, 42, 0.82) 0%,
+      rgba(17, 24, 39, 0.94) 100%
+    );
+    border-color: rgba(71, 85, 105, 0.85);
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.3),
+      0 24px 60px rgba(0, 0, 0, 0.3);
+  }
+
+  .meta-item,
+  .info-list,
+  .latest-change-box {
+    color: #d8e1ee;
+  }
+
+  .latest-change-box {
+    border-color: rgba(96, 165, 250, 0.4);
+    background: rgba(59, 130, 246, 0.14);
+  }
+
+  .latest-change-meta {
+    color: #94a3b8;
+  }
+
+  .divider {
+    border-top-color: rgba(71, 85, 105, 0.75);
+  }
+
+  .nav-pill {
+    color: #f8fafc;
+  }
+
+  .nav-pill:hover {
+    background: rgba(148, 163, 184, 0.16);
+  }
+
+  .nav-pill.active {
+    background: #f8fafc;
+    color: #0f172a;
+    border-color: #f8fafc;
+  }
+
+  .mobile-bottom-bar {
+    border-top-color: rgba(71, 85, 105, 0.75);
+    background: rgba(15, 23, 42, 0.92);
+  }
+
+  .mobile-bottom-button {
+    background: rgba(15, 23, 42, 0.98);
+    border-color: rgba(71, 85, 105, 0.9);
+    color: #f8fafc;
+  }
+}
+.current-project-name {
+  color: #f8fafc;
+}
+.export-button {
+  background: linear-gradient(
+    180deg,
+    rgba(16, 185, 129, 0.22) 0%,
+    rgba(5, 150, 105, 0.28) 100%
+  );
+  border-color: rgba(52, 211, 153, 0.45);
+  color: #d1fae5;
+}
+
+.export-button:hover {
+  border-color: rgba(52, 211, 153, 0.7);
+}

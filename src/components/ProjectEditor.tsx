@@ -44,9 +44,21 @@ function ProjectEditor({
       ? selectedProject.changelog[selectedProject.changelog.length - 1]
       : null;
 
+  const targetPlatformLabel =
+    PLATFORM_CONFIG[targetPlatform]?.label || "ChatGPT";
+
   return (
     <div className="project-panel">
-      <h2 className="panel-title">🧠 Project Loaded</h2>
+      <h2 className="panel-title">🧠 Current Project</h2>
+
+      <h3 className="current-project-name">
+        Currently editing: <span>{selectedProject.projectName}</span>
+      </h3>
+
+      <p className="meta-item editor-helper-text">
+        Pick a saved project, update the details below, then copy it into your
+        AI so it can carry on from where you left off.
+      </p>
 
       <div className="input-row">
         <button onClick={onSaveProject} className="button">
@@ -54,7 +66,7 @@ function ProjectEditor({
         </button>
 
         <button onClick={onUploadJsonClick} className="button">
-          📂 Upload JSON
+          📂 Open Saved Project
         </button>
 
         <input
@@ -66,16 +78,16 @@ function ProjectEditor({
         />
 
         <button onClick={onRollbackLastAiImport} className="button">
-          ↩️ Rollback AI Import
+          ↩️ Undo Last AI Update
         </button>
 
         <button onClick={onCopyToClipboard} className="button export-button">
-          📋 Copy for AI
+          📋 Copy for {targetPlatformLabel}
         </button>
       </div>
 
       <p className="meta-item">
-        <strong>Name:</strong> {selectedProject.projectName}
+        <strong>Project name:</strong> {selectedProject.projectName}
       </p>
       <p className="meta-item">
         <strong>Version:</strong> {selectedProject.schema_version}
@@ -84,12 +96,12 @@ function ProjectEditor({
         <strong>Created:</strong> {selectedProject.created}
       </p>
       <p className="meta-item">
-        <strong>Last Modified:</strong> {selectedProject.lastModified}
+        <strong>Last updated:</strong> {selectedProject.lastModified}
       </p>
 
       {latestChange && (
         <div className="latest-change-box">
-          <strong>Latest Change:</strong> {latestChange.description}
+          <strong>Latest change:</strong> {latestChange.description}
           <br />
           <span className="latest-change-meta">
             [{latestChange.date}] ({latestChange.source})
@@ -99,23 +111,34 @@ function ProjectEditor({
 
       <hr className="divider" />
 
-      <h3 className="section-title">📄 Summary</h3>
+      <h3 className="section-title">📄 What this project is about</h3>
+      <p className="meta-item">
+        Write a simple explanation of the project so any AI can quickly
+        understand it.
+      </p>
       <textarea
         value={selectedProject.summary}
         onChange={(e) => onUpdateSummary(e.target.value)}
         className="textarea"
-        placeholder="Write a summary for this project..."
+        placeholder="Example: This is a desktop app that helps people move project context between ChatGPT, Claude, Grok, and other AI tools."
       />
 
-      <h3 className="section-title">📍 Current State</h3>
+      <h3 className="section-title">📍 Where things stand right now</h3>
+      <p className="meta-item">
+        Describe the current progress, what has been built, and what still needs
+        doing.
+      </p>
       <textarea
         value={selectedProject.currentState}
         onChange={(e) => onUpdateCurrentState(e.target.value)}
         className="textarea"
-        placeholder="Describe the current state..."
+        placeholder="Example: The core project memory flow works. We are now improving the UX so non-technical users can understand the app quickly."
       />
 
-      <h3 className="section-title">🎯 Target AI Platform</h3>
+      <h3 className="section-title">🤖 Which AI are you using?</h3>
+      <p className="meta-item">
+        Choose the AI you want to continue the project in.
+      </p>
       <select
         value={targetPlatform}
         onChange={(e) => onTargetPlatformChange(e.target.value as AIPlatform)}
@@ -128,7 +151,11 @@ function ProjectEditor({
         ))}
       </select>
 
-      <h3 className="section-title">📁 Project Folder</h3>
+      <h3 className="section-title">📁 Scan Project Folder</h3>
+      <p className="meta-item">
+        Scan a real project folder so Project Brain can understand the important
+        files and build better AI handoff context.
+      </p>
       <input
         type="file"
         webkitdirectory=""
@@ -191,10 +218,10 @@ function ProjectEditor({
         )}
       </ul>
 
-      <h3 className="section-title">📁 Important Assets</h3>
+      <h3 className="section-title">📁 Important Files Found</h3>
       <ul className="info-list">
         {selectedProject.importantAssets.length === 0 ? (
-          <li>No important assets detected yet</li>
+          <li>No important files detected yet</li>
         ) : (
           selectedProject.importantAssets.map((asset, index) => (
             <li key={index}>{asset}</li>
@@ -202,7 +229,7 @@ function ProjectEditor({
         )}
       </ul>
 
-      <h3 className="section-title">📜 Changelog</h3>
+      <h3 className="section-title">📜 Project History</h3>
       <ul className="info-list">
         {selectedProject.changelog.length === 0 ? (
           <li>No history yet</li>
@@ -217,24 +244,31 @@ function ProjectEditor({
 
       <hr className="divider" />
 
-      <h3 className="section-title">📤 Export for AI</h3>
+      <h3 className="section-title">🤖 Use with AI</h3>
+      <p className="meta-item">
+        Click the copy button above, then paste this into {targetPlatformLabel}{" "}
+        so it can continue your project with the latest context.
+      </p>
       <textarea
         value={exportPrompt}
         readOnly
         className="textarea export-textarea"
       />
 
-      <h3 className="section-title">📥 Import AI Update</h3>
+      <h3 className="section-title">🤖 Update from AI</h3>
+      <p className="meta-item">
+        Paste the AI’s structured update here, then apply it to this project.
+      </p>
       <textarea
         value={aiImportText}
         onChange={(e) => onAiImportTextChange(e.target.value)}
         className="textarea export-textarea"
-        placeholder="Paste the AI JSON update here..."
+        placeholder="Paste the AI update here..."
       />
 
       <div className="input-row">
         <button onClick={onImportAiUpdate} className="button">
-          📥 Import AI Update
+          🤖 Apply AI Update
         </button>
       </div>
     </div>

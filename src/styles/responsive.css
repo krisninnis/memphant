@@ -1,0 +1,72 @@
+/* ===== Mobile ===== */
+
+@media (max-width: 900px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+    height: auto;
+    overflow: visible;
+  }
+
+  .sidebar {
+    display: none;
+  }
+
+  .main-content {
+    height: auto;
+    overflow: visible;
+    padding: 16px 16px 90px;
+  }
+
+  .mobile-bottom-bar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 20;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+    border-top: 1px solid #dbe4ef;
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(14px);
+  }
+
+  .mobile-bottom-button {
+    border: 1px solid #d8e2f0;
+    border-radius: 14px;
+    background: #ffffff;
+    min-height: 48px;
+    font: inherit;
+    font-weight: 700;
+    color: #0f172a;
+    cursor: pointer;
+  }
+
+  .button,
+  .input {
+    width: 100%;
+  }
+
+  .project-list-item {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 6px;
+    border-radius: 12px;
+    transition: background 0.2s ease;
+  }
+
+  .project-list-item:hover {
+    background: rgba(37, 99, 235, 0.05);
+  }
+
+  .project-button,
+  .project-delete-button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  input[type="file"] {
+    width: 100%;
+  }
+}
