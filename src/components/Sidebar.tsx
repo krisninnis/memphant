@@ -8,8 +8,8 @@ type Props = {
   setProjectName: (v: string) => void;
   createProject: () => void;
   projects: string[];
-  openProject: (name: string) => void;
-  deleteProject: (name: string) => void;
+  openProject: (name: string) => void | Promise<void>;
+  deleteProject: (name: string) => void | Promise<void>;
   projectNameInputRef: RefObject<HTMLInputElement | null>;
 };
 
@@ -97,10 +97,12 @@ function Sidebar({
           projects={projects}
           currentProjectName={null}
           onOpen={(name) => {
-            openProject(name);
+            void openProject(name);
             setPage("editor");
           }}
-          onDelete={deleteProject}
+          onDelete={(name) => {
+            void deleteProject(name);
+          }}
         />
       </div>
     </aside>

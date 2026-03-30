@@ -26,6 +26,11 @@ export function createProjectMemory(projectName: string): ProjectMemory {
       },
     ],
     aiInstructions: DEFAULT_AI_INSTRUCTIONS,
+
+    // handoff engine defaults
+    snapshots: [],
+    handoffs: [],
+    platformState: {},
   };
 }
 
@@ -55,6 +60,9 @@ export async function importProjectFileData(
   return {
     ...normalized,
     lastModified: now,
+    handoffs: normalized.handoffs ?? [],
+    platformState: normalized.platformState ?? {},
+    snapshots: normalized.snapshots ?? [],
     changelog: [
       ...normalized.changelog,
       {
