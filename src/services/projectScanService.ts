@@ -263,13 +263,21 @@ export async function scanUploadedProjectFiles(
   const importantFileNames: string[] = [];
   const sourceFileNames: string[] = [];
   let packageJson: Record<string, unknown> | null = null;
+  let excludedFileCount = 0;
 
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
     const path = file.webkitRelativePath || file.name;
 
-    if (isSensitiveFile(path)) continue;
-    if (shouldIgnorePath(path)) continue;
+    if (isSensitiveFile(path)) {
+      excludedFileCount++;
+      continue;
+    }
+
+    if (shouldIgnorePath(path)) {
+      excludedFileCount++;
+      continue;
+    }
 
     allFileNames.push(path);
 
@@ -354,6 +362,14 @@ export async function scanUploadedProjectFiles(
         ...detectedTags.map((tag) => `Detected tech tag: ${tag}`),
       ]),
     ],
+    scanInfo: {
+      detectedType,
+      detectedTags,
+      scannedFileCount: allFileNames.length,
+      importantFileCount: selectedImportantFiles.length,
+      excludedFileCount,
+      lastScannedAt: new Date().toISOString(),
+    },
     changelog: [
       ...selectedProject.changelog,
       {

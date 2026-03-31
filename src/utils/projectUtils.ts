@@ -1,19 +1,56 @@
 import {
   DEFAULT_AI_INSTRUCTIONS,
-  PlatformCursor,
   ProjectMemory,
   Snapshot,
-  Handoff,
 } from "../types/project";
+
+export function createSnapshot(project: ProjectMemory): Snapshot {
+  const createdAt = new Date().toISOString();
+
+  const snapshotCore = {
+    summary: project.summary,
+    currentState: project.currentState,
+    goals: project.goals,
+    rules: project.rules,
+    decisions: project.decisions,
+    nextSteps: project.nextSteps,
+    openQuestions: project.openQuestions,
+  };
+
+  const raw = JSON.stringify(snapshotCore);
+  const hash = simpleHash(raw);
+
+  return {
+    id: `${createdAt}-${hash}`,
+    createdAt,
+    hash,
+    ...snapshotCore,
+  };
+}
+
+function simpleHash(input: string): string {
+  let hash = 0;
+
+  for (let i = 0; i < input.length; i++) {
+    hash = (hash << 5) - hash + input.charCodeAt(i);
+    hash |= 0;
+  }
+
+  return Math.abs(hash).toString(16);
+}
 
 export function normalizeImportedProject(data: unknown): ProjectMemory {
   const now = new Date().toISOString();
   const safe = (data ?? {}) as Partial<ProjectMemory> & {
     changelog?: ProjectMemory["changelog"];
     aiInstructions?: ProjectMemory["aiInstructions"];
-    snapshots?: Snapshot[];
-    handoffs?: Handoff[];
-    platformState?: Record<string, PlatformCursor>;
+    snapshots?: ProjectMemory["snapshots"];
+    handoffs?: ProjectMemory["handoffs"];
+    platformState?: ProjectMemory["platformState"];
+    scanInfo?: ProjectMemory["scanInfo"];
+    scanInsights?: ProjectMemory["scanInsights"];
+    linkedProjectPath?: unknown;
+    linkedProjectName?: unknown;
   };
 
   return {
@@ -49,6 +86,19 @@ export function normalizeImportedProject(data: unknown): ProjectMemory {
     importantAssets: Array.isArray(safe.importantAssets)
       ? safe.importantAssets.filter((x): x is string => typeof x === "string")
       : [],
+
+    linkedProjectPath:
+      typeof safe.linkedProjectPath === "string" &&
+      safe.linkedProjectPath.trim()
+        ? safe.linkedProjectPath
+        : undefined,
+
+    linkedProjectName:
+      typeof safe.linkedProjectName === "string" &&
+      safe.linkedProjectName.trim()
+        ? safe.linkedProjectName
+        : undefined,
+
     changelog: Array.isArray(safe.changelog)
       ? safe.changelog.filter(
           (entry): entry is ProjectMemory["changelog"][number] =>
@@ -58,6 +108,7 @@ export function normalizeImportedProject(data: unknown): ProjectMemory {
             typeof entry.description === "string",
         )
       : [],
+
     aiInstructions:
       safe.aiInstructions &&
       typeof safe.aiInstructions.role === "string" &&
@@ -67,123 +118,128 @@ export function normalizeImportedProject(data: unknown): ProjectMemory {
         : DEFAULT_AI_INSTRUCTIONS,
 
     snapshots: Array.isArray(safe.snapshots)
-      ? safe.snapshots.filter(isValidSnapshot)
+      ? safe.snapshots.filter(
+          (
+            snapshot,
+          ): snapshot is NonNullable<ProjectMemory["snapshots"]>[number] =>
+            !!snapshot &&
+            typeof snapshot.id === "string" &&
+            typeof snapshot.createdAt === "string" &&
+            typeof snapshot.hash === "string" &&
+            typeof snapshot.summary === "string" &&
+            typeof snapshot.currentState === "string" &&
+            Array.isArray(snapshot.goals) &&
+            Array.isArray(snapshot.rules) &&
+            Array.isArray(snapshot.decisions) &&
+            Array.isArray(snapshot.nextSteps) &&
+            Array.isArray(snapshot.openQuestions),
+        )
       : [],
+
     handoffs: Array.isArray(safe.handoffs)
-      ? safe.handoffs.filter(isValidHandoff)
+      ? safe.handoffs.filter(
+          (
+            handoff,
+          ): handoff is NonNullable<ProjectMemory["handoffs"]>[number] =>
+            !!handoff &&
+            typeof handoff.id === "string" &&
+            typeof handoff.fromPlatform === "string" &&
+            typeof handoff.toPlatform === "string" &&
+            typeof handoff.purpose === "string" &&
+            typeof handoff.createdAt === "string" &&
+            typeof handoff.basedOnSnapshotId === "string" &&
+            typeof handoff.status === "string",
+        )
       : [],
-    platformState: isValidPlatformState(safe.platformState)
-      ? safe.platformState
-      : {},
-  };
-}
 
-function isValidSnapshot(value: unknown): value is Snapshot {
-  if (!value || typeof value !== "object") return false;
+    platformState:
+      safe.platformState && typeof safe.platformState === "object"
+        ? Object.fromEntries(
+            Object.entries(safe.platformState).filter(
+              ([, value]) =>
+                !!value &&
+                typeof value === "object" &&
+                typeof (value as { lastSentSnapshotId?: unknown })
+                  .lastSentSnapshotId === "string" &&
+                ((value as { lastReplyAt?: unknown }).lastReplyAt ===
+                  undefined ||
+                  typeof (value as { lastReplyAt?: unknown }).lastReplyAt ===
+                    "string"),
+            ),
+          )
+        : {},
 
-  const snapshot = value as Snapshot;
+    scanInfo:
+      safe.scanInfo &&
+      typeof safe.scanInfo === "object" &&
+      typeof safe.scanInfo.detectedType === "string" &&
+      Array.isArray(safe.scanInfo.detectedTags) &&
+      typeof safe.scanInfo.scannedFileCount === "number" &&
+      typeof safe.scanInfo.importantFileCount === "number" &&
+      typeof safe.scanInfo.excludedFileCount === "number" &&
+      typeof safe.scanInfo.lastScannedAt === "string"
+        ? {
+            detectedType: safe.scanInfo.detectedType,
+            detectedTags: safe.scanInfo.detectedTags.filter(
+              (tag): tag is string => typeof tag === "string",
+            ),
+            scannedFileCount: safe.scanInfo.scannedFileCount,
+            importantFileCount: safe.scanInfo.importantFileCount,
+            excludedFileCount: safe.scanInfo.excludedFileCount,
+            lastScannedAt: safe.scanInfo.lastScannedAt,
+          }
+        : undefined,
 
-  return (
-    typeof snapshot.id === "string" &&
-    typeof snapshot.createdAt === "string" &&
-    typeof snapshot.hash === "string" &&
-    typeof snapshot.summary === "string" &&
-    typeof snapshot.currentState === "string" &&
-    Array.isArray(snapshot.goals) &&
-    snapshot.goals.every((x) => typeof x === "string") &&
-    Array.isArray(snapshot.rules) &&
-    snapshot.rules.every((x) => typeof x === "string") &&
-    Array.isArray(snapshot.decisions) &&
-    snapshot.decisions.every((x) => typeof x === "string") &&
-    Array.isArray(snapshot.nextSteps) &&
-    snapshot.nextSteps.every((x) => typeof x === "string") &&
-    Array.isArray(snapshot.openQuestions) &&
-    snapshot.openQuestions.every((x) => typeof x === "string")
-  );
-}
-
-function isValidHandoff(value: unknown): value is Handoff {
-  if (!value || typeof value !== "object") return false;
-
-  const handoff = value as Handoff;
-
-  return (
-    typeof handoff.id === "string" &&
-    typeof handoff.fromPlatform === "string" &&
-    typeof handoff.toPlatform === "string" &&
-    typeof handoff.purpose === "string" &&
-    typeof handoff.createdAt === "string" &&
-    typeof handoff.basedOnSnapshotId === "string" &&
-    typeof handoff.status === "string"
-  );
-}
-
-function isValidPlatformState(
-  value: unknown,
-): value is Record<string, PlatformCursor> {
-  if (!value || typeof value !== "object") return false;
-
-  return Object.values(value).every((cursor) => {
-    if (!cursor || typeof cursor !== "object") return false;
-
-    const typedCursor = cursor as PlatformCursor;
-
-    return (
-      typeof typedCursor.lastSentSnapshotId === "string" &&
-      (typedCursor.lastReplyAt === undefined ||
-        typeof typedCursor.lastReplyAt === "string")
-    );
-  });
-}
-
-export function buildSnapshotHash(project: ProjectMemory): string {
-  const stableState = {
-    summary: project.summary,
-    currentState: project.currentState,
-    goals: project.goals,
-    rules: project.rules,
-    decisions: project.decisions,
-    nextSteps: project.nextSteps,
-    openQuestions: project.openQuestions,
-  };
-
-  const json = JSON.stringify(stableState);
-
-  let hash = 0;
-  for (let i = 0; i < json.length; i++) {
-    hash = (hash << 5) - hash + json.charCodeAt(i);
-    hash |= 0;
-  }
-
-  return `snap_${Math.abs(hash)}`;
-}
-
-export function createSnapshot(project: ProjectMemory): Snapshot {
-  const createdAt = new Date().toISOString();
-
-  return {
-    id: `snapshot_${createdAt}`,
-    createdAt,
-    hash: buildSnapshotHash(project),
-    summary: project.summary,
-    currentState: project.currentState,
-    goals: [...project.goals],
-    rules: [...project.rules],
-    decisions: [...project.decisions],
-    nextSteps: [...project.nextSteps],
-    openQuestions: [...project.openQuestions],
+    scanInsights:
+      safe.scanInsights &&
+      typeof safe.scanInsights === "object" &&
+      typeof safe.scanInsights.architecture === "string" &&
+      (safe.scanInsights.likelyEntryPoint === undefined ||
+        typeof safe.scanInsights.likelyEntryPoint === "string") &&
+      Array.isArray(safe.scanInsights.likelyAuthFiles) &&
+      Array.isArray(safe.scanInsights.likelyModelFiles) &&
+      Array.isArray(safe.scanInsights.likelyConfigFiles) &&
+      Array.isArray(safe.scanInsights.likelyDocs) &&
+      typeof safe.scanInsights.confidence === "string" &&
+      Array.isArray(safe.scanInsights.notes)
+        ? {
+            architecture: safe.scanInsights.architecture,
+            likelyEntryPoint: safe.scanInsights.likelyEntryPoint,
+            likelyAuthFiles: safe.scanInsights.likelyAuthFiles.filter(
+              (item): item is string => typeof item === "string",
+            ),
+            likelyModelFiles: safe.scanInsights.likelyModelFiles.filter(
+              (item): item is string => typeof item === "string",
+            ),
+            likelyConfigFiles: safe.scanInsights.likelyConfigFiles.filter(
+              (item): item is string => typeof item === "string",
+            ),
+            likelyDocs: safe.scanInsights.likelyDocs.filter(
+              (item): item is string => typeof item === "string",
+            ),
+            confidence:
+              safe.scanInsights.confidence === "low" ||
+              safe.scanInsights.confidence === "medium" ||
+              safe.scanInsights.confidence === "high"
+                ? safe.scanInsights.confidence
+                : "low",
+            notes: safe.scanInsights.notes.filter(
+              (item): item is string => typeof item === "string",
+            ),
+          }
+        : undefined,
   };
 }
 
 export function sanitizeForAiExport(project: ProjectMemory): ProjectMemory {
-  const secretKeyPattern =
-    /(secret|token|api[_-]?key|password|passwd|private[_-]?key|client[_-]?secret|bearer|auth)/i;
+  const secretValuePattern =
+    /(api[_-]?key|client[_-]?secret|private[_-]?key|bearer\s+[a-z0-9._-]+|password\s*[:=]|passwd\s*[:=]|token\s*[:=])/i;
 
   const envFilePattern =
-    /(^|[\\/])(\.env|\.env\..+|secrets?\.|credentials?|id_rsa|\.pem|\.p12|\.key)$/i;
+    /(^|[\\/])(\.env|\.env\..+|secrets?\.|credentials?|id_rsa|id_dsa|.*\.pem|.*\.p12|.*\.key|.*\.pfx)$/i;
 
   const redactString = (value: string): string => {
-    if (secretKeyPattern.test(value) || envFilePattern.test(value)) {
+    if (envFilePattern.test(value) || secretValuePattern.test(value)) {
       return "[REDACTED]";
     }
     return value;
@@ -198,10 +254,12 @@ export function sanitizeForAiExport(project: ProjectMemory): ProjectMemory {
     decisions: project.decisions.map(redactString),
     nextSteps: project.nextSteps.map(redactString),
     openQuestions: project.openQuestions.map(redactString),
+    linkedProjectPath: project.linkedProjectPath
+      ? redactString(project.linkedProjectPath)
+      : undefined,
+    linkedProjectName: project.linkedProjectName,
     importantAssets: project.importantAssets.map((asset) =>
-      envFilePattern.test(asset) || secretKeyPattern.test(asset)
-        ? "[REDACTED]"
-        : asset,
+      envFilePattern.test(asset) ? "[REDACTED]" : asset,
     ),
     changelog: project.changelog.map((entry) => ({
       ...entry,
@@ -213,8 +271,26 @@ export function sanitizeForAiExport(project: ProjectMemory): ProjectMemory {
       role: redactString(project.aiInstructions.role),
       tone: redactString(project.aiInstructions.tone),
     },
+    scanInsights: project.scanInsights
+      ? {
+          ...project.scanInsights,
+          architecture: redactString(project.scanInsights.architecture),
+          likelyEntryPoint: project.scanInsights.likelyEntryPoint
+            ? redactString(project.scanInsights.likelyEntryPoint)
+            : undefined,
+          likelyAuthFiles:
+            project.scanInsights.likelyAuthFiles.map(redactString),
+          likelyModelFiles:
+            project.scanInsights.likelyModelFiles.map(redactString),
+          likelyConfigFiles:
+            project.scanInsights.likelyConfigFiles.map(redactString),
+          likelyDocs: project.scanInsights.likelyDocs.map(redactString),
+          notes: project.scanInsights.notes.map(redactString),
+        }
+      : undefined,
   };
 }
+
 export function getLatestSnapshot(
   project: ProjectMemory,
 ): Snapshot | undefined {
@@ -235,6 +311,7 @@ export function getPlatformLastSeenSnapshot(
     (snapshot) => snapshot.id === lastSentSnapshotId,
   );
 }
+
 export function buildDeltaSummary(
   previousSnapshot: Snapshot | undefined,
   latestSnapshot: Snapshot | undefined,

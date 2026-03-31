@@ -2,13 +2,13 @@
 
 .project-panel {
   margin-top: 28px;
-  padding: clamp(18px, 2.4vw, 28px);
+  padding: clamp(20px, 2.6vw, 30px);
   border: 1px solid rgba(203, 213, 225, 0.8);
   border-radius: 24px;
   background: linear-gradient(
     180deg,
-    rgba(255, 255, 255, 0.88) 0%,
-    rgba(248, 250, 252, 0.96) 100%
+    rgba(255, 255, 255, 0.92) 0%,
+    rgba(248, 250, 252, 0.98) 100%
   );
   box-shadow:
     0 1px 2px rgba(16, 24, 40, 0.05),
@@ -17,18 +17,18 @@
 }
 
 .panel-title {
-  margin: 0 0 16px;
-  font-size: clamp(1.6rem, 2.8vw, 2.35rem);
-  line-height: 1.1;
+  margin: 0 0 14px;
+  font-size: clamp(1.75rem, 2.9vw, 2.5rem);
+  line-height: 1.05;
   font-weight: 800;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.025em;
   color: #0f172a;
 }
 
 .current-project-name {
-  margin-top: 10px;
-  margin-bottom: 8px;
-  font-size: 1.1rem;
+  margin-top: 4px;
+  margin-bottom: 10px;
+  font-size: 1.08rem;
   font-weight: 700;
   color: #0f172a;
 }
@@ -47,7 +47,7 @@
   padding: 14px 16px;
   border-radius: 16px;
   border: 1px solid #d0d7e2;
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.95);
   color: #0f172a;
   resize: vertical;
   outline: none;
@@ -57,7 +57,20 @@
   transition:
     border-color 0.2s ease,
     box-shadow 0.2s ease,
-    background-color 0.2s ease;
+    background-color 0.2s ease,
+    transform 0.15s ease;
+}
+
+.textarea:hover {
+  border-color: #b7c5d8;
+}
+
+.textarea:focus {
+  border-color: #5b8cff;
+  box-shadow:
+    0 0 0 4px rgba(91, 140, 255, 0.14),
+    0 10px 24px rgba(37, 99, 235, 0.08);
+  background: #ffffff;
 }
 
 .export-textarea {
@@ -77,20 +90,122 @@
 }
 
 .latest-change-box {
-  margin: 12px 0 6px;
-  padding: 14px 16px;
-  border-radius: 14px;
+  margin: 14px 0 8px;
+  padding: 16px 18px;
+  border-radius: 16px;
   border: 1px solid #cfe0ff;
-  background: rgba(59, 130, 246, 0.08);
+  background: linear-gradient(
+    180deg,
+    rgba(59, 130, 246, 0.08) 0%,
+    rgba(59, 130, 246, 0.04) 100%
+  );
   color: #1e293b;
   line-height: 1.6;
+  box-shadow:
+    0 1px 2px rgba(16, 24, 40, 0.03),
+    0 10px 24px rgba(37, 99, 235, 0.06);
 }
 
 .latest-change-meta {
   display: inline-block;
   margin-top: 6px;
-  font-size: 0.9rem;
+  font-size: 0.92rem;
   color: #475569;
+}
+
+/* ===== Mission control emphasis ===== */
+
+.project-panel > .panel-title:first-child {
+  position: relative;
+}
+
+.project-panel > .panel-title:first-child::after {
+  content: "";
+  display: block;
+  width: 72px;
+  height: 4px;
+  margin-top: 12px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #2563eb 0%, #60a5fa 100%);
+}
+
+.project-panel > .latest-change-box:first-of-type {
+  border-color: rgba(37, 99, 235, 0.22);
+  background: linear-gradient(
+    180deg,
+    rgba(37, 99, 235, 0.09) 0%,
+    rgba(96, 165, 250, 0.04) 100%
+  );
+}
+
+.project-panel > .section-title {
+  margin-top: 28px;
+}
+
+.project-panel > .section-title:first-of-type {
+  margin-top: 22px;
+}
+
+/* Make key flow areas feel stronger */
+.project-panel > .section-title:nth-of-type(1),
+.project-panel > .section-title:nth-of-type(2),
+.project-panel > .section-title:nth-of-type(3),
+.project-panel > .section-title:nth-of-type(4) {
+  scroll-margin-top: 24px;
+}
+
+/* Stronger divider rhythm */
+.divider {
+  margin: 26px 0;
+}
+
+/* ===== Handoff-focused sections ===== */
+
+.project-panel .input-row {
+  margin-top: 4px;
+  margin-bottom: 16px;
+}
+
+.project-panel .input-row .button {
+  white-space: nowrap;
+}
+
+/* The "copy for AI" button should feel like a primary action */
+.project-panel .export-button {
+  border-color: #7ea6ff;
+  background: linear-gradient(180deg, #ffffff 0%, #e8f0ff 100%);
+  box-shadow:
+    0 1px 2px rgba(16, 24, 40, 0.05),
+    0 12px 28px rgba(37, 99, 235, 0.12);
+}
+
+.project-panel .export-button:hover {
+  border-color: #5b8cff;
+  box-shadow:
+    0 1px 2px rgba(16, 24, 40, 0.05),
+    0 16px 32px rgba(37, 99, 235, 0.18);
+}
+
+/* File input under scan section */
+.project-panel input[type="file"] {
+  margin-top: 4px;
+  margin-bottom: 8px;
+}
+
+/* ===== Readability tweaks ===== */
+
+.project-panel .meta-item {
+  line-height: 1.65;
+}
+
+.project-panel .section-title + .meta-item {
+  margin-top: 0;
+}
+
+.project-panel .section-title + .info-list,
+.project-panel .section-title + .textarea,
+.project-panel .section-title + .input {
+  margin-top: 6px;
 }
 
 /* ===== Desktop editor layout ===== */
@@ -99,11 +214,12 @@
   .project-panel {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 18px 22px;
+    gap: 18px 24px;
     align-items: start;
   }
 
   .panel-title,
+  .current-project-name,
   .project-panel > .input-row:first-of-type,
   .project-panel > .divider,
   .project-panel > .textarea,
@@ -114,7 +230,14 @@
 
   .project-panel > .section-title,
   .project-panel > .meta-item,
-  .project-panel > h3[style] {
+  .project-panel > .input,
+  .project-panel > input[type="file"] {
+    grid-column: span 2;
+  }
+
+  .project-panel > .section-title + .textarea,
+  .project-panel > .section-title + .info-list,
+  .project-panel > .section-title + .input {
     grid-column: span 2;
   }
 }

@@ -18,7 +18,8 @@ type Props = {
   onImportAiUpdate: () => void;
   onUploadJsonClick: () => void;
   onImportProject: (e: ChangeEvent<HTMLInputElement>) => void;
-  onProjectFolderUpload: (e: ChangeEvent<HTMLInputElement>) => void;
+  onHandleProjectFolderPick: () => void;
+  onRescanLinkedProject: () => void;
   fileInputRef: RefObject<HTMLInputElement | null>;
 };
 
@@ -38,7 +39,8 @@ function ProjectEditor({
   onImportAiUpdate,
   onUploadJsonClick,
   onImportProject,
-  onProjectFolderUpload,
+  onHandleProjectFolderPick,
+  onRescanLinkedProject,
   fileInputRef,
 }: Props) {
   const latestChange =
@@ -50,6 +52,14 @@ function ProjectEditor({
     PLATFORM_CONFIG[targetPlatform]?.label || "ChatGPT";
 
   const platformState = selectedProject.platformState?.[targetPlatform];
+  const scanInfo = selectedProject.scanInfo;
+  const scanInsights = selectedProject.scanInsights;
+
+  const hasImportantFiles = selectedProject.importantAssets.length > 0;
+  const hasSummary = selectedProject.summary.trim().length > 0;
+  const hasCurrentState = selectedProject.currentState.trim().length > 0;
+  const readyToCopy = hasSummary || hasCurrentState || hasImportantFiles;
+  const hasLinkedProject = !!selectedProject.linkedProjectPath;
 
   const getLastSeenText = () => {
     if (!platformState?.lastSentSnapshotId) {
@@ -93,18 +103,47 @@ function ProjectEditor({
     return `${targetPlatformLabel} last replied on ${lastReply.toLocaleDateString()}.`;
   };
 
+  const getMissionStatus = () => {
+    if (!hasImportantFiles && !hasSummary && !hasCurrentState) {
+      return "Start by scanning a project or writing a quick summary.";
+    }
+
+    if (!hasImportantFiles) {
+      return "Add more project context by scanning the project folder.";
+    }
+
+    if (deltaSummary.length > 0 && deltaSummary[0] !== "No changes detected.") {
+      return `${targetPlatformLabel} needs the latest changes. Review them below, then copy the handoff.`;
+    }
+
+    return `Project context is ready. Copy it into ${targetPlatformLabel} to continue working.`;
+  };
+
+  const formatLastScanned = () => {
+    if (!scanInfo?.lastScannedAt) return "Not scanned yet";
+    return new Date(scanInfo.lastScannedAt).toLocaleString();
+  };
+
   return (
     <div className="project-panel">
-      <h2 className="panel-title">🧠 Current Project</h2>
+      <h2 className="panel-title">🧠 Mission Control</h2>
 
       <h3 className="current-project-name">
-        Currently editing: <span>{selectedProject.projectName}</span>
+        Current project: <span>{selectedProject.projectName}</span>
       </h3>
 
       <p className="meta-item editor-helper-text">
-        Build or update your project context here, then send it to another AI so
-        it can continue from the right point.
+        This is your handoff centre. Update the project, scan files safely, then
+        send the right context into your next AI.
       </p>
+
+      <div className="latest-change-box">
+        <strong>Next destination:</strong> {targetPlatformLabel}
+        <br />
+        <span className="latest-change-meta">{getLastSeenText()}</span>
+        <br />
+        <span className="latest-change-meta">{getMissionStatus()}</span>
+      </div>
 
       <div className="input-row">
         <button onClick={onSaveProject} className="button">
@@ -115,8 +154,22 @@ function ProjectEditor({
           📋 Copy for {targetPlatformLabel}
         </button>
 
+        <button onClick={onHandleProjectFolderPick} className="button">
+          📁 Link Project Folder
+        </button>
+
+        {hasLinkedProject && (
+          <button onClick={onRescanLinkedProject} className="button">
+            🔄 Rescan Linked Project
+          </button>
+        )}
+
         <button onClick={onUploadJsonClick} className="button">
           📂 Open Saved Project
+        </button>
+
+        <button onClick={onRollbackLastAiImport} className="button">
+          ↩️ Undo Last AI Update
         </button>
 
         <input
@@ -126,24 +179,127 @@ function ProjectEditor({
           onChange={onImportProject}
           style={{ display: "none" }}
         />
-
-        <button onClick={onRollbackLastAiImport} className="button">
-          ↩️ Undo Last AI Update
-        </button>
       </div>
 
+      <hr className="divider" />
+
+      <h3 className="section-title">🚦 Handoff Status</h3>
+      <ul className="info-list">
+        <li>
+          <strong>Target AI:</strong> {targetPlatformLabel}
+        </li>
+        <li>
+          <strong>Project scanned:</strong>{" "}
+          {hasImportantFiles ? "Yes" : "Not yet"}
+        </li>
+        <li>
+          <strong>Summary ready:</strong> {hasSummary ? "Yes" : "Not yet"}
+        </li>
+        <li>
+          <strong>Current state ready:</strong>{" "}
+          {hasCurrentState ? "Yes" : "Not yet"}
+        </li>
+        <li>
+          <strong>Ready to hand off:</strong> {readyToCopy ? "Yes" : "Not yet"}
+        </li>
+        <li>
+          <strong>Linked folder:</strong>{" "}
+          {selectedProject.linkedProjectPath || "Not linked yet"}
+        </li>
+      </ul>
+
+      <h3 className="section-title">🤖 Choose your next AI</h3>
       <p className="meta-item">
-        <strong>Project name:</strong> {selectedProject.projectName}
+        Pick the AI platform you want to continue this project in.
       </p>
-      <p className="meta-item">
-        <strong>Version:</strong> {selectedProject.schema_version}
+      <select
+        value={targetPlatform}
+        onChange={(e) => onTargetPlatformChange(e.target.value as AIPlatform)}
+        className="input"
+      >
+        {Object.entries(PLATFORM_CONFIG).map(([key, config]) => (
+          <option key={key} value={key}>
+            {config.label}
+          </option>
+        ))}
+      </select>
+
+      <p className="meta-item editor-helper-text">{getLastSeenText()}</p>
+
+      <h3 className="section-title">📁 Project link and scan</h3>
+      <p className="meta-item editor-helper-text">
+        Link a real project folder once, then rescan it anytime without browsing
+        again.
       </p>
-      <p className="meta-item">
-        <strong>Created:</strong> {selectedProject.created}
-      </p>
-      <p className="meta-item">
-        <strong>Last updated:</strong> {selectedProject.lastModified}
-      </p>
+
+      <div className="input-row">
+        <button onClick={onHandleProjectFolderPick} className="button">
+          📁 Link Project Folder
+        </button>
+
+        {hasLinkedProject && (
+          <button onClick={onRescanLinkedProject} className="button">
+            🔄 Rescan Linked Project
+          </button>
+        )}
+      </div>
+
+      {selectedProject.linkedProjectPath && (
+        <p className="meta-item editor-helper-text">
+          Linked path: <strong>{selectedProject.linkedProjectPath}</strong>
+        </p>
+      )}
+
+      {scanInfo && (
+        <div className="latest-change-box">
+          <strong>Scan summary:</strong> {scanInfo.detectedType}
+          <br />
+          <span className="latest-change-meta">
+            Last scanned: {formatLastScanned()}
+          </span>
+          <br />
+          <span className="latest-change-meta">
+            Files scanned: {scanInfo.scannedFileCount} · Important files:{" "}
+            {scanInfo.importantFileCount} · Excluded files:{" "}
+            {scanInfo.excludedFileCount}
+          </span>
+          <br />
+          <span className="latest-change-meta">
+            Detected tags:{" "}
+            {scanInfo.detectedTags.length > 0
+              ? scanInfo.detectedTags.join(", ")
+              : "None detected"}
+          </span>
+        </div>
+      )}
+
+      {scanInsights && (
+        <div className="latest-change-box">
+          <strong>Scan insights:</strong> {scanInsights.architecture}
+          <br />
+          <span className="latest-change-meta">
+            Confidence: {scanInsights.confidence}
+          </span>
+          <br />
+          <span className="latest-change-meta">
+            Entry point: {scanInsights.likelyEntryPoint || "Not detected"}
+          </span>
+          <br />
+          <span className="latest-change-meta">
+            Auth files:{" "}
+            {scanInsights.likelyAuthFiles.length > 0
+              ? scanInsights.likelyAuthFiles.join(", ")
+              : "None"}
+          </span>
+          <br />
+          <span className="latest-change-meta">
+            Model files:{" "}
+            {scanInsights.likelyModelFiles.length > 0
+              ? scanInsights.likelyModelFiles.join(", ")
+              : "None"}
+          </span>
+        </div>
+      )}
 
       {latestChange && (
         <div className="latest-change-box">
@@ -154,6 +310,19 @@ function ProjectEditor({
           </span>
         </div>
       )}
+
+      <hr className="divider" />
+
+      <h3 className="section-title">
+        🧠 What changed since {targetPlatformLabel} last saw this?
+      </h3>
+      <ul className="info-list">
+        {deltaSummary.length === 0 ? (
+          <li>No changes detected.</li>
+        ) : (
+          deltaSummary.map((item, index) => <li key={index}>{item}</li>)
+        )}
+      </ul>
 
       <hr className="divider" />
 
@@ -180,68 +349,6 @@ function ProjectEditor({
         className="textarea"
         placeholder="Example: The core project memory flow works. We are now improving the UX so non-technical users can understand the app quickly."
       />
-
-      <hr className="divider" />
-
-      <h3 className="section-title">🤖 Choose your next AI</h3>
-      <p className="meta-item">
-        Pick the AI platform you want to continue this project in.
-      </p>
-      <select
-        value={targetPlatform}
-        onChange={(e) => onTargetPlatformChange(e.target.value as AIPlatform)}
-        className="input"
-      >
-        {Object.entries(PLATFORM_CONFIG).map(([key, config]) => (
-          <option key={key} value={key}>
-            {config.label}
-          </option>
-        ))}
-      </select>
-
-      <p className="meta-item editor-helper-text">{getLastSeenText()}</p>
-
-      <h3 className="section-title">📁 Scan project and build handoff</h3>
-      <p className="meta-item editor-helper-text">
-        This is the quickest way to prepare context for another AI. Project
-        Brain will scan the project safely, skip secret files like{" "}
-        <strong>.env</strong>, rebuild the context, and make the handoff ready
-        to copy.
-      </p>
-
-      <div className="input-row">
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          className="button"
-        >
-          📁 Scan Project & Build Handoff
-        </button>
-      </div>
-
-      <input
-        type="file"
-        webkitdirectory=""
-        multiple
-        onChange={onProjectFolderUpload}
-      />
-
-      <p className="meta-item editor-helper-text">
-        After scanning, review the summary below, then click{" "}
-        <strong>Copy for {targetPlatformLabel}</strong>.
-      </p>
-
-      <h3 className="section-title">
-        🧠 What changed since {targetPlatformLabel} last saw this?
-      </h3>
-      <ul className="info-list">
-        {deltaSummary.length === 0 ? (
-          <li>No changes detected.</li>
-        ) : (
-          deltaSummary.map((item, index) => <li key={index}>{item}</li>)
-        )}
-      </ul>
-
-      <hr className="divider" />
 
       <h3 className="section-title">🎯 Goals</h3>
       <ul className="info-list">
@@ -300,7 +407,7 @@ function ProjectEditor({
 
       <h3 className="section-title">📁 Important Files Found</h3>
       <p className="meta-item editor-helper-text">
-        These are the main files Project Brain thinks matter for understanding
+        These are the files Project Brain thinks matter most for understanding
         the project and handing it off safely.
       </p>
       <ul className="info-list">
@@ -347,8 +454,7 @@ function ProjectEditor({
         🤖 Bring updates back from {targetPlatformLabel}
       </h3>
       <p className="meta-item editor-helper-text">
-        When your AI gives you a Project Brain update, paste it here to add the
-        new progress, decisions, and next steps back into this project.
+        Paste a Project Brain update from {targetPlatformLabel} here.
       </p>
       <textarea
         value={aiImportText}

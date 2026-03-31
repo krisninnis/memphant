@@ -82,6 +82,7 @@
   border-radius: 14px;
   background: rgba(37, 99, 235, 0.04);
   border-bottom: 1px solid #e7eef8;
+  align-items: stretch;
 }
 
 /* ===== Sidebar nav ===== */

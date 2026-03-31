@@ -34,6 +34,26 @@ export type PlatformCursor = {
   lastReplyAt?: string;
 };
 
+export type ScanInfo = {
+  detectedType: string;
+  detectedTags: string[];
+  scannedFileCount: number;
+  importantFileCount: number;
+  excludedFileCount: number;
+  lastScannedAt: string;
+};
+
+export type ScanInsights = {
+  architecture: string;
+  likelyEntryPoint?: string;
+  likelyAuthFiles: string[];
+  likelyModelFiles: string[];
+  likelyConfigFiles: string[];
+  likelyDocs: string[];
+  confidence: "low" | "medium" | "high";
+  notes: string[];
+};
+
 export type ProjectMemory = {
   schema_version: string;
   projectName: string;
@@ -51,6 +71,9 @@ export type ProjectMemory = {
 
   importantAssets: string[];
 
+  linkedProjectPath?: string;
+  linkedProjectName?: string;
+
   changelog: {
     date: string;
     source: string;
@@ -63,12 +86,14 @@ export type ProjectMemory = {
     focus: string;
   };
 
-  // ✅ NEW — HANDOFF ENGINE (all optional so nothing breaks)
   snapshots?: Snapshot[];
   handoffs?: Handoff[];
   platformState?: {
     [platform: string]: PlatformCursor;
   };
+
+  scanInfo?: ScanInfo;
+  scanInsights?: ScanInsights;
 };
 
 export const DEFAULT_AI_INSTRUCTIONS: ProjectMemory["aiInstructions"] = {

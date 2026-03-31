@@ -1,0 +1,148 @@
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.42);
+  backdrop-filter: blur(6px);
+}
+
+.modal-card {
+  width: min(100%, 620px);
+  border-radius: 28px;
+  border: 1px solid rgba(203, 213, 225, 0.85);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.96) 0%,
+    rgba(248, 250, 252, 0.98) 100%
+  );
+  box-shadow:
+    0 24px 80px rgba(15, 23, 42, 0.18),
+    0 8px 30px rgba(15, 23, 42, 0.1);
+  padding: 28px;
+}
+
+.modal-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.modal-title {
+  margin: 0;
+  font-size: clamp(1.6rem, 2.5vw, 2.1rem);
+  font-weight: 800;
+  line-height: 1.1;
+  color: #0f172a;
+}
+
+.modal-close-button {
+  border: none;
+  background: transparent;
+  font-size: 1.2rem;
+  cursor: pointer;
+  color: #475569;
+}
+
+.modal-subtitle {
+  margin: 14px 0 22px;
+  color: #475569;
+  line-height: 1.7;
+  font-size: 1rem;
+}
+
+.modal-option-list {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 22px;
+}
+
+.modal-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 18px;
+  border-radius: 20px;
+  border: 1px solid #d7deea;
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.modal-option.active {
+  border-color: rgba(99, 102, 241, 0.55);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.12);
+}
+
+.modal-option.disabled {
+  opacity: 0.72;
+}
+
+.modal-option-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  font-size: 1.4rem;
+  background: rgba(248, 250, 252, 0.95);
+  border: 1px solid #d7deea;
+  color: #1e293b;
+  flex-shrink: 0;
+}
+
+.modal-option-content {
+  min-width: 0;
+}
+
+.modal-option-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 4px;
+}
+
+.modal-option-text {
+  color: #64748b;
+  line-height: 1.55;
+}
+
+.modal-form-section {
+  margin-top: 8px;
+}
+
+.modal-label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 22px;
+}
+
+@media (max-width: 640px) {
+  .modal-card {
+    padding: 22px;
+    border-radius: 22px;
+  }
+
+  .modal-actions {
+    flex-direction: column;
+  }
+
+  .modal-actions .button {
+    width: 100%;
+  }
+}
+.modal-option-button {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
