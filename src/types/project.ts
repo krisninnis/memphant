@@ -54,6 +54,12 @@ export type ScanInsights = {
   notes: string[];
 };
 
+export type LinkedFolder = {
+  path: string; // absolute path — never included in AI exports
+  lastScannedAt: string; // ISO 8601
+  scanHash: string; // hash of file list, truncated to 12 chars
+};
+
 export type ProjectMemory = {
   schema_version: string;
   projectName: string;
@@ -71,8 +77,12 @@ export type ProjectMemory = {
 
   importantAssets: string[];
 
+  // Legacy fields — kept for backward compat with existing saved projects
   linkedProjectPath?: string;
   linkedProjectName?: string;
+
+  // Replaces/consolidates the above over time
+  linkedFolder?: LinkedFolder;
 
   changelog: {
     date: string;

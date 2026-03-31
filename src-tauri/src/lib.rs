@@ -25,9 +25,7 @@ fn is_ignored_path(path: &str) -> bool {
 fn is_sensitive_file(path: &str) -> bool {
     let normalized = path.replace("\\", "/").to_lowercase();
 
-    // Only block real secret-style files, not normal code files
     let sensitive_extensions = [".env", ".pem", ".key", ".p12", ".pfx"];
-
     let sensitive_filenames = ["id_rsa", "id_dsa"];
 
     if sensitive_extensions
@@ -134,9 +132,162 @@ fn collect_safe_files(
     Ok(())
 }
 
+fn compute_scan_hash(files: &[String]) -> String {
+    let mut sorted = files.to_vec();
+    sorted.sort();
+    let raw = sorted.join("|");
+
+    let mut hash: u64 = 5381;
+    for byte in raw.bytes() {
+        hash = hash.wrapping_mul(33).wrapping_add(byte as u64);
+    }
+
+    let hex = format!("{:016x}", hash);
+    hex[..12].to_string()
+}
+
+// NEW: reads README and package.json from the root of a scanned folder.
+// Returns only safe, non-sensitive content. Truncated to keep payloads small.
+fn read_project_meta(root: &Path) -> ProjectMeta {
+    // README — try .md first, then .txt
+    let readme = ["README.md", "readme.md", "README.txt", "readme.txt"]
+        .iter()
+        .find_map(|name| {
+            let path = root.join(name);
+            if path.exists() {
+                fs::read_to_string(&path)
+                    .ok()
+                    .map(|content| content.chars().take(2000).collect::<String>())
+            } else {
+                None
+            }
+        });
+
+    // package.json — extract name, description, scripts keys only (never deps = no versions leaked)
+    let package_json = {
+        let path = root.join("package.json");
+        if path.exists() {
+            fs::read_to_string(&path).ok().and_then(|content| {
+                // Parse just the fields we want — no serde_json dep needed, basic extraction
+                let name = extract_json_string(&content, "name");
+                let description = extract_json_string(&content, "description");
+                let version = extract_json_string(&content, "version");
+
+                if name.is_some() || description.is_some() {
+                    Some(PackageInfo {
+                        name,
+                        description,
+                        version,
+                    })
+                } else {
+                    None
+                }
+            })
+        } else {
+            None
+        }
+    };
+
+    // Cargo.toml — extract name and description
+    let cargo_toml = {
+        let path = root.join("Cargo.toml");
+        if path.exists() {
+            fs::read_to_string(&path).ok().and_then(|content| {
+                let name = extract_toml_value(&content, "name");
+                let description = extract_toml_value(&content, "description");
+
+                if name.is_some() || description.is_some() {
+                    Some(PackageInfo {
+                        name,
+                        description,
+                        version: extract_toml_value(&content, "version"),
+                    })
+                } else {
+                    None
+                }
+            })
+        } else {
+            None
+        }
+    };
+
+    ProjectMeta {
+        readme,
+        package_json,
+        cargo_toml,
+    }
+}
+
+// Minimal JSON string extractor — avoids serde_json dependency.
+// Finds `"key": "value"` and returns the value string.
+fn extract_json_string(json: &str, key: &str) -> Option<String> {
+    let pattern = format!("\"{}\"", key);
+    let key_pos = json.find(&pattern)?;
+    let after_key = &json[key_pos + pattern.len()..];
+    let colon_pos = after_key.find(':')?;
+    let after_colon = after_key[colon_pos + 1..].trim_start();
+
+    if after_colon.starts_with('"') {
+        let content = &after_colon[1..];
+        let end = content.find('"')?;
+        Some(content[..end].to_string())
+    } else {
+        None
+    }
+}
+
+// Minimal TOML value extractor for key = "value" patterns.
+fn extract_toml_value(toml: &str, key: &str) -> Option<String> {
+    for line in toml.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with(key) {
+            let after_key = trimmed[key.len()..].trim_start();
+            if after_key.starts_with('=') {
+                let after_eq = after_key[1..].trim_start();
+                if after_eq.starts_with('"') {
+                    let content = &after_eq[1..];
+                    if let Some(end) = content.find('"') {
+                        return Some(content[..end].to_string());
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+#[derive(serde::Serialize)]
+pub struct PackageInfo {
+    name: Option<String>,
+    description: Option<String>,
+    version: Option<String>,
+}
+
+#[derive(serde::Serialize)]
+pub struct ProjectMeta {
+    readme: Option<String>,
+    package_json: Option<PackageInfo>,
+    cargo_toml: Option<PackageInfo>,
+}
+
+#[derive(serde::Serialize)]
+pub struct RescanResult {
+    files: Vec<String>,
+    scan_hash: String,
+    folder_exists: bool,
+}
+
+// NEW: full scan result including project meta for auto-population
+#[derive(serde::Serialize)]
+pub struct ScanResult {
+    files: Vec<String>,
+    scan_hash: String,
+    meta: ProjectMeta,
+}
+
 #[tauri::command]
-fn scan_project_folder(folder_path: String) -> Result<Vec<String>, String> {
-    let root = PathBuf::from(folder_path);
+fn scan_project_folder(folder_path: String) -> Result<ScanResult, String> {
+    let root = PathBuf::from(&folder_path);
 
     if !root.exists() {
         return Err("Selected folder does not exist".to_string());
@@ -146,11 +297,43 @@ fn scan_project_folder(folder_path: String) -> Result<Vec<String>, String> {
         return Err("Selected path is not a folder".to_string());
     }
 
-    let mut results: Vec<String> = Vec::new();
-    collect_safe_files(&root, &root, &mut results)?;
-    results.sort();
+    let mut files: Vec<String> = Vec::new();
+    collect_safe_files(&root, &root, &mut files)?;
+    files.sort();
 
-    Ok(results)
+    let scan_hash = compute_scan_hash(&files);
+    let meta = read_project_meta(&root);
+
+    Ok(ScanResult {
+        files,
+        scan_hash,
+        meta,
+    })
+}
+
+#[tauri::command]
+fn rescan_linked_folder(folder_path: String) -> Result<RescanResult, String> {
+    let root = PathBuf::from(&folder_path);
+
+    if !root.exists() || !root.is_dir() {
+        return Ok(RescanResult {
+            files: vec![],
+            scan_hash: String::new(),
+            folder_exists: false,
+        });
+    }
+
+    let mut files: Vec<String> = Vec::new();
+    collect_safe_files(&root, &root, &mut files)?;
+    files.sort();
+
+    let scan_hash = compute_scan_hash(&files);
+
+    Ok(RescanResult {
+        files,
+        scan_hash,
+        folder_exists: true,
+    })
 }
 
 #[tauri::command]
@@ -163,7 +346,6 @@ fn save_project_file(project_name: String, project_data: String) -> Result<Strin
     }
 
     path.push(format!("{}.json", safe_name));
-
     fs::write(&path, project_data).map_err(|e| e.to_string())?;
 
     Ok(path.display().to_string())
@@ -186,7 +368,6 @@ fn load_projects() -> Result<Vec<String>, String> {
     }
 
     projects.sort();
-
     Ok(projects)
 }
 
@@ -209,7 +390,6 @@ fn delete_project_file(file_name: String) -> Result<String, String> {
     }
 
     fs::remove_file(&path).map_err(|e| e.to_string())?;
-
     Ok(format!("Deleted {}", path.display()))
 }
 
@@ -219,6 +399,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             scan_project_folder,
+            rescan_linked_folder,
             save_project_file,
             load_projects,
             load_project_file,

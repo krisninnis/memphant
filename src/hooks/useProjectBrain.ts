@@ -271,10 +271,15 @@ export function useProjectBrain() {
     }
   };
 
+  // UPDATED: uses rescan_linked_folder command + checks linkedFolder first
   const handleRescanLinkedProject = async () => {
     if (!selectedProject) return;
 
-    if (!selectedProject.linkedProjectPath) {
+    // Prefer linkedFolder.path (new), fall back to linkedProjectPath (legacy)
+    const folderPath =
+      selectedProject.linkedFolder?.path ?? selectedProject.linkedProjectPath;
+
+    if (!folderPath) {
       setMessage(
         "This project is not linked to a folder yet. Please choose a folder first.",
       );
@@ -282,14 +287,24 @@ export function useProjectBrain() {
     }
 
     try {
-      const files = await invoke<string[]>("scan_project_folder", {
-        folderPath: selectedProject.linkedProjectPath,
-      });
+      const result = await invoke<{
+        files: string[];
+        scan_hash: string;
+        folder_exists: boolean;
+      }>("rescan_linked_folder", { folderPath });
+
+      if (!result.folder_exists) {
+        setMessage(
+          "The linked folder could not be found. It may have been moved or deleted. Please re-link a folder.",
+        );
+        return;
+      }
 
       const rescannedProject = buildProjectFromScan({
         selectedProject,
-        folderPath: selectedProject.linkedProjectPath,
-        files,
+        folderPath,
+        files: result.files,
+        scanHash: result.scan_hash,
       });
 
       const updatedProject: ProjectMemory = {
@@ -309,9 +324,9 @@ export function useProjectBrain() {
       await saveProjectData(updatedProject);
       setSelectedProject(updatedProject);
       setMessage(
-        `Linked project rescanned successfully. ${
+        `Rescanned successfully. ${
           updatedProject.linkedProjectName || updatedProject.projectName
-        } was updated without choosing the folder again.`,
+        } is up to date.`,
       );
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (error) {

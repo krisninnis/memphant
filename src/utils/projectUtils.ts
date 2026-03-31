@@ -1,5 +1,6 @@
 import {
   DEFAULT_AI_INSTRUCTIONS,
+  LinkedFolder,
   ProjectMemory,
   Snapshot,
 } from "../types/project";
@@ -51,7 +52,24 @@ export function normalizeImportedProject(data: unknown): ProjectMemory {
     scanInsights?: ProjectMemory["scanInsights"];
     linkedProjectPath?: unknown;
     linkedProjectName?: unknown;
+    linkedFolder?: unknown;
   };
+
+  // Normalize linkedFolder if present
+  const rawLinkedFolder = safe.linkedFolder as
+    | Partial<LinkedFolder>
+    | undefined;
+  const linkedFolder: LinkedFolder | undefined =
+    rawLinkedFolder &&
+    typeof rawLinkedFolder.path === "string" &&
+    typeof rawLinkedFolder.lastScannedAt === "string" &&
+    typeof rawLinkedFolder.scanHash === "string"
+      ? {
+          path: rawLinkedFolder.path,
+          lastScannedAt: rawLinkedFolder.lastScannedAt,
+          scanHash: rawLinkedFolder.scanHash,
+        }
+      : undefined;
 
   return {
     schema_version:
@@ -98,6 +116,8 @@ export function normalizeImportedProject(data: unknown): ProjectMemory {
       safe.linkedProjectName.trim()
         ? safe.linkedProjectName
         : undefined,
+
+    linkedFolder, // NEW — undefined for old projects, populated for new ones
 
     changelog: Array.isArray(safe.changelog)
       ? safe.changelog.filter(
@@ -254,10 +274,23 @@ export function sanitizeForAiExport(project: ProjectMemory): ProjectMemory {
     decisions: project.decisions.map(redactString),
     nextSteps: project.nextSteps.map(redactString),
     openQuestions: project.openQuestions.map(redactString),
+
+    // Legacy field — redact value, keep undefined if not set
     linkedProjectPath: project.linkedProjectPath
       ? redactString(project.linkedProjectPath)
       : undefined,
     linkedProjectName: project.linkedProjectName,
+
+    // NEW: strip the absolute path entirely — only expose hash + timestamp
+    // so AIs can detect "has this changed?" without knowing the local path
+    linkedFolder: project.linkedFolder
+      ? {
+          path: "[LOCAL PATH HIDDEN]",
+          lastScannedAt: project.linkedFolder.lastScannedAt,
+          scanHash: project.linkedFolder.scanHash,
+        }
+      : undefined,
+
     importantAssets: project.importantAssets.map((asset) =>
       envFilePattern.test(asset) ? "[REDACTED]" : asset,
     ),

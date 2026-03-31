@@ -127,12 +127,24 @@ export function analyseScannedFiles(files: string[]): ScanAnalysis {
   };
 }
 
+function computeClientScanHash(files: string[]): string {
+  const sorted = [...files].sort();
+  const raw = sorted.join("|") + "|count:" + files.length;
+  let hash = 5381;
+  for (let i = 0; i < raw.length; i++) {
+    hash = (hash * 33) ^ raw.charCodeAt(i);
+    hash = hash >>> 0;
+  }
+  return hash.toString(16).padStart(8, "0").slice(0, 12);
+}
+
 export function buildProjectFromScan(params: {
   selectedProject: ProjectMemory;
   folderPath: string;
   files: string[];
+  scanHash?: string; // ← ADDED: Rust hash takes priority when provided
 }): ProjectMemory {
-  const { selectedProject, folderPath, files } = params;
+  const { selectedProject, folderPath, files, scanHash } = params; // ← ADDED scanHash
 
   const limitedFiles = files.slice(0, 200);
   const now = new Date().toISOString();
@@ -143,6 +155,14 @@ export function buildProjectFromScan(params: {
     selectedProject.projectName;
 
   const analysis = analyseScannedFiles(limitedFiles);
+
+  // Use Rust hash if provided, otherwise compute client-side
+  const computedHash = scanHash ?? computeClientScanHash(limitedFiles);
+  const linkedFolder = {
+    path: folderPath,
+    lastScannedAt: now,
+    scanHash: computedHash,
+  };
 
   const autoSummary =
     selectedProject.summary.trim().length > 0
@@ -155,6 +175,26 @@ export function buildProjectFromScan(params: {
       ? selectedProject.currentState
       : `Project folder scanned successfully. ${limitedFiles.length} useful files were identified and prepared for handoff.`;
 
+  const scanInfoBlock = {
+    detectedType: analysis.detectedType,
+    detectedTags: analysis.detectedTags,
+    scannedFileCount: files.length,
+    importantFileCount: limitedFiles.length,
+    excludedFileCount: Math.max(files.length - limitedFiles.length, 0),
+    lastScannedAt: now,
+  };
+
+  const scanInsightsBlock = {
+    architecture: analysis.detectedType,
+    likelyEntryPoint: analysis.likelyEntryPoint,
+    likelyAuthFiles: analysis.likelyAuthFiles,
+    likelyModelFiles: analysis.likelyModelFiles,
+    likelyConfigFiles: analysis.likelyConfigFiles,
+    likelyDocs: analysis.likelyDocs,
+    confidence: analysis.confidence,
+    notes: analysis.notes,
+  };
+
   const newSnapshot = createSnapshot({
     ...selectedProject,
     summary: autoSummary,
@@ -162,24 +202,9 @@ export function buildProjectFromScan(params: {
     importantAssets: limitedFiles,
     linkedProjectPath: folderPath,
     linkedProjectName,
-    scanInfo: {
-      detectedType: analysis.detectedType,
-      detectedTags: analysis.detectedTags,
-      scannedFileCount: files.length,
-      importantFileCount: limitedFiles.length,
-      excludedFileCount: Math.max(files.length - limitedFiles.length, 0),
-      lastScannedAt: now,
-    },
-    scanInsights: {
-      architecture: analysis.detectedType,
-      likelyEntryPoint: analysis.likelyEntryPoint,
-      likelyAuthFiles: analysis.likelyAuthFiles,
-      likelyModelFiles: analysis.likelyModelFiles,
-      likelyConfigFiles: analysis.likelyConfigFiles,
-      likelyDocs: analysis.likelyDocs,
-      confidence: analysis.confidence,
-      notes: analysis.notes,
-    },
+    linkedFolder,
+    scanInfo: scanInfoBlock,
+    scanInsights: scanInsightsBlock,
   });
 
   const existingSnapshots = selectedProject.snapshots ?? [];
@@ -195,24 +220,9 @@ export function buildProjectFromScan(params: {
     importantAssets: limitedFiles,
     linkedProjectPath: folderPath,
     linkedProjectName,
-    scanInfo: {
-      detectedType: analysis.detectedType,
-      detectedTags: analysis.detectedTags,
-      scannedFileCount: files.length,
-      importantFileCount: limitedFiles.length,
-      excludedFileCount: Math.max(files.length - limitedFiles.length, 0),
-      lastScannedAt: now,
-    },
-    scanInsights: {
-      architecture: analysis.detectedType,
-      likelyEntryPoint: analysis.likelyEntryPoint,
-      likelyAuthFiles: analysis.likelyAuthFiles,
-      likelyModelFiles: analysis.likelyModelFiles,
-      likelyConfigFiles: analysis.likelyConfigFiles,
-      likelyDocs: analysis.likelyDocs,
-      confidence: analysis.confidence,
-      notes: analysis.notes,
-    },
+    linkedFolder,
+    scanInfo: scanInfoBlock,
+    scanInsights: scanInsightsBlock,
     snapshots: shouldAddSnapshot
       ? [...existingSnapshots, newSnapshot]
       : existingSnapshots,
