@@ -10,6 +10,7 @@ type AiUpdatePayload = {
   add_nextSteps?: string[];
   add_openQuestions?: string[];
 };
+
 export function validateAiUpdate(input: any): boolean {
   if (typeof input !== "object" || input === null) return false;
 
@@ -29,6 +30,7 @@ export function validateAiUpdate(input: any): boolean {
 
   return true;
 }
+
 export function mergeAiUpdateIntoProject(
   selectedProject: ProjectMemory,
   aiImportText: string,
@@ -36,10 +38,19 @@ export function mergeAiUpdateIntoProject(
   const parsed = JSON.parse(aiImportText) as AiUpdatePayload;
   const now = new Date().toISOString();
 
+  const summaryUpdated =
+    typeof parsed.summary === "string" && parsed.summary.trim().length > 0;
+
+  const currentStateUpdated =
+    typeof parsed.currentState === "string" &&
+    parsed.currentState.trim().length > 0;
+
   return {
     ...selectedProject,
-    summary: parsed.summary || selectedProject.summary,
-    currentState: parsed.currentState || selectedProject.currentState,
+    summary: summaryUpdated ? parsed.summary!.trim() : selectedProject.summary,
+    currentState: currentStateUpdated
+      ? parsed.currentState!.trim()
+      : selectedProject.currentState,
     goals: parsed.add_goals
       ? [...new Set([...selectedProject.goals, ...parsed.add_goals])]
       : selectedProject.goals,
@@ -60,6 +71,13 @@ export function mergeAiUpdateIntoProject(
           ]),
         ]
       : selectedProject.openQuestions,
+    autoFillState: {
+      ...selectedProject.autoFillState,
+      summary: summaryUpdated ? "ai" : selectedProject.autoFillState?.summary,
+      currentState: currentStateUpdated
+        ? "ai"
+        : selectedProject.autoFillState?.currentState,
+    },
     lastModified: now,
     changelog: [
       ...selectedProject.changelog,

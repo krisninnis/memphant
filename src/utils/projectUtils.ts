@@ -62,14 +62,17 @@ export function normalizeImportedProject(data: unknown): ProjectMemory {
     | undefined;
 
   const linkedFolder: LinkedFolder | undefined =
-    rawLinkedFolder &&
-    typeof rawLinkedFolder.path === "string" &&
-    typeof rawLinkedFolder.lastScannedAt === "string" &&
-    typeof rawLinkedFolder.scanHash === "string"
+    rawLinkedFolder && typeof rawLinkedFolder.path === "string"
       ? {
           path: rawLinkedFolder.path,
-          lastScannedAt: rawLinkedFolder.lastScannedAt,
-          scanHash: rawLinkedFolder.scanHash,
+          lastScannedAt:
+            typeof rawLinkedFolder.lastScannedAt === "string"
+              ? rawLinkedFolder.lastScannedAt
+              : now,
+          scanHash:
+            typeof rawLinkedFolder.scanHash === "string"
+              ? rawLinkedFolder.scanHash
+              : "unknown",
         }
       : undefined;
 
@@ -328,7 +331,7 @@ export function sanitizeForAiExport(project: ProjectMemory): ProjectMemory {
 
     // Legacy field — redact value, keep undefined if not set
     linkedProjectPath: project.linkedProjectPath
-      ? redactString(project.linkedProjectPath)
+      ? "[LOCAL PATH HIDDEN]"
       : undefined,
 
     linkedProjectName: project.linkedProjectName,

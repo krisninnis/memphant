@@ -1,47 +1,30 @@
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
 import { AIPlatform, PLATFORM_CONFIG } from "../config/aiPlatforms";
 import { ProjectMemory } from "../types/project";
 import {
   buildDeltaSummary,
-  createSnapshot,
   getLatestSnapshot,
   getPlatformLastSeenSnapshot,
   sanitizeForAiExport,
 } from "../utils/projectUtils";
 import {
-  createProjectMemory,
-  importProjectFileData,
-  loadProjectData,
-  saveProjectData,
-} from "../services/projectService";
+  createProjectOperation,
+  deleteProjectOperation,
+  fetchProjects,
+  openProjectOperation,
+  saveProjectOperation,
+} from "./project-brain/projectOperations";
 import {
-  mergeAiUpdateIntoProject,
-  validateAiUpdate,
-} from "../services/aiUpdateService";
-import { buildProjectFromScan } from "../utils/scanProjectContext";
-
-type ScanProjectFolderResult = {
-  files: string[];
-  scan_hash: string;
-  meta?: {
-    readme?: string;
-    package_json?: {
-      name?: string;
-      description?: string;
-    };
-    cargo_toml?: {
-      name?: string;
-    };
-  };
-};
-
-type RescanLinkedFolderResult = {
-  files: string[];
-  scan_hash: string;
-  folder_exists: boolean;
-};
+  createProjectFromFolderOperation,
+  handleImportProjectOperation,
+  handleProjectFolderPickOperation,
+  handleRescanLinkedProjectOperation,
+} from "./project-brain/scanOperations";
+import {
+  importAiUpdateOperation,
+  rollbackLastAiImportOperation,
+} from "./project-brain/aiOperations";
+import { handleCopyToClipboardOperation } from "./project-brain/exportOperations";
 
 export function useProjectBrain() {
   const [page, setPage] = useState<"home" | "projects" | "editor">("home");
@@ -60,181 +43,63 @@ export function useProjectBrain() {
   const projectNameInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    void fetchProjects();
+    void fetchProjects(setProjects, setMessage);
   }, []);
 
   const targetPlatformLabel =
     PLATFORM_CONFIG[targetPlatform]?.label || "ChatGPT";
 
-  const fetchProjects = async () => {
-    try {
-      const result = await invoke<string[]>("load_projects");
-      setProjects(result);
-    } catch (error) {
-      setMessage(`We couldn't load your projects: ${error}`);
-    }
-  };
-
   const createProject = async () => {
-    if (!projectName.trim()) {
-      setMessage("Please enter a project name first.");
-      return;
-    }
-
-    try {
-      const baseProject = createProjectMemory(projectName);
-      const firstSnapshot = createSnapshot(baseProject);
-
-      const project: ProjectMemory = {
-        ...baseProject,
-        snapshots: [firstSnapshot],
-      };
-
-      await saveProjectData(project);
-
-      setProjectName("");
-      setMessage(
-        `New project created! "${project.projectName}" is now open. Start by filling in what the project is about, then copy it into your AI when you're ready.`,
-      );
-      await fetchProjects();
-      setSelectedProject(project);
-      setPage("editor");
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    } catch (error) {
-      setMessage(`We couldn't create that project: ${error}`);
-    }
+    await createProjectOperation({
+      projectName,
+      setProjectName,
+      setMessage,
+      setProjects,
+      setSelectedProject,
+      setPage,
+      setAiImportText,
+      setPreAiBackupProject,
+    });
   };
 
   const createProjectFromFolder = async () => {
-    const selected = await open({
-      directory: true,
-      multiple: false,
+    await createProjectFromFolderOperation({
+      setProjects,
+      setProjectName,
+      setMessage,
+      setSelectedProject,
+      setPage,
+      setAiImportText,
+      setPreAiBackupProject,
     });
-
-    if (!selected || typeof selected !== "string") {
-      return;
-    }
-
-    try {
-      const normalizedPath = selected.replace(/\\/g, "/");
-      const folderName =
-        normalizedPath.split("/").filter(Boolean).pop() || "Imported Project";
-
-      const baseProject = createProjectMemory(folderName);
-
-      const result = await invoke<ScanProjectFolderResult>(
-        "scan_project_folder",
-        {
-          folderPath: selected,
-        },
-      );
-
-      const updatedProject = buildProjectFromScan({
-        selectedProject: baseProject,
-        folderPath: selected,
-        files: result.files,
-        scanHash: result.scan_hash,
-        meta: result.meta,
-      });
-
-      await saveProjectData(updatedProject);
-      await fetchProjects();
-
-      setSelectedProject(updatedProject);
-      setPage("editor");
-      setProjectName("");
-      setMessage(
-        `Project created from folder successfully. ${
-          updatedProject.linkedFolder?.path
-            ? updatedProject.linkedProjectName || updatedProject.projectName
-            : updatedProject.projectName
-        } is now linked and ready to rescan anytime.`,
-      );
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    } catch (error) {
-      console.error(error);
-      setMessage("We couldn't create a project from that folder.");
-    }
   };
 
   const openProject = async (fileName: string) => {
-    try {
-      const project = await loadProjectData(fileName);
-      setSelectedProject(project);
-      setMessage(
-        `"${project.projectName}" is now open. Review the details below, then copy it into your AI when you're ready.`,
-      );
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    } catch (error) {
-      setMessage(`We couldn't open that project: ${error}`);
-    }
+    await openProjectOperation({
+      fileName,
+      setSelectedProject,
+      setMessage,
+    });
   };
 
   const deleteProject = async (fileName: string) => {
-    try {
-      await invoke("delete_project_file", { fileName });
-
-      const wasCurrentProject =
-        selectedProject &&
-        `${selectedProject.projectName.replace(/ /g, "_")}.json` === fileName;
-
-      if (wasCurrentProject) {
-        setSelectedProject(null);
-        setPage("projects");
-      }
-
-      setMessage(`"${fileName}" was removed.`);
-      await fetchProjects();
-
-      if (wasCurrentProject) {
-        window.scrollTo({ top: 0, behavior: "smooth" });
-      }
-    } catch (error) {
-      setMessage(`We couldn't remove that project: ${error}`);
-    }
+    await deleteProjectOperation({
+      fileName,
+      selectedProject,
+      setSelectedProject,
+      setPage,
+      setMessage,
+      setProjects,
+    });
   };
 
   const saveProject = async () => {
-    if (!selectedProject) return;
-
-    const now = new Date().toISOString();
-    const newSnapshot = createSnapshot(selectedProject);
-
-    const existingSnapshots = selectedProject.snapshots ?? [];
-    const lastSnapshot = existingSnapshots[existingSnapshots.length - 1];
-
-    const shouldAddSnapshot =
-      !lastSnapshot || lastSnapshot.hash !== newSnapshot.hash;
-
-    const updated: ProjectMemory = {
-      ...selectedProject,
-      lastModified: now,
-      snapshots: shouldAddSnapshot
-        ? [...existingSnapshots, newSnapshot]
-        : existingSnapshots,
-      changelog: [
-        ...selectedProject.changelog,
-        {
-          date: now,
-          source: "app",
-          description: shouldAddSnapshot
-            ? "Project updated and snapshot created"
-            : "Project updated",
-        },
-      ],
-    };
-
-    try {
-      await saveProjectData(updated);
-      setSelectedProject(updated);
-      setPreAiBackupProject(null);
-      setMessage(
-        `"${updated.projectName}" was saved successfully. You can keep editing or copy it into your AI.`,
-      );
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    } catch (error) {
-      setMessage(`We couldn't save your project: ${error}`);
-    }
+    await saveProjectOperation({
+      selectedProject,
+      setSelectedProject,
+      setPreAiBackupProject,
+      setMessage,
+    });
   };
 
   const handleImportButtonClick = () => {
@@ -242,213 +107,50 @@ export function useProjectBrain() {
   };
 
   const handleImportProject = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    try {
-      const importedProject = await importProjectFileData(file);
-      await saveProjectData(importedProject);
-
-      setSelectedProject(importedProject);
-      setPage("editor");
-      setMessage(
-        `"${importedProject.projectName}" is now open. Review the details below, then copy it into your AI when you're ready.`,
-      );
-      await fetchProjects();
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    } catch (error) {
-      setMessage(`We couldn't open that saved project: ${error}`);
-    } finally {
-      event.target.value = "";
-    }
+    await handleImportProjectOperation({
+      event,
+      setSelectedProject,
+      setPage,
+      setMessage,
+      setProjects,
+    });
   };
 
   const handleProjectFolderPick = async () => {
-    if (!selectedProject) return;
-
-    const selected = await open({
-      directory: true,
-      multiple: false,
+    await handleProjectFolderPickOperation({
+      selectedProject,
+      setSelectedProject,
+      setMessage,
     });
-
-    if (!selected || typeof selected !== "string") {
-      return;
-    }
-
-    try {
-      const result = await invoke<ScanProjectFolderResult>(
-        "scan_project_folder",
-        {
-          folderPath: selected,
-        },
-      );
-
-      const updatedProject = buildProjectFromScan({
-        selectedProject,
-        folderPath: selected,
-        files: result.files,
-        scanHash: result.scan_hash,
-        meta: result.meta,
-      });
-
-      await saveProjectData(updatedProject);
-      setSelectedProject(updatedProject);
-      setMessage(
-        `Project linked and scanned successfully. ${
-          updatedProject.linkedProjectName || updatedProject.projectName
-        } is now connected for future rescans.`,
-      );
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    } catch (error) {
-      console.error(error);
-      setMessage("We couldn't scan that project folder.");
-    }
   };
 
   const handleRescanLinkedProject = async () => {
-    if (!selectedProject) return;
-
-    const folderPath =
-      selectedProject.linkedFolder?.path ?? selectedProject.linkedProjectPath;
-
-    if (!folderPath) {
-      setMessage(
-        "This project is not linked to a folder yet. Please choose a folder first.",
-      );
-      return;
-    }
-
-    try {
-      const result = await invoke<RescanLinkedFolderResult>(
-        "rescan_linked_folder",
-        {
-          folderPath,
-        },
-      );
-
-      if (!result.folder_exists) {
-        setMessage(
-          "The linked folder could not be found. It may have been moved or deleted. Please re-link a folder.",
-        );
-        return;
-      }
-
-      const rescannedProject = buildProjectFromScan({
-        selectedProject,
-        folderPath,
-        files: result.files,
-        scanHash: result.scan_hash,
-      });
-
-      const updatedProject: ProjectMemory = {
-        ...rescannedProject,
-        changelog: [
-          ...rescannedProject.changelog,
-          {
-            date: new Date().toISOString(),
-            source: "system",
-            description: `Linked project rescanned: ${
-              rescannedProject.linkedProjectName || rescannedProject.projectName
-            }`,
-          },
-        ],
-      };
-
-      await saveProjectData(updatedProject);
-      setSelectedProject(updatedProject);
-      setMessage(
-        `Rescanned successfully. ${
-          updatedProject.linkedProjectName || updatedProject.projectName
-        } is up to date.`,
-      );
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    } catch (error) {
-      console.error(error);
-      setMessage("We couldn't rescan the linked project folder.");
-    }
+    await handleRescanLinkedProjectOperation({
+      selectedProject,
+      setSelectedProject,
+      setMessage,
+    });
   };
 
-  const importAiUpdate = () => {
-    if (!selectedProject || !aiImportText.trim()) {
-      setMessage("Paste an AI update first.");
-      return;
-    }
-
-    try {
-      const parsed = JSON.parse(aiImportText);
-
-      if (!validateAiUpdate(parsed)) {
-        throw new Error("Invalid AI update format");
-      }
-
-      setPreAiBackupProject(selectedProject);
-      const updated = mergeAiUpdateIntoProject(selectedProject, aiImportText);
-
-      const addedGoals = Array.isArray(parsed.add_goals)
-        ? parsed.add_goals.length
-        : 0;
-      const addedRules = Array.isArray(parsed.add_rules)
-        ? parsed.add_rules.length
-        : 0;
-      const addedDecisions = Array.isArray(parsed.add_decisions)
-        ? parsed.add_decisions.length
-        : 0;
-      const addedNextSteps = Array.isArray(parsed.add_nextSteps)
-        ? parsed.add_nextSteps.length
-        : 0;
-      const addedOpenQuestions = Array.isArray(parsed.add_openQuestions)
-        ? parsed.add_openQuestions.length
-        : 0;
-
-      const newSnapshot = createSnapshot(updated);
-      const existingSnapshots = updated.snapshots ?? [];
-      const lastSnapshot = existingSnapshots[existingSnapshots.length - 1];
-
-      const snapshotUpdatedProject =
-        !lastSnapshot || lastSnapshot.hash !== newSnapshot.hash
-          ? {
-              ...updated,
-              snapshots: [...existingSnapshots, newSnapshot],
-            }
-          : updated;
-
-      const finalUpdatedProject: ProjectMemory = {
-        ...snapshotUpdatedProject,
-        platformState: {
-          ...(snapshotUpdatedProject.platformState ?? {}),
-          [targetPlatform]: {
-            lastSentSnapshotId:
-              snapshotUpdatedProject.platformState?.[targetPlatform]
-                ?.lastSentSnapshotId ?? "",
-            lastReplyAt: new Date().toISOString(),
-          },
-        },
-      };
-
-      setSelectedProject(finalUpdatedProject);
-      setAiImportText("");
-      setMessage(
-        `Project updated from AI! Goals: ${addedGoals}, Rules: ${addedRules}, Decisions: ${addedDecisions}, Next Steps: ${addedNextSteps}, Open Questions: ${addedOpenQuestions}.`,
-      );
-
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    } catch {
-      setMessage(
-        "That update doesn't look right. Please paste a valid Project Brain AI update.",
-      );
-    }
+  const importAiUpdate = async () => {
+    await importAiUpdateOperation({
+      selectedProject,
+      aiImportText,
+      targetPlatform,
+      setSelectedProject,
+      setAiImportText,
+      setPreAiBackupProject,
+      setMessage,
+    });
   };
 
   const rollbackLastAiImport = () => {
-    if (!preAiBackupProject) {
-      setMessage("There isn't an AI update to undo.");
-      return;
-    }
-
-    setSelectedProject(preAiBackupProject);
-    setPreAiBackupProject(null);
-    setMessage("Undone. The last AI update was rolled back.");
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    rollbackLastAiImportOperation({
+      preAiBackupProject,
+      setSelectedProject,
+      setPreAiBackupProject,
+      setMessage,
+    });
   };
 
   const exportPrompt = useMemo(() => {
@@ -586,37 +288,14 @@ Extra guidance:
   }, [selectedProject, targetPlatform, targetPlatformLabel]);
 
   const handleCopyToClipboard = async () => {
-    if (!selectedProject) return;
-
-    try {
-      await navigator.clipboard.writeText(exportPrompt);
-
-      const snapshots = selectedProject.snapshots ?? [];
-      const lastSnapshot = snapshots[snapshots.length - 1];
-
-      if (lastSnapshot) {
-        const updatedProject: ProjectMemory = {
-          ...selectedProject,
-          platformState: {
-            ...(selectedProject.platformState ?? {}),
-            [targetPlatform]: {
-              lastSentSnapshotId: lastSnapshot.id,
-              lastReplyAt:
-                selectedProject.platformState?.[targetPlatform]?.lastReplyAt,
-            },
-          },
-        };
-
-        setSelectedProject(updatedProject);
-      }
-
-      setMessage(
-        `Copied! Open ${targetPlatformLabel} and paste this in to continue your project.`,
-      );
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    } catch {
-      setMessage("We couldn't copy that text. Please try again.");
-    }
+    await handleCopyToClipboardOperation({
+      selectedProject,
+      exportPrompt,
+      targetPlatform,
+      targetPlatformLabel,
+      setSelectedProject,
+      setMessage,
+    });
   };
 
   const deltaSummary = useMemo(() => {

@@ -5,19 +5,20 @@ fn is_ignored_path(path: &str) -> bool {
     let normalized = path.replace("\\", "/").to_lowercase();
 
     let ignored_parts = [
-        "/node_modules/",
-        "/.git/",
-        "/dist/",
-        "/build/",
-        "/.next/",
-        "/target/",
-        "/.idea/",
-        "/.vscode/",
-        "/coverage/",
-        "/out/",
-        "/bin/",
-        "/obj/",
-    ];
+    "/node_modules/",
+    "/.git/",
+    "/dist/",
+    "/build/",
+    "/.next/",
+    "/target/",
+    "/.idea/",
+    "/.vscode/",
+    "/coverage/",
+    "/out/",
+    "/bin/",
+    "/obj/",
+    "/src-tauri/projects/",
+];
 
     ignored_parts.iter().any(|part| normalized.contains(part))
 }
@@ -275,6 +276,7 @@ pub struct RescanResult {
     files: Vec<String>,
     scan_hash: String,
     folder_exists: bool,
+    meta: Option<ProjectMeta>,
 }
 
 // NEW: full scan result including project meta for auto-population
@@ -320,6 +322,7 @@ fn rescan_linked_folder(folder_path: String) -> Result<RescanResult, String> {
             files: vec![],
             scan_hash: String::new(),
             folder_exists: false,
+            meta: None,
         });
     }
 
@@ -328,11 +331,13 @@ fn rescan_linked_folder(folder_path: String) -> Result<RescanResult, String> {
     files.sort();
 
     let scan_hash = compute_scan_hash(&files);
+    let meta = read_project_meta(&root);
 
     Ok(RescanResult {
         files,
         scan_hash,
         folder_exists: true,
+        meta: Some(meta),
     })
 }
 
