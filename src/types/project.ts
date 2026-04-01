@@ -60,6 +60,17 @@ export type LinkedFolder = {
   scanHash: string; // hash of file list, truncated to 12 chars
 };
 
+export type AutoFillState = {
+  summary?: "scan" | "user" | "ai";
+  currentState?: "scan" | "user" | "ai";
+};
+
+export type ProjectNameSource =
+  | "user"
+  | "scan_package"
+  | "scan_folder"
+  | "import";
+
 export type ProjectMemory = {
   schema_version: string;
   projectName: string;
@@ -77,11 +88,13 @@ export type ProjectMemory = {
 
   importantAssets: string[];
 
-  // Legacy fields — kept for backward compat with existing saved projects
+  // Legacy fields — compatibility-only.
+  // New logic should read linkedFolder first and only fall back to these
+  // when opening older saved projects.
   linkedProjectPath?: string;
   linkedProjectName?: string;
 
-  // Replaces/consolidates the above over time
+  // Primary linked-folder source of truth for all new logic.
   linkedFolder?: LinkedFolder;
 
   changelog: {
@@ -104,6 +117,14 @@ export type ProjectMemory = {
 
   scanInfo?: ScanInfo;
   scanInsights?: ScanInsights;
+
+  // Tracks whether key text fields were auto-filled or explicitly changed,
+  // so rescans can preserve user edits by default.
+  autoFillState?: AutoFillState;
+
+  // Helps prevent rescans/imports from unexpectedly renaming projects
+  // that the user has already named themselves.
+  projectNameSource?: ProjectNameSource;
 };
 
 export const DEFAULT_AI_INSTRUCTIONS: ProjectMemory["aiInstructions"] = {

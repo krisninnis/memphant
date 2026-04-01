@@ -8,16 +8,29 @@ export function createProjectMemory(projectName: string): ProjectMemory {
   return {
     schema_version: "0.2.0",
     projectName: projectName.trim(),
+    projectNameSource: "user",
     created: now,
     lastModified: now,
+
     summary: "",
     goals: [],
     rules: [],
     decisions: [],
+
     currentState: "Project created",
     nextSteps: [],
     openQuestions: [],
+
     importantAssets: [],
+
+    // New primary linked-folder field starts empty for scratch projects.
+    linkedFolder: undefined,
+
+    // Legacy compatibility fields remain unset unless this project
+    // is created from a folder/imported from an older saved file.
+    linkedProjectPath: undefined,
+    linkedProjectName: undefined,
+
     changelog: [
       {
         date: now,
@@ -25,12 +38,18 @@ export function createProjectMemory(projectName: string): ProjectMemory {
         description: "Project created",
       },
     ],
+
     aiInstructions: DEFAULT_AI_INSTRUCTIONS,
 
     snapshots: [],
     handoffs: [],
     platformState: {},
+
     scanInfo: undefined,
+    scanInsights: undefined,
+
+    // Used later so rescans can preserve user edits by default.
+    autoFillState: {},
   };
 }
 
@@ -60,10 +79,23 @@ export async function importProjectFileData(
   return {
     ...normalized,
     lastModified: now,
+
+    // Preserve imported values where they already exist.
     handoffs: normalized.handoffs ?? [],
     platformState: normalized.platformState ?? {},
     snapshots: normalized.snapshots ?? [],
+
     scanInfo: normalized.scanInfo,
+    scanInsights: normalized.scanInsights,
+
+    linkedFolder: normalized.linkedFolder,
+    linkedProjectPath: normalized.linkedProjectPath,
+    linkedProjectName: normalized.linkedProjectName,
+
+    // Keep existing ownership/provenance when present.
+    autoFillState: normalized.autoFillState ?? {},
+    projectNameSource: normalized.projectNameSource ?? "import",
+
     changelog: [
       ...normalized.changelog,
       {

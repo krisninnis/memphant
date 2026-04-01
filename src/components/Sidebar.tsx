@@ -7,14 +7,14 @@ type Props = {
   setPage: (p: "home" | "projects" | "editor") => void;
   projectName: string;
   setProjectName: (v: string) => void;
-  createProject: () => void;
+  createProject: () => void | Promise<void>;
   projects: string[];
   openProject: (name: string) => void | Promise<void>;
   deleteProject: (name: string) => void | Promise<void>;
   projectNameInputRef: RefObject<HTMLInputElement | null>;
   onImportProject: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onOpenImportDialog: () => void;
-  onUseExistingFolder: () => void;
+  onUseExistingFolder: () => void | Promise<void>;
 };
 
 function Sidebar({
@@ -121,18 +121,22 @@ function Sidebar({
         onClose={() => setShowNewProjectModal(false)}
         projectName={projectName}
         setProjectName={setProjectName}
-        createProject={() => {
-          createProject();
+        createProject={async () => {
+          if (!projectName.trim()) {
+            return;
+          }
+
+          await createProject();
           setShowNewProjectModal(false);
-          setPage("editor");
         }}
-        openImportDialog={() => {
+        openSavedProject={() => {
           hiddenImportRef.current?.click();
           onOpenImportDialog();
+          setShowNewProjectModal(false);
         }}
-        useExistingFolder={() => {
-          onUseExistingFolder();
-          setPage("editor");
+        scanProjectFolder={() => {
+          void onUseExistingFolder();
+          setShowNewProjectModal(false);
         }}
         projectNameInputRef={projectNameInputRef}
       />

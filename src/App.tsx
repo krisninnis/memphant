@@ -139,12 +139,23 @@ function App() {
             onRollbackLastAiImport={rollbackLastAiImport}
             onCopyToClipboard={handleCopyToClipboard}
             onUpdateSummary={(v) =>
-              setSelectedProject({ ...selectedProject, summary: v })
+              setSelectedProject({
+                ...selectedProject,
+                summary: v,
+                autoFillState: {
+                  ...selectedProject.autoFillState,
+                  summary: "user",
+                },
+              })
             }
             onUpdateCurrentState={(v) =>
               setSelectedProject({
                 ...selectedProject,
                 currentState: v,
+                autoFillState: {
+                  ...selectedProject.autoFillState,
+                  currentState: "user",
+                },
               })
             }
             onAiImportTextChange={setAiImportText}

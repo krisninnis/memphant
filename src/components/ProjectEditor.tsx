@@ -59,7 +59,13 @@ function ProjectEditor({
   const hasSummary = selectedProject.summary.trim().length > 0;
   const hasCurrentState = selectedProject.currentState.trim().length > 0;
   const readyToCopy = hasSummary || hasCurrentState || hasImportantFiles;
-  const hasLinkedProject = !!selectedProject.linkedProjectPath;
+
+  // New source of truth first, legacy fallback second
+  const linkedFolderPath =
+    selectedProject.linkedFolder?.path ?? selectedProject.linkedProjectPath;
+  const linkedFolderName =
+    selectedProject.linkedProjectName || selectedProject.projectName;
+  const hasLinkedProject = !!linkedFolderPath;
 
   const getLastSeenText = () => {
     if (!platformState?.lastSentSnapshotId) {
@@ -154,11 +160,11 @@ function ProjectEditor({
           📋 Copy for {targetPlatformLabel}
         </button>
 
-        <button onClick={onHandleProjectFolderPick} className="button">
-          📁 Link Project Folder
-        </button>
-
-        {hasLinkedProject && (
+        {!hasLinkedProject ? (
+          <button onClick={onHandleProjectFolderPick} className="button">
+            📁 Link Project Folder
+          </button>
+        ) : (
           <button onClick={onRescanLinkedProject} className="button">
             🔄 Rescan Linked Project
           </button>
@@ -204,7 +210,7 @@ function ProjectEditor({
         </li>
         <li>
           <strong>Linked folder:</strong>{" "}
-          {selectedProject.linkedProjectPath || "Not linked yet"}
+          {hasLinkedProject ? linkedFolderName : "Not linked yet"}
         </li>
       </ul>
 
@@ -233,20 +239,20 @@ function ProjectEditor({
       </p>
 
       <div className="input-row">
-        <button onClick={onHandleProjectFolderPick} className="button">
-          📁 Link Project Folder
-        </button>
-
-        {hasLinkedProject && (
+        {!hasLinkedProject ? (
+          <button onClick={onHandleProjectFolderPick} className="button">
+            📁 Link Project Folder
+          </button>
+        ) : (
           <button onClick={onRescanLinkedProject} className="button">
             🔄 Rescan Linked Project
           </button>
         )}
       </div>
 
-      {selectedProject.linkedProjectPath && (
+      {hasLinkedProject && (
         <p className="meta-item editor-helper-text">
-          Linked path: <strong>{selectedProject.linkedProjectPath}</strong>
+          Linked folder: <strong>{linkedFolderName}</strong>
         </p>
       )}
 

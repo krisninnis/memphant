@@ -50,15 +50,17 @@ export function normalizeImportedProject(data: unknown): ProjectMemory {
     platformState?: ProjectMemory["platformState"];
     scanInfo?: ProjectMemory["scanInfo"];
     scanInsights?: ProjectMemory["scanInsights"];
+    autoFillState?: ProjectMemory["autoFillState"];
+    projectNameSource?: ProjectMemory["projectNameSource"];
     linkedProjectPath?: unknown;
     linkedProjectName?: unknown;
     linkedFolder?: unknown;
   };
 
-  // Normalize linkedFolder if present
   const rawLinkedFolder = safe.linkedFolder as
     | Partial<LinkedFolder>
     | undefined;
+
   const linkedFolder: LinkedFolder | undefined =
     rawLinkedFolder &&
     typeof rawLinkedFolder.path === "string" &&
@@ -71,53 +73,98 @@ export function normalizeImportedProject(data: unknown): ProjectMemory {
         }
       : undefined;
 
+  const linkedProjectPath =
+    typeof safe.linkedProjectPath === "string" && safe.linkedProjectPath.trim()
+      ? safe.linkedProjectPath
+      : undefined;
+
+  const linkedProjectName =
+    typeof safe.linkedProjectName === "string" && safe.linkedProjectName.trim()
+      ? safe.linkedProjectName
+      : undefined;
+
+  const projectNameSource =
+    safe.projectNameSource === "user" ||
+    safe.projectNameSource === "scan_package" ||
+    safe.projectNameSource === "scan_folder" ||
+    safe.projectNameSource === "import"
+      ? safe.projectNameSource
+      : "import";
+
+  const autoFillState =
+    safe.autoFillState &&
+    typeof safe.autoFillState === "object" &&
+    !Array.isArray(safe.autoFillState)
+      ? {
+          summary:
+            safe.autoFillState.summary === "scan" ||
+            safe.autoFillState.summary === "user" ||
+            safe.autoFillState.summary === "ai"
+              ? safe.autoFillState.summary
+              : undefined,
+          currentState:
+            safe.autoFillState.currentState === "scan" ||
+            safe.autoFillState.currentState === "user" ||
+            safe.autoFillState.currentState === "ai"
+              ? safe.autoFillState.currentState
+              : undefined,
+        }
+      : {};
+
   return {
     schema_version:
       typeof safe.schema_version === "string" ? safe.schema_version : "0.2.0",
+
     projectName:
       typeof safe.projectName === "string" && safe.projectName.trim()
         ? safe.projectName
         : "Imported Project",
+
+    projectNameSource,
+
     created: typeof safe.created === "string" ? safe.created : now,
     lastModified:
       typeof safe.lastModified === "string" ? safe.lastModified : now,
+
     summary: typeof safe.summary === "string" ? safe.summary : "",
+
     goals: Array.isArray(safe.goals)
       ? safe.goals.filter((x): x is string => typeof x === "string")
       : [],
+
     rules: Array.isArray(safe.rules)
       ? safe.rules.filter((x): x is string => typeof x === "string")
       : [],
+
     decisions: Array.isArray(safe.decisions)
       ? safe.decisions.filter((x): x is string => typeof x === "string")
       : [],
+
     currentState:
       typeof safe.currentState === "string"
         ? safe.currentState
         : "Imported project",
+
     nextSteps: Array.isArray(safe.nextSteps)
       ? safe.nextSteps.filter((x): x is string => typeof x === "string")
       : [],
+
     openQuestions: Array.isArray(safe.openQuestions)
       ? safe.openQuestions.filter((x): x is string => typeof x === "string")
       : [],
+
     importantAssets: Array.isArray(safe.importantAssets)
       ? safe.importantAssets.filter((x): x is string => typeof x === "string")
       : [],
 
-    linkedProjectPath:
-      typeof safe.linkedProjectPath === "string" &&
-      safe.linkedProjectPath.trim()
-        ? safe.linkedProjectPath
-        : undefined,
+    // Legacy fields — compatibility-only.
+    // New logic should read linkedFolder first and only fall back to these
+    // when opening older saved projects.
+    linkedProjectPath,
+    linkedProjectName,
 
-    linkedProjectName:
-      typeof safe.linkedProjectName === "string" &&
-      safe.linkedProjectName.trim()
-        ? safe.linkedProjectName
-        : undefined,
-
-    linkedFolder, // NEW — undefined for old projects, populated for new ones
+    // Primary linked-folder source of truth for all new logic.
+    linkedFolder,
 
     changelog: Array.isArray(safe.changelog)
       ? safe.changelog.filter(
@@ -248,6 +295,10 @@ export function normalizeImportedProject(data: unknown): ProjectMemory {
             ),
           }
         : undefined,
+
+    // Tracks whether key text fields were auto-filled or explicitly changed,
+    // so rescans can preserve user edits by default.
+    autoFillState,
   };
 }
 
@@ -279,10 +330,11 @@ export function sanitizeForAiExport(project: ProjectMemory): ProjectMemory {
     linkedProjectPath: project.linkedProjectPath
       ? redactString(project.linkedProjectPath)
       : undefined,
+
     linkedProjectName: project.linkedProjectName,
 
-    // NEW: strip the absolute path entirely — only expose hash + timestamp
-    // so AIs can detect "has this changed?" without knowing the local path
+    // Strip the absolute path entirely — only expose hash + timestamp
+    // so AIs can detect change without knowing the local folder path.
     linkedFolder: project.linkedFolder
       ? {
           path: "[LOCAL PATH HIDDEN]",
@@ -294,16 +346,19 @@ export function sanitizeForAiExport(project: ProjectMemory): ProjectMemory {
     importantAssets: project.importantAssets.map((asset) =>
       envFilePattern.test(asset) ? "[REDACTED]" : asset,
     ),
+
     changelog: project.changelog.map((entry) => ({
       ...entry,
       description: redactString(entry.description),
     })),
+
     aiInstructions: {
       ...project.aiInstructions,
       focus: redactString(project.aiInstructions.focus),
       role: redactString(project.aiInstructions.role),
       tone: redactString(project.aiInstructions.tone),
     },
+
     scanInsights: project.scanInsights
       ? {
           ...project.scanInsights,

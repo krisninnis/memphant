@@ -46,6 +46,21 @@
   font-size: 1.2rem;
   cursor: pointer;
   color: #475569;
+  border-radius: 10px;
+  padding: 6px 8px;
+  transition:
+    background 0.18s ease,
+    color 0.18s ease;
+}
+
+.modal-close-button:hover {
+  background: rgba(148, 163, 184, 0.12);
+  color: #0f172a;
+}
+
+.modal-close-button:focus-visible {
+  outline: 2px solid rgba(99, 102, 241, 0.45);
+  outline-offset: 2px;
 }
 
 .modal-subtitle {
@@ -69,11 +84,41 @@
   border-radius: 20px;
   border: 1px solid #d7deea;
   background: rgba(255, 255, 255, 0.86);
+  transition:
+    transform 0.16s ease,
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    background 0.16s ease;
+}
+
+.modal-option-button {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+
+.modal-option-button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(99, 102, 241, 0.28);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.98);
+}
+
+.modal-option-button:focus-visible {
+  outline: 2px solid rgba(99, 102, 241, 0.45);
+  outline-offset: 2px;
 }
 
 .modal-option.active {
   border-color: rgba(99, 102, 241, 0.55);
-  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.12);
+  box-shadow:
+    0 0 0 2px rgba(99, 102, 241, 0.12),
+    0 14px 30px rgba(99, 102, 241, 0.1);
+  background: linear-gradient(
+    180deg,
+    rgba(238, 242, 255, 0.96) 0%,
+    rgba(255, 255, 255, 0.98) 100%
+  );
 }
 
 .modal-option.disabled {
@@ -91,6 +136,11 @@
   border: 1px solid #d7deea;
   color: #1e293b;
   flex-shrink: 0;
+}
+
+.modal-option.active .modal-option-icon {
+  background: rgba(99, 102, 241, 0.1);
+  border-color: rgba(99, 102, 241, 0.28);
 }
 
 .modal-option-content {
@@ -111,6 +161,8 @@
 
 .modal-form-section {
   margin-top: 8px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(226, 232, 240, 0.9);
 }
 
 .modal-label {
@@ -128,9 +180,34 @@
 }
 
 @media (max-width: 640px) {
+  .modal-overlay {
+    padding: 16px;
+    align-items: flex-end;
+  }
+
   .modal-card {
+    width: 100%;
     padding: 22px;
-    border-radius: 22px;
+    border-radius: 22px 22px 0 0;
+    max-height: 92vh;
+    overflow-y: auto;
+  }
+
+  .modal-header-row {
+    align-items: flex-start;
+  }
+
+  .modal-option {
+    padding: 16px;
+    gap: 14px;
+  }
+
+  .modal-option-title {
+    font-size: 1.05rem;
+  }
+
+  .modal-option-text {
+    font-size: 0.95rem;
   }
 
   .modal-actions {
@@ -140,9 +217,4 @@
   .modal-actions .button {
     width: 100%;
   }
-}
-.modal-option-button {
-  width: 100%;
-  text-align: left;
-  cursor: pointer;
 }

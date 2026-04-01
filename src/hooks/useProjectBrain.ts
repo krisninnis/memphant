@@ -22,6 +22,27 @@ import {
 } from "../services/aiUpdateService";
 import { buildProjectFromScan } from "../utils/scanProjectContext";
 
+type ScanProjectFolderResult = {
+  files: string[];
+  scan_hash: string;
+  meta?: {
+    readme?: string;
+    package_json?: {
+      name?: string;
+      description?: string;
+    };
+    cargo_toml?: {
+      name?: string;
+    };
+  };
+};
+
+type RescanLinkedFolderResult = {
+  files: string[];
+  scan_hash: string;
+  folder_exists: boolean;
+};
+
 export function useProjectBrain() {
   const [page, setPage] = useState<"home" | "projects" | "editor">("home");
   const [targetPlatform, setTargetPlatform] = useState<AIPlatform>("chatgpt");
@@ -100,14 +121,20 @@ export function useProjectBrain() {
         normalizedPath.split("/").filter(Boolean).pop() || "Imported Project";
 
       const baseProject = createProjectMemory(folderName);
-      const files = await invoke<string[]>("scan_project_folder", {
-        folderPath: selected,
-      });
+
+      const result = await invoke<ScanProjectFolderResult>(
+        "scan_project_folder",
+        {
+          folderPath: selected,
+        },
+      );
 
       const updatedProject = buildProjectFromScan({
         selectedProject: baseProject,
         folderPath: selected,
-        files,
+        files: result.files,
+        scanHash: result.scan_hash,
+        meta: result.meta,
       });
 
       await saveProjectData(updatedProject);
@@ -118,7 +145,9 @@ export function useProjectBrain() {
       setProjectName("");
       setMessage(
         `Project created from folder successfully. ${
-          updatedProject.linkedProjectName || updatedProject.projectName
+          updatedProject.linkedFolder?.path
+            ? updatedProject.linkedProjectName || updatedProject.projectName
+            : updatedProject.projectName
         } is now linked and ready to rescan anytime.`,
       );
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -247,14 +276,19 @@ export function useProjectBrain() {
     }
 
     try {
-      const files = await invoke<string[]>("scan_project_folder", {
-        folderPath: selected,
-      });
+      const result = await invoke<ScanProjectFolderResult>(
+        "scan_project_folder",
+        {
+          folderPath: selected,
+        },
+      );
 
       const updatedProject = buildProjectFromScan({
         selectedProject,
         folderPath: selected,
-        files,
+        files: result.files,
+        scanHash: result.scan_hash,
+        meta: result.meta,
       });
 
       await saveProjectData(updatedProject);
@@ -271,11 +305,9 @@ export function useProjectBrain() {
     }
   };
 
-  // UPDATED: uses rescan_linked_folder command + checks linkedFolder first
   const handleRescanLinkedProject = async () => {
     if (!selectedProject) return;
 
-    // Prefer linkedFolder.path (new), fall back to linkedProjectPath (legacy)
     const folderPath =
       selectedProject.linkedFolder?.path ?? selectedProject.linkedProjectPath;
 
@@ -287,11 +319,12 @@ export function useProjectBrain() {
     }
 
     try {
-      const result = await invoke<{
-        files: string[];
-        scan_hash: string;
-        folder_exists: boolean;
-      }>("rescan_linked_folder", { folderPath });
+      const result = await invoke<RescanLinkedFolderResult>(
+        "rescan_linked_folder",
+        {
+          folderPath,
+        },
+      );
 
       if (!result.folder_exists) {
         setMessage(
@@ -310,7 +343,7 @@ export function useProjectBrain() {
       const updatedProject: ProjectMemory = {
         ...rescannedProject,
         changelog: [
-          ...selectedProject.changelog,
+          ...rescannedProject.changelog,
           {
             date: new Date().toISOString(),
             source: "system",

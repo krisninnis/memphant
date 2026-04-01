@@ -1,0 +1,109 @@
+{
+  "schema_version": "0.2.0",
+  "projectName": "mental-health-backend",
+  "projectNameSource": "user",
+  "created": "2026-03-31T17:36:52.894Z",
+  "lastModified": "2026-03-31T17:36:54.406Z",
+  "summary": "Backend server for mental health app",
+  "goals": [],
+  "rules": [],
+  "decisions": [],
+  "currentState": "Project folder scanned successfully. 11 useful files were identified and prepared for handoff.",
+  "nextSteps": [],
+  "openQuestions": [],
+  "importantAssets": [
+    "controllers\\authController.js",
+    "controllers\\authMiddleware.js",
+    "iarcToJson.js",
+    "models\\JournalEntry.js",
+    "models\\Mood.js",
+    "models\\User.js",
+    "models\\couch-to-5k.js",
+    "package-lock.json",
+    "package.json",
+    "server.js",
+    "testCofid.js"
+  ],
+  "linkedFolder": {
+    "path": "D:\\mental-health-app\\mental-health-backend",
+    "lastScannedAt": "2026-03-31T17:36:54.406Z",
+    "scanHash": "ae5b84645163"
+  },
+  "linkedProjectPath": "D:\\mental-health-app\\mental-health-backend",
+  "linkedProjectName": "mental-health-backend",
+  "changelog": [
+    {
+      "date": "2026-03-31T17:36:52.894Z",
+      "source": "app",
+      "description": "Project created"
+    },
+    {
+      "date": "2026-03-31T17:36:54.406Z",
+      "source": "system",
+      "description": "Project folder scanned and linked to mental-health-backend"
+    }
+  ],
+  "aiInstructions": {
+    "role": "You are a project collaborator.",
+    "tone": "Clear, direct, structured",
+    "focus": "Help move the project forward without losing continuity"
+  },
+  "snapshots": [
+    {
+      "id": "2026-03-31T17:36:54.407Z-e6061e9",
+      "createdAt": "2026-03-31T17:36:54.407Z",
+      "hash": "e6061e9",
+      "summary": "Backend server for mental health app",
+      "currentState": "Project folder scanned successfully. 11 useful files were identified and prepared for handoff.",
+      "goals": [],
+      "rules": [],
+      "decisions": [],
+      "nextSteps": [],
+      "openQuestions": []
+    }
+  ],
+  "handoffs": [],
+  "platformState": {},
+  "scanInfo": {
+    "detectedType": "Node Backend",
+    "detectedTags": [
+      "node",
+      "server",
+      "backend"
+    ],
+    "scannedFileCount": 11,
+    "importantFileCount": 11,
+    "excludedFileCount": 0,
+    "lastScannedAt": "2026-03-31T17:36:54.406Z"
+  },
+  "scanInsights": {
+    "architecture": "Node Backend",
+    "likelyEntryPoint": "server.js",
+    "likelyAuthFiles": [
+      "controllers\\authController.js",
+      "controllers\\authMiddleware.js"
+    ],
+    "likelyModelFiles": [
+      "models\\JournalEntry.js",
+      "models\\Mood.js",
+      "models\\User.js",
+      "models\\couch-to-5k.js"
+    ],
+    "likelyConfigFiles": [
+      "package-lock.json",
+      "package.json"
+    ],
+    "likelyDocs": [],
+    "confidence": "high",
+    "notes": [
+      "Detected Node Backend.",
+      "Likely entry point: server.js.",
+      "Found 2 likely auth or middleware files.",
+      "Found 4 likely model files."
+    ]
+  },
+  "autoFillState": {
+    "summary": "scan",
+    "currentState": "scan"
+  }
+}

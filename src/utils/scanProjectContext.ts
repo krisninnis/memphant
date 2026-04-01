@@ -13,6 +13,17 @@ type ScanAnalysis = {
   notes: string[];
 };
 
+type ScanMeta = {
+  readme?: string;
+  package_json?: {
+    name?: string;
+    description?: string;
+  };
+  cargo_toml?: {
+    name?: string;
+  };
+};
+
 export function analyseScannedFiles(files: string[]): ScanAnalysis {
   const lowerFiles = files.map((file) => file.toLowerCase());
   const detectedTags: string[] = [];
@@ -131,49 +142,128 @@ function computeClientScanHash(files: string[]): string {
   const sorted = [...files].sort();
   const raw = sorted.join("|") + "|count:" + files.length;
   let hash = 5381;
+
   for (let i = 0; i < raw.length; i++) {
     hash = (hash * 33) ^ raw.charCodeAt(i);
     hash = hash >>> 0;
   }
+
   return hash.toString(16).padStart(8, "0").slice(0, 12);
+}
+
+function getFolderNameFromPath(folderPath: string): string | undefined {
+  const normalizedPath = folderPath.replace(/\\/g, "/");
+  return normalizedPath.split("/").filter(Boolean).pop() || undefined;
+}
+
+function getFirstNonEmptyReadmeLine(readme?: string): string | undefined {
+  if (!readme || typeof readme !== "string") return undefined;
+
+  const firstLine = readme
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find((line) => line.length > 0);
+
+  return firstLine || undefined;
+}
+
+function stripMarkdownHeadingPrefix(value: string): string {
+  return value.replace(/^#+\s*/, "").trim();
 }
 
 export function buildProjectFromScan(params: {
   selectedProject: ProjectMemory;
   folderPath: string;
   files: string[];
-  scanHash?: string; // ← ADDED: Rust hash takes priority when provided
+  scanHash?: string;
+  meta?: ScanMeta;
 }): ProjectMemory {
-  const { selectedProject, folderPath, files, scanHash } = params; // ← ADDED scanHash
+  const { selectedProject, folderPath, files, scanHash, meta } = params;
 
   const limitedFiles = files.slice(0, 200);
   const now = new Date().toISOString();
 
-  const normalizedPath = folderPath.replace(/\\/g, "/");
-  const linkedProjectName =
-    normalizedPath.split("/").filter(Boolean).pop() ||
-    selectedProject.projectName;
+  const folderName =
+    getFolderNameFromPath(folderPath) || selectedProject.projectName;
+
+  const packageName =
+    typeof meta?.package_json?.name === "string" &&
+    meta.package_json.name.trim().length > 0
+      ? meta.package_json.name.trim()
+      : undefined;
+
+  const cargoName =
+    typeof meta?.cargo_toml?.name === "string" &&
+    meta.cargo_toml.name.trim().length > 0
+      ? meta.cargo_toml.name.trim()
+      : undefined;
+
+  const derivedProjectName =
+    packageName || cargoName || folderName || "Imported Project";
+
+  const derivedProjectNameSource = packageName
+    ? "scan_package"
+    : cargoName
+      ? "scan_package"
+      : "scan_folder";
 
   const analysis = analyseScannedFiles(limitedFiles);
 
-  // Use Rust hash if provided, otherwise compute client-side
   const computedHash = scanHash ?? computeClientScanHash(limitedFiles);
+
   const linkedFolder = {
     path: folderPath,
     lastScannedAt: now,
     scanHash: computedHash,
   };
 
-  const autoSummary =
-    selectedProject.summary.trim().length > 0
-      ? selectedProject.summary
-      : `Auto-detected ${analysis.detectedType} with ${limitedFiles.length} useful files prepared for AI handoff.`;
+  const readmeSummaryLine = getFirstNonEmptyReadmeLine(meta?.readme);
+  const cleanedReadmeSummary = readmeSummaryLine
+    ? stripMarkdownHeadingPrefix(readmeSummaryLine)
+    : undefined;
 
-  const autoCurrentState =
-    selectedProject.currentState.trim().length > 0 &&
-    selectedProject.currentState !== "Project created"
-      ? selectedProject.currentState
-      : `Project folder scanned successfully. ${limitedFiles.length} useful files were identified and prepared for handoff.`;
+  const packageDescription =
+    typeof meta?.package_json?.description === "string" &&
+    meta.package_json.description.trim().length > 0
+      ? meta.package_json.description.trim()
+      : undefined;
+
+  const existingSummary = selectedProject.summary.trim();
+  const existingCurrentState = selectedProject.currentState.trim();
+
+  const shouldAutoFillSummary =
+    existingSummary.length === 0 ||
+    selectedProject.autoFillState?.summary === "scan";
+
+  const shouldAutoFillCurrentState =
+    existingCurrentState.length === 0 ||
+    existingCurrentState === "Project created" ||
+    selectedProject.autoFillState?.currentState === "scan";
+
+  const autoSummaryFallback = `Auto-detected ${analysis.detectedType} with ${limitedFiles.length} useful files prepared for AI handoff.`;
+
+  const autoSummary =
+    packageDescription || cleanedReadmeSummary || autoSummaryFallback;
+
+  const autoCurrentState = `Project folder scanned successfully. ${limitedFiles.length} useful files were identified and prepared for handoff.`;
+
+  const nextSummary = shouldAutoFillSummary
+    ? autoSummary
+    : selectedProject.summary;
+  const nextCurrentState = shouldAutoFillCurrentState
+    ? autoCurrentState
+    : selectedProject.currentState;
+
+  const nextProjectName =
+    selectedProject.projectNameSource === "user" &&
+    selectedProject.projectName.trim().length > 0
+      ? selectedProject.projectName
+      : derivedProjectName;
+
+  const nextProjectNameSource =
+    selectedProject.projectNameSource === "user"
+      ? "user"
+      : derivedProjectNameSource;
 
   const scanInfoBlock = {
     detectedType: analysis.detectedType,
@@ -195,16 +285,29 @@ export function buildProjectFromScan(params: {
     notes: analysis.notes,
   };
 
+  const nextAutoFillState = {
+    ...selectedProject.autoFillState,
+    summary: shouldAutoFillSummary
+      ? ("scan" as const)
+      : (selectedProject.autoFillState?.summary ?? "user"),
+    currentState: shouldAutoFillCurrentState
+      ? ("scan" as const)
+      : (selectedProject.autoFillState?.currentState ?? "user"),
+  };
+
   const newSnapshot = createSnapshot({
     ...selectedProject,
-    summary: autoSummary,
-    currentState: autoCurrentState,
+    projectName: nextProjectName,
+    projectNameSource: nextProjectNameSource,
+    summary: nextSummary,
+    currentState: nextCurrentState,
     importantAssets: limitedFiles,
     linkedProjectPath: folderPath,
-    linkedProjectName,
+    linkedProjectName: folderName,
     linkedFolder,
     scanInfo: scanInfoBlock,
     scanInsights: scanInsightsBlock,
+    autoFillState: nextAutoFillState,
   });
 
   const existingSnapshots = selectedProject.snapshots ?? [];
@@ -214,24 +317,34 @@ export function buildProjectFromScan(params: {
 
   return {
     ...selectedProject,
+    projectName: nextProjectName,
+    projectNameSource: nextProjectNameSource,
     lastModified: now,
-    summary: autoSummary,
-    currentState: autoCurrentState,
+    summary: nextSummary,
+    currentState: nextCurrentState,
     importantAssets: limitedFiles,
+
+    // Legacy compatibility fields — still written for now.
     linkedProjectPath: folderPath,
-    linkedProjectName,
+    linkedProjectName: folderName,
+
+    // New primary source of truth.
     linkedFolder,
+
     scanInfo: scanInfoBlock,
     scanInsights: scanInsightsBlock,
+    autoFillState: nextAutoFillState,
+
     snapshots: shouldAddSnapshot
       ? [...existingSnapshots, newSnapshot]
       : existingSnapshots,
+
     changelog: [
       ...selectedProject.changelog,
       {
         date: now,
         source: "system",
-        description: `Project folder scanned and linked to ${linkedProjectName}`,
+        description: `Project folder scanned and linked to ${folderName}`,
       },
     ],
   };
