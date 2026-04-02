@@ -107,6 +107,7 @@ const PLATFORM_LABELS: Record<Platform, string> = {
   claude: 'Claude',
   grok: 'Grok',
   perplexity: 'Perplexity',
+  gemini: 'Gemini',
 };
 
 const RESPONSE_FORMAT = (platform: Platform) => `
@@ -318,5 +319,7 @@ export function buildExportPrompt(
     case 'chatgpt':    return buildChatGPTExport(project, taskText, delta);
     case 'grok':       return buildGrokExport(project, taskText, delta);
     case 'perplexity': return buildPerplexityExport(project, taskText, delta);
+    case 'gemini':     return buildChatGPTExport(project, taskText, delta); // Same format as ChatGPT
+    default:           return buildChatGPTExport(project, taskText, delta);
   }
 }

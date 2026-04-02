@@ -1,23 +1,8 @@
 import { useProjectStore } from '../../store/projectStore';
 import { copyExportToClipboard } from '../../services/tauriActions';
-import { buildExportPrompt } from '../../utils/exportBuilder';
+import { formatForPlatform } from '../../utils/exportFormatters';
+import { PLATFORM_CONFIG } from '../../utils/platformConfig';
 import type { Platform } from '../../types/project-brain-types';
-
-const PLATFORM_COLORS: Record<Platform, string> = {
-  chatgpt: '#10a37f',
-  claude: '#d97706',
-  grok: '#1d9bf0',
-  perplexity: '#20808d',
-};
-
-const PLATFORM_LABELS: Record<Platform, string> = {
-  chatgpt: 'ChatGPT',
-  claude: 'Claude',
-  grok: 'Grok',
-  perplexity: 'Perplexity',
-};
-
-const PRIMARY_PLATFORMS: Platform[] = ['chatgpt', 'claude', 'grok', 'perplexity'];
 
 function formatSyncAge(isoString: string): string {
   const diffMs = Date.now() - new Date(isoString).getTime();
@@ -38,38 +23,47 @@ export function ExportButtons() {
   const activeProject = useProjectStore((s) => s.activeProject());
   const currentTask = useProjectStore((s) => s.currentTask);
   const showToast = useProjectStore((s) => s.showToast);
+  const enabledPlatforms = useProjectStore((s) => s.enabledPlatforms());
+  const settings = useProjectStore((s) => s.settings);
 
   const handleCopyFor = async (platform: Platform) => {
     setTargetPlatform(platform);
 
     if (!activeProject) {
-      showToast('Open a project first.');
+      showToast('Open a project first', 'error');
       return;
     }
 
-    const exportText = buildExportPrompt(activeProject, platform, currentTask);
+    const mode = settings.projects.defaultExportMode;
+    const exportText = formatForPlatform(activeProject, platform, currentTask, mode);
     await copyExportToClipboard(exportText, platform);
   };
 
+  // Show up to 4; if more, show first 4 (More dropdown is a future enhancement)
+  const visiblePlatforms = enabledPlatforms.slice(0, 4);
+
   return (
     <div className="export-buttons">
-      {PRIMARY_PLATFORMS.map((platform) => {
+      {visiblePlatforms.map((platform) => {
+        const config = PLATFORM_CONFIG[platform];
         const state = activeProject?.platformState?.[platform];
-        const syncLabel = state?.lastExportedAt
-          ? formatSyncAge(state.lastExportedAt)
-          : null;
+        const syncLabel = state?.lastExportedAt ? formatSyncAge(state.lastExportedAt) : null;
 
         return (
           <button
             key={platform}
             className={`export-pill ${targetPlatform === platform ? 'export-pill--active' : ''}`}
-            style={{
-              '--pill-color': PLATFORM_COLORS[platform],
-            } as React.CSSProperties}
+            style={{ '--pill-color': config.color } as React.CSSProperties}
             onClick={() => void handleCopyFor(platform)}
-            title={syncLabel ? `Last copied for ${PLATFORM_LABELS[platform]}: ${syncLabel}` : `Never copied for ${PLATFORM_LABELS[platform]}`}
+            title={
+              syncLabel
+                ? `Last copied for ${config.name}: ${syncLabel}`
+                : `Never copied for ${config.name}`
+            }
           >
-            <span className="export-pill__label">Copy for {PLATFORM_LABELS[platform]}</span>
+            <span className="export-pill__label">
+              {config.icon} {config.name}
+            </span>
             {syncLabel && (
               <span className="export-pill__sync">{syncLabel}</span>
             )}

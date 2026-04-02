@@ -1,0 +1,37 @@
+.toggle {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  border-radius: 12px;
+  background: #2a2a3e;
+  border: none;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.toggle--on {
+  background: #10a37f;
+}
+
+.toggle--disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.toggle-dot {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.2s ease;
+  display: block;
+}
+
+.toggle--on .toggle-dot {
+  transform: translateX(20px);
+}

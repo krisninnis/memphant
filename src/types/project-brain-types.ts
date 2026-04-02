@@ -1,7 +1,7 @@
 // Core types for Project Brain
 // Backward-compatible with existing saved JSON — all new fields are optional.
 
-export type Platform = 'chatgpt' | 'claude' | 'grok' | 'perplexity';
+export type Platform = 'chatgpt' | 'claude' | 'grok' | 'perplexity' | 'gemini';
 export type ExportMode = 'full' | 'delta' | 'specialist';
 
 export interface Decision {
@@ -32,7 +32,6 @@ export interface PlatformState {
   lastReplyAt?: string;       // when user last pasted a response back from this platform
   exportCount?: number;
   // A short AI-written note from the last session on this platform
-  // e.g. "Worked on export formatting and Zustand store setup."
   lastSessionNote?: string;
 }
 
@@ -82,7 +81,60 @@ export interface ExportCache {
   stateHash: string;
 }
 
-// Simple hash of project content for change detection
+// ─── App Settings ─────────────────────────────────────────────────────────────
+
+export interface AppSettings {
+  general: {
+    theme: 'dark' | 'light' | 'system';
+    defaultPlatform: Platform;
+    autoSave: boolean;
+    runOnStartup: boolean;
+    systemTray: boolean;
+  };
+  privacy: {
+    cloudSyncEnabled: boolean;
+    secretsScannerLevel: 'standard' | 'strict';
+  };
+  projects: {
+    autoRescanOnOpen: boolean;
+    snapshotCount: number;
+    defaultExportMode: ExportMode;
+  };
+  platforms: {
+    enabled: Record<Platform, boolean>;
+  };
+}
+
+export const DEFAULT_SETTINGS: AppSettings = {
+  general: {
+    theme: 'dark',
+    defaultPlatform: 'claude',
+    autoSave: true,
+    runOnStartup: false,
+    systemTray: false,
+  },
+  privacy: {
+    cloudSyncEnabled: false,
+    secretsScannerLevel: 'standard',
+  },
+  projects: {
+    autoRescanOnOpen: false,
+    snapshotCount: 20,
+    defaultExportMode: 'full',
+  },
+  platforms: {
+    enabled: {
+      chatgpt: true,
+      claude: true,
+      grok: true,
+      perplexity: true,
+      gemini: true,
+    },
+  },
+};
+
+// ─── State hash for delta tracking ────────────────────────────────────────────
+
 export function hashProjectState(project: ProjectMemory): string {
   const key = [
     project.summary,

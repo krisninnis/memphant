@@ -361,7 +361,7 @@ export async function copyExportToClipboard(exportText: string, platform: Platfo
     await navigator.clipboard.writeText(exportText);
 
     const LABELS: Record<Platform, string> = {
-      chatgpt: 'ChatGPT', claude: 'Claude', grok: 'Grok', perplexity: 'Perplexity',
+      chatgpt: 'ChatGPT', claude: 'Claude', grok: 'Grok', perplexity: 'Perplexity', gemini: 'Gemini',
     };
 
     // Record this export in platformState so future exports can show the delta

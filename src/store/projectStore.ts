@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import type { ProjectMemory, Platform } from '../types/project-brain-types';
+import type { ProjectMemory, Platform, AppSettings } from '../types/project-brain-types';
+import { DEFAULT_SETTINGS } from '../types/project-brain-types';
 
 interface ProjectStore {
   // State
@@ -9,6 +10,9 @@ interface ProjectStore {
   targetPlatform: Platform;
   isLoading: boolean;
   toastMessage: string | null;
+  toastType: 'success' | 'error' | 'info';
+  settings: AppSettings;
+  currentView: 'projects' | 'settings';
 
   // Rollback state — stores the project snapshot before last AI merge
   preAiBackup: ProjectMemory | null;
@@ -19,8 +23,10 @@ interface ProjectStore {
   setCurrentTask: (task: string) => void;
   setTargetPlatform: (platform: Platform) => void;
   setLoading: (loading: boolean) => void;
-  showToast: (message: string) => void;
+  showToast: (message: string, type?: 'success' | 'error' | 'info') => void;
   clearToast: () => void;
+  setCurrentView: (view: 'projects' | 'settings') => void;
+  updateSettings: (updates: Partial<AppSettings>) => void;
 
   // Rollback
   setPreAiBackup: (project: ProjectMemory | null) => void;
@@ -32,6 +38,7 @@ interface ProjectStore {
 
   // Computed
   activeProject: () => ProjectMemory | undefined;
+  enabledPlatforms: () => Platform[];
 }
 
 export const useProjectStore = create<ProjectStore>((set, get) => ({
@@ -42,6 +49,9 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   targetPlatform: 'claude',
   isLoading: false,
   toastMessage: null,
+  toastType: 'success',
+  settings: DEFAULT_SETTINGS,
+  currentView: 'projects',
   preAiBackup: null,
 
   // Actions
@@ -50,11 +60,16 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   setCurrentTask: (task) => set({ currentTask: task }),
   setTargetPlatform: (platform) => set({ targetPlatform: platform }),
   setLoading: (loading) => set({ isLoading: loading }),
-  showToast: (message) => {
-    set({ toastMessage: message });
+  showToast: (message, type = 'success') => {
+    set({ toastMessage: message, toastType: type });
     setTimeout(() => set({ toastMessage: null }), 3000);
   },
   clearToast: () => set({ toastMessage: null }),
+  setCurrentView: (view) => set({ currentView: view }),
+  updateSettings: (updates) =>
+    set((state) => ({
+      settings: { ...state.settings, ...updates },
+    })),
 
   // Rollback
   setPreAiBackup: (project) => set({ preAiBackup: project }),
@@ -83,5 +98,12 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   activeProject: () => {
     const { projects, activeProjectId } = get();
     return projects.find((p) => p.id === activeProjectId);
+  },
+
+  enabledPlatforms: () => {
+    const { settings } = get();
+    return (Object.entries(settings.platforms.enabled) as [Platform, boolean][])
+      .filter(([, enabled]) => enabled)
+      .map(([platform]) => platform);
   },
 }));

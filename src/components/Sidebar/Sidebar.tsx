@@ -7,14 +7,17 @@ import {
   deleteProject,
 } from '../../services/tauriActions';
 import ProjectCard from './ProjectCard';
+import ConfirmDialog from '../Shared/ConfirmDialog';
 
 export function Sidebar() {
   const projects = useProjectStore((s) => s.projects);
   const activeProjectId = useProjectStore((s) => s.activeProjectId);
   const setActiveProject = useProjectStore((s) => s.setActiveProject);
+  const setCurrentView = useProjectStore((s) => s.setCurrentView);
 
   const [newName, setNewName] = useState('');
   const [showCreate, setShowCreate] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -32,13 +35,25 @@ export function Sidebar() {
     e.target.value = '';
   };
 
+  const pendingDeleteProject = pendingDeleteId
+    ? projects.find((p) => p.id === pendingDeleteId)
+    : null;
+
   return (
     <div className="sidebar-inner">
       <div className="sidebar-header">
-        <h2 className="sidebar-brand">Project Brain</h2>
-        <p className="sidebar-tagline">
-          Your project context, ready for any AI.
-        </p>
+        <div>
+          <h2 className="sidebar-brand">Project Brain</h2>
+          <p className="sidebar-tagline">Your project context, ready for any AI.</p>
+        </div>
+        <button
+          className="sidebar-settings-btn"
+          onClick={() => setCurrentView('settings')}
+          title="Settings"
+          aria-label="Open settings"
+        >
+          ⚙️
+        </button>
       </div>
 
       <div className="sidebar-actions">
@@ -58,7 +73,7 @@ export function Sidebar() {
               ref={nameInputRef}
               type="text"
               className="sidebar-create-input"
-              placeholder="Project name\u2026"
+              placeholder="Project name…"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               onKeyDown={(e) => {
@@ -104,14 +119,24 @@ export function Sidebar() {
             project={project}
             isActive={project.id === activeProjectId}
             onSelect={() => setActiveProject(project.id)}
-            onDelete={() => {
-              if (window.confirm(`Remove "${project.name}"? This can't be undone.`)) {
-                void deleteProject(project.id);
-              }
-            }}
+            onDelete={() => setPendingDeleteId(project.id)}
           />
         ))}
       </div>
+
+      {pendingDeleteProject && (
+        <ConfirmDialog
+          title={`Remove "${pendingDeleteProject.name}"?`}
+          message="This will delete the project from your device. This can't be undone."
+          confirmLabel="Delete"
+          onConfirm={() => {
+            void deleteProject(pendingDeleteProject.id);
+            setPendingDeleteId(null);
+          }}
+          onCancel={() => setPendingDeleteId(null)}
+          dangerous
+        />
+      )}
     </div>
   );
 }
