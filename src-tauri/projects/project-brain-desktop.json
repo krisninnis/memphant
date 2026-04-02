@@ -1,14 +1,13 @@
 {
   "schema_version": "0.2.0",
   "projectName": "project-brain-desktop",
-  "projectNameSource": "user",
-  "created": "2026-04-01T09:08:24.299Z",
-  "lastModified": "2026-04-01T09:21:15.232Z",
-  "summary": "🧠 Project Brain",
+  "created": "2026-04-02T06:35:20.476Z",
+  "lastModified": "2026-04-02T06:35:20.476Z",
+  "summary": "",
   "goals": [],
   "rules": [],
   "decisions": [],
-  "currentState": "Project folder scanned successfully. 48 useful files were identified and prepared for handoff.",
+  "currentState": "Project folder scanned. 71 useful files identified.",
   "nextSteps": [],
   "openQuestions": [],
   "importantAssets": [
@@ -29,19 +28,39 @@
     "src-tauri\\tauri.conf.json",
     "src\\App.css",
     "src\\App.tsx",
+    "src\\components\\Editor\\EditableField.tsx",
+    "src\\components\\Editor\\ProjectEditor.tsx",
     "src\\components\\EmptyEditorView.tsx",
     "src\\components\\HomeView.tsx",
+    "src\\components\\Layout\\AppShell.tsx",
+    "src\\components\\Layout\\Toast.tsx",
+    "src\\components\\Layout\\TrustFooter.tsx",
     "src\\components\\NewProjectModal.tsx",
     "src\\components\\ProjectEditor.tsx",
     "src\\components\\ProjectList.tsx",
     "src\\components\\ProjectsView.tsx",
     "src\\components\\Sidebar.tsx",
+    "src\\components\\Sidebar\\ProjectCard.tsx",
+    "src\\components\\Sidebar\\Sidebar.tsx",
+    "src\\components\\Workspace\\ActionBar.tsx",
+    "src\\components\\Workspace\\ExportButtons.tsx",
+    "src\\components\\Workspace\\PasteZone.tsx",
+    "src\\components\\Workspace\\TaskField.tsx",
     "src\\config\\aiPlatforms.ts",
+    "src\\hooks\\project-brain\\aiOperations.ts",
+    "src\\hooks\\project-brain\\exportOperations.ts",
+    "src\\hooks\\project-brain\\projectOperations.ts",
+    "src\\hooks\\project-brain\\scanOperations.ts",
+    "src\\hooks\\project-brain\\types.ts",
     "src\\hooks\\useProjectBrain.ts",
+    "src\\hooks\\useTauriSync.ts",
     "src\\main.tsx",
     "src\\services\\aiUpdateService.ts",
     "src\\services\\projectScanService.ts",
     "src\\services\\projectService.ts",
+    "src\\services\\tauriActions.ts",
+    "src\\store\\projectStore.ts",
+    "src\\styles\\app-shell.css",
     "src\\styles\\base.css",
     "src\\styles\\editor.css",
     "src\\styles\\forms.css",
@@ -52,7 +71,10 @@
     "src\\styles\\sidebar.css",
     "src\\styles\\theme-dark.css",
     "src\\types\\html.d.ts",
+    "src\\types\\project-brain-types.ts",
     "src\\types\\project.ts",
+    "src\\utils\\aiMerge.ts",
+    "src\\utils\\exportBuilder.ts",
     "src\\utils\\exportPromptBuilder.ts",
     "src\\utils\\projectUtils.ts",
     "src\\utils\\scanProjectContext.ts",
@@ -61,127 +83,30 @@
     "tsconfig.node.json",
     "vite.config.ts"
   ],
-  "linkedProjectPath": "C:\\Users\\KRIS\\project-brain-desktop",
-  "linkedProjectName": "project-brain-desktop",
-  "linkedFolder": {
-    "path": "C:\\Users\\KRIS\\project-brain-desktop",
-    "lastScannedAt": "2026-04-01T09:21:15.232Z",
-    "scanHash": "ea8ca31bcbd5"
-  },
-  "changelog": [
-    {
-      "date": "2026-04-01T09:08:24.299Z",
-      "source": "app",
-      "description": "Project created"
-    },
-    {
-      "date": "2026-04-01T09:08:24.327Z",
-      "source": "system",
-      "description": "Project folder scanned and linked to project-brain-desktop"
-    },
-    {
-      "date": "2026-04-01T09:08:38.232Z",
-      "source": "system",
-      "description": "Project folder scanned and linked to project-brain-desktop"
-    },
-    {
-      "date": "2026-04-01T09:08:38.234Z",
-      "source": "system",
-      "description": "Linked project rescanned: project-brain-desktop"
-    },
-    {
-      "date": "2026-04-01T09:21:15.232Z",
-      "source": "system",
-      "description": "Project folder scanned and linked to project-brain-desktop"
-    },
-    {
-      "date": "2026-04-01T09:21:15.235Z",
-      "source": "system",
-      "description": "Linked project rescanned: project-brain-desktop"
-    }
-  ],
   "aiInstructions": {
     "role": "You are a project collaborator.",
     "tone": "Clear, direct, structured",
     "focus": "Help move the project forward without losing continuity"
   },
-  "snapshots": [
+  "linkedFolder": {
+    "path": "C:\\Users\\thoma\\project-brain",
+    "scanHash": "8fcd62af7904",
+    "lastScannedAt": "2026-04-02T06:35:19.963Z"
+  },
+  "changelog": [
     {
-      "id": "2026-04-01T09:08:24.328Z-2e324be1",
-      "createdAt": "2026-04-01T09:08:24.328Z",
-      "hash": "2e324be1",
-      "summary": "🧠 Project Brain",
-      "currentState": "Project folder scanned successfully. 50 useful files were identified and prepared for handoff.",
-      "goals": [],
-      "rules": [],
-      "decisions": [],
-      "nextSteps": [],
-      "openQuestions": []
+      "date": "2026-04-02T06:34:47.192Z",
+      "source": "app",
+      "description": "Project created from folder: project-brain"
     },
     {
-      "id": "2026-04-01T09:08:38.234Z-40c7b4b2",
-      "createdAt": "2026-04-01T09:08:38.234Z",
-      "hash": "40c7b4b2",
-      "summary": "Auto-detected Tauri App with 51 useful files prepared for AI handoff.",
-      "currentState": "Project folder scanned successfully. 51 useful files were identified and prepared for handoff.",
-      "goals": [],
-      "rules": [],
-      "decisions": [],
-      "nextSteps": [],
-      "openQuestions": []
-    },
-    {
-      "id": "2026-04-01T09:21:15.235Z-5ba62408",
-      "createdAt": "2026-04-01T09:21:15.235Z",
-      "hash": "5ba62408",
-      "summary": "🧠 Project Brain",
-      "currentState": "Project folder scanned successfully. 48 useful files were identified and prepared for handoff.",
-      "goals": [],
-      "rules": [],
-      "decisions": [],
-      "nextSteps": [],
-      "openQuestions": []
+      "date": "2026-04-02T06:35:19.963Z",
+      "source": "system",
+      "description": "Linked project rescanned"
     }
   ],
-  "handoffs": [],
   "platformState": {},
-  "scanInfo": {
-    "detectedType": "Tauri App",
-    "detectedTags": [
-      "node",
-      "react",
-      "tauri"
-    ],
-    "scannedFileCount": 48,
-    "importantFileCount": 48,
-    "excludedFileCount": 0,
-    "lastScannedAt": "2026-04-01T09:21:15.232Z"
-  },
-  "scanInsights": {
-    "architecture": "Tauri App",
-    "likelyEntryPoint": "src-tauri\\src\\main.rs",
-    "likelyAuthFiles": [],
-    "likelyModelFiles": [],
-    "likelyConfigFiles": [
-      "package-lock.json",
-      "package.json",
-      "src-tauri\\Cargo.toml",
-      "tsconfig.json",
-      "vite.config.ts"
-    ],
-    "likelyDocs": [
-      "README.md"
-    ],
-    "confidence": "high",
-    "notes": [
-      "Detected Tauri App.",
-      "Likely entry point: src-tauri\\src\\main.rs.",
-      "No likely auth files detected.",
-      "No likely model files detected."
-    ]
-  },
-  "autoFillState": {
-    "summary": "scan",
-    "currentState": "scan"
-  }
+  "snapshots": [],
+  "handoffs": [],
+  "autoFillState": {}
 }

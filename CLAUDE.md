@@ -1,21 +1,33 @@
-# Project Brain — Claude Context File
+# Project Brain
 
-## What this project is
-A local-first desktop app that lets users store, manage, and transfer project memory/context between AI platforms (ChatGPT, Claude, Grok, Gemini, Perplexity). Users can pick up a project on any AI platform without re-explaining context. No cloud. Data stays on the user's machine.
+## What is this?
+A Tauri v2 desktop app that lets users carry project context between AI platforms (ChatGPT, Claude, Grok, Perplexity) without losing continuity. No cloud. Data stays on the user's machine.
 
 - **GitHub:** github.com/krisninnis/project-brain
 - **Local repo:** C:\Users\KRIS\project-brain-desktop
 
 ## Stack
-- Frontend: React 19, Vite 7, TypeScript
+- Frontend: React 19 + TypeScript + Vite 7
 - Backend: Rust (Tauri v2)
-- Storage: Local JSON files in /projects folder
-- TypeScript ~71%, CSS ~24%, Rust ~4%
+- State: Zustand
+- Storage: Local JSON files in app data directory
+- Styling: CSS (dark theme)
 
 ## Golden Rule (NON-NEGOTIABLE)
 > "A non-technical user should understand what to do within 5 seconds."
 
 Simplicity over power. Always. Every single decision filters through this rule.
+
+## Architecture
+- `src/types/project-brain-types.ts` — all TypeScript types (new canonical types)
+- `src/types/project.ts` — legacy types (still used by existing hooks/services)
+- `src/store/projectStore.ts` — Zustand store (single source of truth)
+- `src/hooks/useTauriSync.ts` — bridges Tauri commands ↔ Zustand store
+- `src/components/Layout/AppShell.tsx` — two-panel grid layout
+- `src/components/Sidebar/` — project list (Sidebar, ProjectCard)
+- `src/components/Workspace/` — action bar, paste zone, export buttons, task field
+- `src/components/Editor/` — project field editor (ProjectEditor, EditableField)
+- `src-tauri/src/` — Rust backend commands (scan, save, load, delete)
 
 ## Jargon replacements — always use these
 | Old (never use) | New (always use) |
@@ -27,42 +39,14 @@ Simplicity over power. Always. Every single decision filters through this rule.
 | Instructions | How the AI should help |
 | Editor | Project Details |
 
-## Current working features
-- Save / load / delete projects
-- Folder scan with tech stack detection
-- 8 platform export prompts
-- Structured AI update merge + validate
-- Export sanitiser for secrets
-
-## UX redesign in progress
-- Single scrollable page (replacing 3 tabs)
-- Toast notifications on every user action
-- Auto-save
-- Welcome screen for first-time users
-- Active project always visibly highlighted
-- Two primary actions always visible: **"Paste from AI"** and **"Copy for AI"**
-- Show 4 main platforms, rest behind "More"
-
-## ProjectMemory schema
-```json
-{
-  "summary": "",
-  "goals": [],
-  "rules": [],
-  "decisions": [],
-  "currentState": "",
-  "nextSteps": [],
-  "openQuestions": [],
-  "importantAssets": [],
-  "changelog": [],
-  "aiInstructions": {},
-  "platformState": {},
-  "lastPlatformUsed": "",
-  "platformHistory": [],
-  "schema_version": ""
-}
-```
-All new fields must be **optional** for backward compatibility with existing saved projects.
+## Key Rules
+- No JSON visible to users ever
+- linkedFolder.path NEVER appears in any export
+- User edits always win over scan data on rescan
+- Toast notification on every user action
+- Auto-save on field changes (debounced 500ms)
+- Secrets are sanitised before any export (hardcoded Rust exclusion list + regex)
+- All new schema fields must be optional (backward compatibility)
 
 ## Platform export formats
 - **Claude** = XML structured tags
@@ -71,10 +55,12 @@ All new fields must be **optional** for backward compatibility with existing sav
 - **Perplexity** = research-framed
 - Every export ends with structured update format instructions so the AI can write back
 
-## Next build priorities (do in this order)
-1. **Scan → auto-populate** — Rust parses README/package.json/file tree to auto-fill summary, goals, currentState, importantAssets
-2. **Platform cursors** — platformState map (platform → lastExportedAt + stateHash), generate "Since your last session" diff header on export
-3. **Auto-merge on paste** — detect valid JSON, auto-apply, toast confirmation, scroll to changes
+## Current Build Priorities
+1. ✅ Types + Zustand store
+2. ✅ Two-panel layout + action bar
+3. 🔲 Specialist task handoff
+4. 🔲 Paste zone + structured update parser
+5. 🔲 Platform-specific export formatting
 
 ## Security rules (non-negotiable, never override)
 - Hardcoded Rust exclusion list for .env / keys / tokens — never user-configurable

@@ -1,5 +1,8 @@
 {
+  "schema_version": "0.2.0",
   "projectName": "AI Memory System",
+  "created": "2026-04-02T06:33:29.447Z",
+  "lastModified": "2026-04-02T06:33:29.447Z",
   "summary": "",
   "goals": [],
   "rules": [],
@@ -7,5 +10,15 @@
   "currentState": "Project created",
   "nextSteps": [],
   "openQuestions": [],
-  "importantAssets": []
+  "importantAssets": [],
+  "aiInstructions": {
+    "role": "You are a project collaborator.",
+    "tone": "Clear, direct, structured",
+    "focus": "Help move the project forward without losing continuity"
+  },
+  "changelog": [],
+  "platformState": {},
+  "snapshots": [],
+  "handoffs": [],
+  "autoFillState": {}
 }
