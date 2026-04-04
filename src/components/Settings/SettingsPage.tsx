@@ -23,7 +23,15 @@ export function SettingsPage() {
 
   return (
     <div className="settings-page">
+      {/* Mobile back button shown above the tab strip */}
+      <div className="settings-back-mobile">
+        <button className="settings-back-btn" onClick={() => setCurrentView('projects')}>
+          ← Back to projects
+        </button>
+      </div>
+
       <div className="settings-nav">
+        {/* Desktop: sidebar header */}
         <div className="settings-nav-header">
           <button className="settings-back-btn" onClick={() => setCurrentView('projects')}>
             ← Back

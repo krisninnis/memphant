@@ -80,29 +80,17 @@ export function SettingsGeneral() {
         <div className="setting-row">
           <div className="setting-info">
             <div className="setting-label">Run on startup</div>
-            <div className="setting-description">Start Project Brain when you log in</div>
+            <div className="setting-description">Start Project Brain when you log in — coming in next release</div>
           </div>
-          <Toggle
-            value={g.runOnStartup}
-            onChange={(v) => {
-              update({ runOnStartup: v });
-              showToast('Startup setting saved', 'info');
-            }}
-          />
+          <span className="setting-badge">Coming soon</span>
         </div>
 
         <div className="setting-row">
           <div className="setting-info">
             <div className="setting-label">System tray</div>
-            <div className="setting-description">Keep running in the background when you close the window</div>
+            <div className="setting-description">Keep running in the background when you close — coming in next release</div>
           </div>
-          <Toggle
-            value={g.systemTray}
-            onChange={(v) => {
-              update({ systemTray: v });
-              showToast('System tray setting saved', 'info');
-            }}
-          />
+          <span className="setting-badge">Coming soon</span>
         </div>
       </div>
 

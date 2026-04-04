@@ -3,13 +3,16 @@ import { useProjectStore } from '../../store/projectStore';
 import {
   createProject,
   createProjectFromFolder,
-  importProjectFromFile,
   deleteProject,
 } from '../../services/tauriActions';
 import ProjectCard from './ProjectCard';
 import ConfirmDialog from '../Shared/ConfirmDialog';
 
-export function Sidebar() {
+interface SidebarProps {
+  onNavigate?: () => void;
+}
+
+export function Sidebar({ onNavigate }: SidebarProps) {
   const projects = useProjectStore((s) => s.projects);
   const activeProjectId = useProjectStore((s) => s.activeProjectId);
   const setActiveProject = useProjectStore((s) => s.setActiveProject);
@@ -19,20 +22,12 @@ export function Sidebar() {
   const [showCreate, setShowCreate] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleCreate = async () => {
     if (!newName.trim()) return;
     await createProject(newName);
     setNewName('');
     setShowCreate(false);
-  };
-
-  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    await importProjectFromFile(file);
-    e.target.value = '';
   };
 
   const pendingDeleteProject = pendingDeleteId
@@ -82,43 +77,42 @@ export function Sidebar() {
               }}
             />
             <div className="sidebar-create-buttons">
-              <button className="sidebar-action-btn sidebar-action-btn--primary" onClick={() => void handleCreate()}>
+              <button
+                className="sidebar-action-btn sidebar-action-btn--primary"
+                onClick={() => void handleCreate()}
+              >
                 Create
               </button>
-              <button className="sidebar-action-btn" onClick={() => { setShowCreate(false); setNewName(''); }}>
+              <button
+                className="sidebar-action-btn"
+                onClick={() => { setShowCreate(false); setNewName(''); }}
+              >
                 Cancel
               </button>
             </div>
           </div>
         )}
 
-        <button className="sidebar-action-btn" onClick={() => void createProjectFromFolder()}>
-          Scan a folder
+        <button
+          className="sidebar-action-btn"
+          onClick={() => void createProjectFromFolder()}
+        >
+          📂 Open a project folder
         </button>
-
-        <button className="sidebar-action-btn" onClick={() => fileInputRef.current?.click()}>
-          Open saved project
-        </button>
-
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".json"
-          onChange={(e) => void handleImportFile(e)}
-          style={{ display: 'none' }}
-        />
       </div>
 
       <div className="sidebar-projects">
         {projects.length === 0 && (
-          <p className="sidebar-empty">No projects yet. Create one above to get started.</p>
+          <p className="sidebar-empty">
+            No projects yet — create one above or open a folder.
+          </p>
         )}
         {projects.map((project) => (
           <ProjectCard
             key={project.id}
             project={project}
             isActive={project.id === activeProjectId}
-            onSelect={() => setActiveProject(project.id)}
+            onSelect={() => { setActiveProject(project.id); onNavigate?.(); }}
             onDelete={() => setPendingDeleteId(project.id)}
           />
         ))}

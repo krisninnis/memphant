@@ -1,5 +1,6 @@
 use std::fs;
 use std::path::{Path, PathBuf};
+use tauri::Manager;
 
 fn is_ignored_path(path: &str) -> bool {
     let normalized = path.replace("\\", "/").to_lowercase();
@@ -341,61 +342,159 @@ fn rescan_linked_folder(folder_path: String) -> Result<RescanResult, String> {
     })
 }
 
-#[tauri::command]
-fn save_project_file(project_name: String, project_data: String) -> Result<String, String> {
-    let safe_name = project_name.replace(" ", "_");
-    let mut path = PathBuf::from("projects");
+/// Sanitise a project name to a safe filename stem.
+/// Allows letters, digits, hyphens, underscores. Max 100 chars.
+/// Returns Err if the result would be empty (e.g. pure emoji input).
+fn sanitize_project_name(name: &str) -> Result<String, String> {
+    let stem: String = name
+        .replace(' ', "_")
+        .chars()
+        .filter(|c| c.is_alphanumeric() || *c == '_' || *c == '-')
+        .take(100)
+        .collect();
 
+    if stem.is_empty() {
+        return Err("Project name must contain at least one letter or digit".to_string());
+    }
+    Ok(stem)
+}
+
+/// Validate that a file_name is safe to use inside the projects folder:
+///  - must end with ".json"
+///  - must not contain path separators or ".."
+fn validate_file_name(file_name: &str) -> Result<(), String> {
+    if !file_name.ends_with(".json") {
+        return Err("Only .json files are allowed".to_string());
+    }
+    if file_name.contains('/') || file_name.contains('\\') || file_name.contains("..") {
+        return Err("Invalid file name".to_string());
+    }
+    Ok(())
+}
+
+/// Resolve the projects directory inside Tauri's app data dir, creating it if needed.
+/// Falls back to a local `projects/` folder when running outside Tauri (e.g. `cargo test`).
+fn projects_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    let base = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("Could not resolve app data directory: {}", e))?;
+    let path = base.join("projects");
     if !path.exists() {
         fs::create_dir_all(&path).map_err(|e| e.to_string())?;
     }
-
-    path.push(format!("{}.json", safe_name));
-    fs::write(&path, project_data).map_err(|e| e.to_string())?;
-
-    Ok(path.display().to_string())
+    Ok(path)
 }
 
 #[tauri::command]
-fn load_projects() -> Result<Vec<String>, String> {
-    let path = Path::new("projects");
+fn get_projects_path(app: tauri::AppHandle) -> Result<String, String> {
+    let path = projects_dir(&app)?;
+    Ok(path.to_string_lossy().to_string())
+}
 
+/// Rotate backups for a project — keeps last MAX_BACKUPS numbered snapshots.
+/// Backup files are stored in projects/backups/<stem>/<stem>_001.json … _005.json
+#[tauri::command]
+fn backup_project_file(app: tauri::AppHandle, file_name: String) -> Result<(), String> {
+    const MAX_BACKUPS: u32 = 5;
+
+    validate_file_name(&file_name)?;
+    let projects_path = projects_dir(&app)?;
+    let source = projects_path.join(&file_name);
+
+    if !source.exists() {
+        // Nothing to back up yet
+        return Ok(());
+    }
+
+    // Backup dir: <projects>/backups/<stem>/
+    let stem = file_name.trim_end_matches(".json");
+    let backup_dir = projects_path.join("backups").join(stem);
+    fs::create_dir_all(&backup_dir).map_err(|e| e.to_string())?;
+
+    // Shift existing backups: _005 is dropped, _004 → _005, … _001 → _002
+    for i in (1..MAX_BACKUPS).rev() {
+        let old_name = format!("{}_{:03}.json", stem, i);
+        let new_name = format!("{}_{:03}.json", stem, i + 1);
+        let old_path = backup_dir.join(&old_name);
+        let new_path = backup_dir.join(&new_name);
+        if old_path.exists() {
+            let _ = fs::rename(&old_path, &new_path); // ignore errors on rotation
+        }
+    }
+
+    // Copy current file to _001
+    let first_backup = backup_dir.join(format!("{}_{:03}.json", stem, 1));
+    fs::copy(&source, &first_backup).map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+#[tauri::command]
+fn save_project_file(
+    app: tauri::AppHandle,
+    project_name: String,
+    project_data: String,
+) -> Result<String, String> {
+    let stem = sanitize_project_name(&project_name)?;
+    let file_name = format!("{}.json", stem);
+    let dir = projects_dir(&app)?;
+
+    // Atomic write: write to .tmp then rename
+    let tmp_path = dir.join(format!("{}.tmp", stem));
+    let final_path = dir.join(&file_name);
+
+    fs::write(&tmp_path, &project_data).map_err(|e| e.to_string())?;
+    fs::rename(&tmp_path, &final_path).map_err(|e| {
+        // Clean up tmp on failure
+        let _ = fs::remove_file(&tmp_path);
+        e.to_string()
+    })?;
+
+    Ok(file_name)
+}
+
+#[tauri::command]
+fn load_projects(app: tauri::AppHandle) -> Result<Vec<String>, String> {
+    let path = projects_dir(&app)?;
     if !path.exists() {
         return Ok(vec![]);
     }
 
     let mut projects = vec![];
-
-    for entry in fs::read_dir(path).map_err(|e| e.to_string())? {
+    for entry in fs::read_dir(&path).map_err(|e| e.to_string())? {
         let entry = entry.map_err(|e| e.to_string())?;
         let file_name = entry.file_name().to_string_lossy().to_string();
-        projects.push(file_name);
+        // Only surface valid .json files (skip .tmp files from interrupted writes)
+        if file_name.ends_with(".json") && !file_name.contains("..") && !file_name.ends_with(".tmp") {
+            projects.push(file_name);
+        }
     }
-
     projects.sort();
     Ok(projects)
 }
 
 #[tauri::command]
-fn load_project_file(file_name: String) -> Result<String, String> {
-    let mut path = PathBuf::from("projects");
-    path.push(file_name);
-
+fn load_project_file(app: tauri::AppHandle, file_name: String) -> Result<String, String> {
+    validate_file_name(&file_name)?;
+    let mut path = projects_dir(&app)?;
+    path.push(&file_name);
     let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
     Ok(content)
 }
 
 #[tauri::command]
-fn delete_project_file(file_name: String) -> Result<String, String> {
-    let mut path = PathBuf::from("projects");
-    path.push(file_name);
+fn delete_project_file(app: tauri::AppHandle, file_name: String) -> Result<String, String> {
+    validate_file_name(&file_name)?;
+    let mut path = projects_dir(&app)?;
+    path.push(&file_name);
 
     if !path.exists() {
         return Err("Project file not found".to_string());
     }
 
     fs::remove_file(&path).map_err(|e| e.to_string())?;
-    Ok(format!("Deleted {}", path.display()))
+    Ok(format!("Deleted {}", file_name))
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -405,6 +504,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             scan_project_folder,
             rescan_linked_folder,
+            get_projects_path,
+            backup_project_file,
             save_project_file,
             load_projects,
             load_project_file,

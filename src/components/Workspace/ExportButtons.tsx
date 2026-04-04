@@ -1,6 +1,8 @@
+import { useCallback } from 'react';
 import { useProjectStore } from '../../store/projectStore';
+import { useActiveProject, useEnabledPlatforms } from '../../hooks/useActiveProject';
 import { copyExportToClipboard } from '../../services/tauriActions';
-import { formatForPlatform } from '../../utils/exportFormatters';
+import { formatForPlatform, setScannerLevel } from '../../utils/exportFormatters';
 import { PLATFORM_CONFIG } from '../../utils/platformConfig';
 import type { Platform } from '../../types/project-brain-types';
 
@@ -20,27 +22,35 @@ function formatSyncAge(isoString: string): string {
 export function ExportButtons() {
   const targetPlatform = useProjectStore((s) => s.targetPlatform);
   const setTargetPlatform = useProjectStore((s) => s.setTargetPlatform);
-  const activeProject = useProjectStore((s) => s.activeProject());
+  const activeProject = useActiveProject();
   const currentTask = useProjectStore((s) => s.currentTask);
   const showToast = useProjectStore((s) => s.showToast);
-  const enabledPlatforms = useProjectStore((s) => s.enabledPlatforms());
-  const settings = useProjectStore((s) => s.settings);
+  const enabledPlatforms = useEnabledPlatforms();
 
-  const handleCopyFor = async (platform: Platform) => {
-    setTargetPlatform(platform);
+  // Read both settings that affect export behaviour
+  const defaultExportMode = useProjectStore((s) => s.settings.projects.defaultExportMode);
+  const secretsScannerLevel = useProjectStore((s) => s.settings.privacy.secretsScannerLevel);
 
-    if (!activeProject) {
-      showToast('Open a project first', 'error');
-      return;
-    }
+  const handleCopyFor = useCallback(
+    async (platform: Platform) => {
+      if (platform !== targetPlatform) {
+        setTargetPlatform(platform);
+      }
 
-    const mode = settings.projects.defaultExportMode;
-    const exportText = formatForPlatform(activeProject, platform, currentTask, mode);
-    await copyExportToClipboard(exportText, platform);
-  };
+      if (!activeProject) {
+        showToast('Open a project first', 'error');
+        return;
+      }
 
-  // Show up to 4; if more, show first 4 (More dropdown is a future enhancement)
-  const visiblePlatforms = enabledPlatforms.slice(0, 4);
+      // Apply scanner level before generating export text
+      setScannerLevel(secretsScannerLevel);
+      const exportText = formatForPlatform(activeProject, platform, currentTask, defaultExportMode);
+      await copyExportToClipboard(exportText, platform);
+    },
+    [setTargetPlatform, targetPlatform, activeProject, currentTask, showToast, defaultExportMode, secretsScannerLevel]
+  );
+
+  const visiblePlatforms = enabledPlatforms.slice(0, 5);
 
   return (
     <div className="export-buttons">
@@ -52,21 +62,22 @@ export function ExportButtons() {
         return (
           <button
             key={platform}
-            className={`export-pill ${targetPlatform === platform ? 'export-pill--active' : ''}`}
+            className={`export-pill${targetPlatform === platform ? ' export-pill--active' : ''}`}
             style={{ '--pill-color': config.color } as React.CSSProperties}
             onClick={() => void handleCopyFor(platform)}
             title={
               syncLabel
                 ? `Last copied for ${config.name}: ${syncLabel}`
-                : `Never copied for ${config.name}`
+                : `Copy for ${config.name}`
             }
           >
+            <span className="export-pill__icon">{config.icon}</span>
             <span className="export-pill__label">
-              {config.icon} {config.name}
+              {config.name}
+              {syncLabel && (
+                <span className="export-pill__age">{syncLabel}</span>
+              )}
             </span>
-            {syncLabel && (
-              <span className="export-pill__sync">{syncLabel}</span>
-            )}
           </button>
         );
       })}

@@ -3,10 +3,10 @@
  * Collapses once the user has used the app before (i.e. has exported at least once).
  */
 import { useState } from 'react';
-import { useProjectStore } from '../../store/projectStore';
+import { useActiveProject } from '../../hooks/useActiveProject';
 
 export function WorkflowGuide() {
-  const activeProject = useProjectStore((s) => s.activeProject());
+  const activeProject = useActiveProject();
   const [dismissed, setDismissed] = useState(false);
 
   // Check if any platform has been used at all

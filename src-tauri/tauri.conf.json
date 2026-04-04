@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "project-brain-desktop",
+  "productName": "Project Brain",
   "version": "0.1.0",
   "identifier": "com.kris.project-brain-desktop",
   "build": {
@@ -12,9 +12,11 @@
   "app": {
     "windows": [
       {
-        "title": "project-brain-desktop",
-        "width": 800,
-        "height": 600
+        "title": "Project Brain",
+        "width": 1100,
+        "height": 700,
+        "minWidth": 400,
+        "minHeight": 500
       }
     ],
     "security": {

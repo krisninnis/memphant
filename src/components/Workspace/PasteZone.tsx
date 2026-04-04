@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useProjectStore } from '../../store/projectStore';
+import { useActiveProject } from '../../hooks/useActiveProject';
 import { detectUpdate, computeDiff, applyUpdate, countDiffs } from '../../utils/diffEngine';
 import DiffPreview from './DiffPreview';
 import type { DiffResult } from '../../types/project-brain-types';
@@ -13,7 +14,7 @@ export function PasteZone() {
   const [detectedUpdate, setDetectedUpdate] = useState<ReturnType<typeof detectUpdate>>(null);
   const [isDragOver, setIsDragOver] = useState(false);
 
-  const activeProject = useProjectStore((s) => s.activeProject());
+  const activeProject = useActiveProject();
   const updateProject = useProjectStore((s) => s.updateProject);
   const setPreAiBackup = useProjectStore((s) => s.setPreAiBackup);
   const showToast = useProjectStore((s) => s.showToast);

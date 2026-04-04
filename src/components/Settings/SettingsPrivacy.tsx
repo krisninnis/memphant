@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
 import { useProjectStore } from '../../store/projectStore';
+import { getProjectsPath, loadAllFromDisk } from '../../services/tauriActions';
 import Toggle from '../Shared/Toggle';
 import ConfirmDialog from '../Shared/ConfirmDialog';
 
@@ -11,17 +11,25 @@ export function SettingsPrivacy() {
   const setProjects = useProjectStore((s) => s.setProjects);
   const setActiveProject = useProjectStore((s) => s.setActiveProject);
   const [confirmClear, setConfirmClear] = useState(false);
+  const [dataPath, setDataPath] = useState<string | null>(null);
 
   const p = settings.privacy;
   const update = (updates: Partial<typeof p>) => {
     updateSettings({ privacy: { ...p, ...updates } });
   };
 
+  const handleViewStoredData = async () => {
+    const path = await getProjectsPath();
+    setDataPath(path);
+  };
+
   const handleClearData = async () => {
     try {
-      const fileNames = await invoke<string[]>('load_projects');
-      for (const fileName of fileNames) {
-        await invoke('delete_project_file', { fileName });
+      // Load all projects then delete each one via tauriActions
+      const projects = await loadAllFromDisk();
+      const { deleteProject } = await import('../../services/tauriActions');
+      for (const project of projects) {
+        await deleteProject(project.id);
       }
       setProjects([]);
       setActiveProject(null);
@@ -34,7 +42,7 @@ export function SettingsPrivacy() {
 
   return (
     <div>
-      <h2 className="settings-section-title">Privacy & Security</h2>
+      <h2 className="settings-section-title">Privacy &amp; Security</h2>
 
       <div className="settings-trust-box">
         🔒 Project Brain keeps all your data on this device. Nothing is sent to any server.
@@ -64,7 +72,9 @@ export function SettingsPrivacy() {
         <div className="setting-row">
           <div className="setting-info">
             <div className="setting-label">Secrets scanner</div>
-            <div className="setting-description">How aggressively to scan for passwords and API keys before copying</div>
+            <div className="setting-description">
+              How aggressively to scan for passwords and API keys before copying
+            </div>
           </div>
           <select
             className="setting-select"
@@ -86,11 +96,26 @@ export function SettingsPrivacy() {
         <div className="setting-row">
           <div className="setting-info">
             <div className="setting-label">Stored data</div>
-            <div className="setting-description">View where your projects are saved on this device</div>
+            <div className="setting-description">
+              {dataPath ? (
+                <span
+                  style={{
+                    fontFamily: 'monospace',
+                    fontSize: '0.78rem',
+                    color: '#a0cfff',
+                    wordBreak: 'break-all',
+                  }}
+                >
+                  {dataPath}
+                </span>
+              ) : (
+                'View where your projects are saved on this device'
+              )}
+            </div>
           </div>
           <button
             className="setting-btn"
-            onClick={() => showToast('Projects are stored in the app data folder on your device', 'info')}
+            onClick={() => void handleViewStoredData()}
           >
             View stored data
           </button>
@@ -99,7 +124,9 @@ export function SettingsPrivacy() {
         <div className="setting-row">
           <div className="setting-info">
             <div className="setting-label">Clear all data</div>
-            <div className="setting-description">Delete all projects from this device — cannot be undone</div>
+            <div className="setting-description">
+              Delete all projects from this device — cannot be undone
+            </div>
           </div>
           <button
             className="setting-btn setting-btn--danger"

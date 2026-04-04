@@ -1,10 +1,11 @@
 import { useProjectStore } from '../../store/projectStore';
+import { useActiveProject } from '../../hooks/useActiveProject';
 import EditableField from './EditableField';
 import EditableList from './EditableList';
 import { DecisionList } from './DecisionCard';
 
 export function ProjectEditor() {
-  const activeProject = useProjectStore((s) => s.activeProject());
+  const activeProject = useActiveProject();
   const updateProject = useProjectStore((s) => s.updateProject);
 
   if (!activeProject) {

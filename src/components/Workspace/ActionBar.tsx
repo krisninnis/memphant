@@ -1,10 +1,11 @@
 import { useProjectStore } from '../../store/projectStore';
+import { useActiveProject } from '../../hooks/useActiveProject';
 import { linkFolder, rescanLinkedFolder } from '../../services/tauriActions';
 import ExportButtons from './ExportButtons';
 import TaskField from './TaskField';
 
 export function ActionBar() {
-  const activeProject = useProjectStore((s) => s.activeProject());
+  const activeProject = useActiveProject();
   const preAiBackup = useProjectStore((s) => s.preAiBackup);
   const setPreAiBackup = useProjectStore((s) => s.setPreAiBackup);
   const updateProject = useProjectStore((s) => s.updateProject);
