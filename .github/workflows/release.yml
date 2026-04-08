@@ -19,8 +19,6 @@ jobs:
             target: x86_64-pc-windows-msvc
           - platform: macos-latest
             target: aarch64-apple-darwin
-          - platform: macos-13
-            target: x86_64-apple-darwin
           - platform: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
 
@@ -57,18 +55,8 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # ── Auto-updater signing (REQUIRED for in-app updates to work) ──────
-          # Add these in: GitHub repo → Settings → Secrets → Actions
-          #
-          #   TAURI_SIGNING_PRIVATE_KEY  →  the contents of your .key file
-          #                                 (the long base64 string, not the .pub)
-          #   TAURI_SIGNING_PRIVATE_KEY_PASSWORD  →  the password you set when
-          #                                          running signer generate
-          #
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          # ── Apple notarisation (macOS only — needed for Gatekeeper) ─────────
-          # Uncomment when you have an Apple Developer account:
           # APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           # APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           # APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
@@ -80,12 +68,11 @@ jobs:
           releaseName: 'Project Brain ${{ github.ref_name }}'
           releaseBody: |
             ## What changed
-            See [CHANGELOG.md](https://github.com/krisninnis/project-brain/blob/main/CHANGELOG.md) for details.
+            See the repository history for details.
 
             ## Install
             - **Windows:** Download the `.msi` or `.exe` installer below
-            - **macOS (Apple Silicon):** Download the `aarch64.dmg`
-            - **macOS (Intel):** Download the `x64.dmg`
+            - **macOS:** Download the `.dmg`
             - **Linux:** Download the `.AppImage` or `.deb` package
 
             > Your project data is stored locally. This update does not affect your existing projects.
