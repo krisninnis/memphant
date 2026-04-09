@@ -1,9 +1,5 @@
 {
   "version": 2,
-  "functions": {
-    "api/*.ts": { "runtime": "@vercel/node" },
-    "api/*.js": { "runtime": "@vercel/node" }
-  },
   "routes": [
     { "src": "/api/(.*)", "dest": "/api/$1" },
     { "src": "/success",  "dest": "/public/success.html" },
