@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useProjectStore } from '../../store/projectStore';
-import { getProjectsPath, loadAllFromDisk } from '../../services/tauriActions';
+import { getProjectsPath, loadAllFromDisk, downloadAllData } from '../../services/tauriActions';
 import Toggle from '../Shared/Toggle';
 import ConfirmDialog from '../Shared/ConfirmDialog';
 
@@ -118,6 +118,21 @@ export function SettingsPrivacy() {
             onClick={() => void handleViewStoredData()}
           >
             View stored data
+          </button>
+        </div>
+
+        <div className="setting-row">
+          <div className="setting-info">
+            <div className="setting-label">Download all my data</div>
+            <div className="setting-description">
+              Export all your projects and settings as a single JSON file — for backup or GDPR requests
+            </div>
+          </div>
+          <button
+            className="setting-btn"
+            onClick={() => void downloadAllData()}
+          >
+            Download data
           </button>
         </div>
 

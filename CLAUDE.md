@@ -92,9 +92,51 @@ Simplicity over power. Always. Every single decision filters through this rule.
 8. ✅ Delete confirmation dialog
 9. ✅ Sync status on export buttons
 10. ✅ Workflow guide (3-step, dismissible)
-11. 🔲 Browser extension (Chrome)
-12. 🔲 Auth + cloud sync (Supabase)
-13. 🔲 Mobile companion (Tauri mobile)
+11. ✅ Browser extension (Chrome)
+12. ✅ Auth + cloud sync (Supabase)
+13. ✅ Mobile companion (PWA — manifest, service worker, mobile CSS, icons)
+14. ✅ Free tier gate (3-project limit for unsigned users, redirect to cloud backup)
+15. ✅ Project templates (5 pre-filled templates in WelcomeScreen + Sidebar)
+16. ✅ Markdown export (Save as file via Rust write_text_file)
+17. ✅ Smart export mode (auto-condensed, Pro-gated)
+18. ✅ Auto-updater (tauri-plugin-updater, checks GitHub releases)
+19. ✅ Sidebar search (real-time, filters across name/state/goals/decisions)
+20. ✅ Stripe billing (Vercel serverless functions, webhook → Supabase, Customer Portal)
+21. ✅ GitHub Actions CI (type-check + Rust check on every push)
+22. ✅ GitHub Actions release (builds all platforms, creates GitHub release + latest.json)
+23. ✅ Marketing landing page (public/index.html served by Vercel at root)
+24. ✅ Cloud sync reliability (exponential backoff retry, IndexedDB offline queue, pending badge)
+25. ✅ Supabase RLS audit script (scripts/audit-rls.ts, npm run audit:rls) + SECURITY.md
+26. ✅ GDPR compliance (Download all data in Privacy settings, Delete account in Cloud Backup, /api/delete-account endpoint)
+27. ✅ ⌘K command palette (cmdk, AppShell-mounted, project search + quick actions)
+28. ✅ Demo assets (docs/screenshots/ folder, docs/demo-script.md)
+
+## Stripe Architecture
+- `api/create-checkout.ts` — POST /api/create-checkout → returns Stripe Checkout URL
+- `api/webhook.js` — POST /api/webhook → receives Stripe events, updates Supabase subscriptions table
+- `api/create-portal.ts` — POST /api/create-portal → returns Stripe Customer Portal URL
+- `src/services/stripe.ts` — frontend: calls API, opens URLs in system browser via tauri-plugin-opener
+- `public/success.html` / `public/cancel.html` — post-payment landing pages (served by Vercel)
+- `vercel.json` — routes /success, /cancel → static pages; /api/* → serverless functions
+- Supabase `subscriptions` table: user_id, stripe_customer_id, stripe_sub_id, tier, status, updated_at
+- Tiers: free (default) | pro | team — stored in Zustand as `subscriptionTier`
+- Pro gate: Smart export mode disabled for free users (SettingsProjects + ExportButtons)
+- Upgrade card shown in Settings → Cloud Backup for free signed-in users
+- Manage subscription button shown for Pro/Team users (opens Customer Portal)
+
+## GitHub Secrets needed for releases
+- `TAURI_SIGNING_PRIVATE_KEY` — contents of the .key file (base64 string)
+- `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` — password set during key generation
+- (Optional, for macOS notarisation) APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY, APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID
+
+## Vercel Env Vars
+- `STRIPE_SECRET_KEY` — from Stripe Dashboard → Developers → API keys
+- `STRIPE_PRO_PRICE_ID` — e.g. price_1TJuZBEFbT0A5uRXLErKulCo
+- `STRIPE_TEAM_PRICE_ID` — e.g. price_1TJuaDEFbT0A5uRXz2Y2usPu
+- `STRIPE_WEBHOOK_SECRET` — from Stripe webhook endpoint details
+- `SUPABASE_URL` — same as VITE_SUPABASE_URL
+- `SUPABASE_SERVICE_ROLE_KEY` — from Supabase Dashboard → Settings → API (service_role key)
+- `APP_URL` — e.g. https://project-brain.vercel.app (no trailing slash)
 
 ## Security rules (non-negotiable, never override)
 - Hardcoded Rust exclusion list for .env / keys / tokens — never user-configurable

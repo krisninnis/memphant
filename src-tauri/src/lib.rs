@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::Manager;
@@ -6,29 +7,37 @@ fn is_ignored_path(path: &str) -> bool {
     let normalized = path.replace("\\", "/").to_lowercase();
 
     let ignored_parts = [
-    "/node_modules/",
-    "/.git/",
-    "/dist/",
-    "/build/",
-    "/.next/",
-    "/target/",
-    "/.idea/",
-    "/.vscode/",
-    "/coverage/",
-    "/out/",
-    "/bin/",
-    "/obj/",
-    "/src-tauri/projects/",
-];
+        "/node_modules/",
+        "/.git/",
+        "/dist/",
+        "/build/",
+        "/.next/",
+        "/target/",
+        "/.idea/",
+        "/.vscode/",
+        "/coverage/",
+        "/out/",
+        "/bin/",
+        "/obj/",
+        "/src-tauri/projects/",
+    ];
 
     ignored_parts.iter().any(|part| normalized.contains(part))
 }
 
-fn is_sensitive_file(path: &str) -> bool {
-    let normalized = path.replace("\\", "/").to_lowercase();
+fn is_sensitive_file(path: &Path) -> bool {
+    let normalized = path.to_string_lossy().replace("\\", "/").to_lowercase();
+    let file_name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().to_lowercase())
+        .unwrap_or_default();
 
-    let sensitive_extensions = [".env", ".pem", ".key", ".p12", ".pfx"];
+    let sensitive_extensions = [".pem", ".key", ".p12", ".pfx"];
     let sensitive_filenames = ["id_rsa", "id_dsa"];
+
+    if file_name == ".env" || file_name.starts_with(".env.") {
+        return true;
+    }
 
     if sensitive_extensions
         .iter()
@@ -47,6 +56,26 @@ fn is_sensitive_file(path: &str) -> bool {
     false
 }
 
+fn contains_sensitive_content(path: &Path) -> bool {
+    let metadata = match fs::metadata(path) {
+        Ok(meta) => meta,
+        Err(_) => return false,
+    };
+
+    if metadata.len() > 512_000 {
+        return false;
+    }
+
+    let content = match fs::read_to_string(path) {
+        Ok(text) => text,
+        Err(_) => return false,
+    };
+
+    let sensitive_patterns = ["sk-", "AKIA", "ghp_", "xoxb-", "-----BEGIN", "eyJ"];
+
+    sensitive_patterns.iter().any(|pattern| content.contains(pattern))
+}
+
 fn is_useful_file(path: &str) -> bool {
     let normalized = path.replace("\\", "/").to_lowercase();
 
@@ -55,6 +84,8 @@ fn is_useful_file(path: &str) -> bool {
         "readme.txt",
         "package.json",
         "package-lock.json",
+        "pnpm-lock.yaml",
+        "yarn.lock",
         "cargo.toml",
         "tsconfig.json",
         "vite.config.ts",
@@ -72,6 +103,9 @@ fn is_useful_file(path: &str) -> bool {
         "main.ts",
         "main.rs",
         "lib.rs",
+        "requirements.txt",
+        "pyproject.toml",
+        "go.mod",
     ];
 
     if important_names.iter().any(|name| normalized.ends_with(name)) {
@@ -81,7 +115,7 @@ fn is_useful_file(path: &str) -> bool {
     let useful_extensions = [
         ".ts", ".tsx", ".js", ".jsx", ".rs", ".py", ".java", ".cs", ".go", ".php", ".rb",
         ".swift", ".kt", ".cpp", ".c", ".h", ".sql", ".html", ".css", ".scss", ".json",
-        ".yml", ".yaml", ".md", ".txt",
+        ".yml", ".yaml", ".md", ".txt", ".toml",
     ];
 
     useful_extensions
@@ -108,11 +142,15 @@ fn collect_safe_files(
             collect_safe_files(root, &path, results)?;
         }
     } else if current.is_file() {
-        let path_str = current.to_string_lossy().to_string();
-
-        if is_sensitive_file(&path_str) {
+        if is_sensitive_file(current) {
             return Ok(());
         }
+
+        if contains_sensitive_content(current) {
+            return Ok(());
+        }
+
+        let path_str = current.to_string_lossy().to_string();
 
         if !is_useful_file(&path_str) {
             return Ok(());
@@ -148,15 +186,48 @@ fn compute_scan_hash(files: &[String]) -> String {
     hex[..12].to_string()
 }
 
-// NEW: reads README and package.json from the root of a scanned folder.
+fn first_readme_summary(readme: &Option<String>) -> Option<String> {
+    let text = readme.as_ref()?;
+    let mut collected = String::new();
+
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            if !collected.is_empty() {
+                break;
+            }
+            continue;
+        }
+        if trimmed.starts_with('#') {
+            continue;
+        }
+
+        if !collected.is_empty() {
+            collected.push(' ');
+        }
+        collected.push_str(trimmed);
+
+        if collected.len() >= 500 {
+            break;
+        }
+    }
+
+    let summary = collected.chars().take(500).collect::<String>().trim().to_string();
+    if summary.is_empty() {
+        None
+    } else {
+        Some(summary)
+    }
+}
+
+// Reads README and package/cargo metadata from the root of a scanned folder.
 // Returns only safe, non-sensitive content. Truncated to keep payloads small.
 fn read_project_meta(root: &Path) -> ProjectMeta {
-    // README — try .md first, then .txt
     let readme = ["README.md", "readme.md", "README.txt", "readme.txt"]
         .iter()
         .find_map(|name| {
             let path = root.join(name);
-            if path.exists() {
+            if path.exists() && !contains_sensitive_content(&path) {
                 fs::read_to_string(&path)
                     .ok()
                     .map(|content| content.chars().take(2000).collect::<String>())
@@ -165,12 +236,10 @@ fn read_project_meta(root: &Path) -> ProjectMeta {
             }
         });
 
-    // package.json — extract name, description, scripts keys only (never deps = no versions leaked)
     let package_json = {
         let path = root.join("package.json");
-        if path.exists() {
+        if path.exists() && !contains_sensitive_content(&path) {
             fs::read_to_string(&path).ok().and_then(|content| {
-                // Parse just the fields we want — no serde_json dep needed, basic extraction
                 let name = extract_json_string(&content, "name");
                 let description = extract_json_string(&content, "description");
                 let version = extract_json_string(&content, "version");
@@ -190,10 +259,9 @@ fn read_project_meta(root: &Path) -> ProjectMeta {
         }
     };
 
-    // Cargo.toml — extract name and description
     let cargo_toml = {
         let path = root.join("Cargo.toml");
-        if path.exists() {
+        if path.exists() && !contains_sensitive_content(&path) {
             fs::read_to_string(&path).ok().and_then(|content| {
                 let name = extract_toml_value(&content, "name");
                 let description = extract_toml_value(&content, "description");
@@ -213,15 +281,18 @@ fn read_project_meta(root: &Path) -> ProjectMeta {
         }
     };
 
+    let stack = detect_stack(root);
+    let suggestions = build_scan_suggestions(&readme, &package_json, &cargo_toml, &stack);
+
     ProjectMeta {
         readme,
         package_json,
         cargo_toml,
+        stack,
+        suggestions,
     }
 }
 
-// Minimal JSON string extractor — avoids serde_json dependency.
-// Finds `"key": "value"` and returns the value string.
 fn extract_json_string(json: &str, key: &str) -> Option<String> {
     let pattern = format!("\"{}\"", key);
     let key_pos = json.find(&pattern)?;
@@ -238,7 +309,6 @@ fn extract_json_string(json: &str, key: &str) -> Option<String> {
     }
 }
 
-// Minimal TOML value extractor for key = "value" patterns.
 fn extract_toml_value(toml: &str, key: &str) -> Option<String> {
     for line in toml.lines() {
         let trimmed = line.trim();
@@ -258,68 +328,327 @@ fn extract_toml_value(toml: &str, key: &str) -> Option<String> {
     None
 }
 
-#[derive(serde::Serialize)]
-pub struct PackageInfo {
+fn extract_json_block(root: &Path, file_name: &str) -> Option<String> {
+    let path = root.join(file_name);
+    if path.exists() && !contains_sensitive_content(&path) {
+        fs::read_to_string(path).ok()
+    } else {
+        None
+    }
+}
+
+fn extract_text_block(root: &Path, file_name: &str) -> Option<String> {
+    let path = root.join(file_name);
+    if path.exists() && !contains_sensitive_content(&path) {
+        fs::read_to_string(path).ok()
+    } else {
+        None
+    }
+}
+
+fn push_signal(signals: &mut Vec<StackSignal>, source: &str, signal: &str, detail: Option<&str>) {
+    signals.push(StackSignal {
+        source: source.to_string(),
+        signal: signal.to_string(),
+        detail: detail.map(|d| d.to_string()),
+    });
+}
+
+fn detect_stack(root: &Path) -> TechStackInfo {
+    let mut languages = BTreeSet::new();
+    let mut frameworks = BTreeSet::new();
+    let mut package_managers = BTreeSet::new();
+    let mut build_tools = BTreeSet::new();
+    let mut runtimes = BTreeSet::new();
+    let mut signals: Vec<StackSignal> = Vec::new();
+
+    let package_json = extract_json_block(root, "package.json").unwrap_or_default().to_lowercase();
+    let cargo_toml = extract_text_block(root, "Cargo.toml").unwrap_or_default().to_lowercase();
+    let requirements_txt = extract_text_block(root, "requirements.txt").unwrap_or_default().to_lowercase();
+    let pyproject_toml = extract_text_block(root, "pyproject.toml").unwrap_or_default().to_lowercase();
+    let _go_mod: String = extract_text_block(root, "go.mod").unwrap_or_default().to_lowercase();
+
+    if root.join("package.json").exists() {
+        languages.insert("JavaScript".to_string());
+        runtimes.insert("Node.js".to_string());
+        package_managers.insert("npm".to_string());
+        push_signal(&mut signals, "package.json", "runtime", Some("Node.js"));
+    }
+
+    if root.join("tsconfig.json").exists() || package_json.contains("typescript") {
+        languages.insert("TypeScript".to_string());
+        push_signal(&mut signals, "tsconfig/package.json", "language", Some("TypeScript"));
+    }
+
+    if root.join("package-lock.json").exists() {
+        package_managers.insert("npm".to_string());
+        push_signal(&mut signals, "package-lock.json", "package-manager", Some("npm"));
+    }
+
+    if root.join("pnpm-lock.yaml").exists() {
+        package_managers.insert("pnpm".to_string());
+        push_signal(&mut signals, "pnpm-lock.yaml", "package-manager", Some("pnpm"));
+    }
+
+    if root.join("yarn.lock").exists() {
+        package_managers.insert("yarn".to_string());
+        push_signal(&mut signals, "yarn.lock", "package-manager", Some("yarn"));
+    }
+
+    if root.join("vite.config.ts").exists() || root.join("vite.config.js").exists() || package_json.contains("\"vite\"") {
+        build_tools.insert("Vite".to_string());
+        push_signal(&mut signals, "vite config/package.json", "build-tool", Some("Vite"));
+    }
+
+    if package_json.contains("\"react\"") {
+        frameworks.insert("React".to_string());
+        push_signal(&mut signals, "package.json", "framework", Some("React"));
+    }
+
+    if package_json.contains("\"next\"") {
+        frameworks.insert("Next.js".to_string());
+        push_signal(&mut signals, "package.json", "framework", Some("Next.js"));
+    }
+
+    if package_json.contains("\"vue\"") {
+        frameworks.insert("Vue".to_string());
+        push_signal(&mut signals, "package.json", "framework", Some("Vue"));
+    }
+
+    if package_json.contains("\"svelte\"") {
+        frameworks.insert("Svelte".to_string());
+        push_signal(&mut signals, "package.json", "framework", Some("Svelte"));
+    }
+
+    if package_json.contains("\"electron\"") {
+        frameworks.insert("Electron".to_string());
+        push_signal(&mut signals, "package.json", "framework", Some("Electron"));
+    }
+
+    if root.join("Cargo.toml").exists() {
+        languages.insert("Rust".to_string());
+        package_managers.insert("Cargo".to_string());
+        push_signal(&mut signals, "Cargo.toml", "language", Some("Rust"));
+    }
+
+    if cargo_toml.contains("tauri") {
+        frameworks.insert("Tauri".to_string());
+        push_signal(&mut signals, "Cargo.toml", "framework", Some("Tauri"));
+    }
+
+    if cargo_toml.contains("axum") {
+        frameworks.insert("Axum".to_string());
+        push_signal(&mut signals, "Cargo.toml", "framework", Some("Axum"));
+    }
+
+    if cargo_toml.contains("rocket") {
+        frameworks.insert("Rocket".to_string());
+        push_signal(&mut signals, "Cargo.toml", "framework", Some("Rocket"));
+    }
+
+    if cargo_toml.contains("tokio") {
+        runtimes.insert("Tokio".to_string());
+        push_signal(&mut signals, "Cargo.toml", "runtime", Some("Tokio"));
+    }
+
+    if root.join("requirements.txt").exists() || root.join("pyproject.toml").exists() {
+        languages.insert("Python".to_string());
+        package_managers.insert("pip".to_string());
+        push_signal(&mut signals, "requirements/pyproject", "language", Some("Python"));
+    }
+
+    if requirements_txt.contains("fastapi") || pyproject_toml.contains("fastapi") {
+        frameworks.insert("FastAPI".to_string());
+        push_signal(&mut signals, "requirements/pyproject", "framework", Some("FastAPI"));
+    }
+
+    if requirements_txt.contains("flask") || pyproject_toml.contains("flask") {
+        frameworks.insert("Flask".to_string());
+        push_signal(&mut signals, "requirements/pyproject", "framework", Some("Flask"));
+    }
+
+    if requirements_txt.contains("django") || pyproject_toml.contains("django") {
+        frameworks.insert("Django".to_string());
+        push_signal(&mut signals, "requirements/pyproject", "framework", Some("Django"));
+    }
+
+    if pyproject_toml.contains("poetry") {
+        package_managers.insert("Poetry".to_string());
+        push_signal(&mut signals, "pyproject.toml", "package-manager", Some("Poetry"));
+    }
+
+    if root.join("go.mod").exists() {
+        languages.insert("Go".to_string());
+        push_signal(&mut signals, "go.mod", "language", Some("Go"));
+    }
+
+    let confidence = if signals.len() >= 4 {
+        "high"
+    } else if signals.len() >= 2 {
+        "medium"
+    } else {
+        "low"
+    }
+    .to_string();
+
+    TechStackInfo {
+        languages: languages.into_iter().collect(),
+        frameworks: frameworks.into_iter().collect(),
+        package_managers: package_managers.into_iter().collect(),
+        build_tools: build_tools.into_iter().collect(),
+        runtimes: runtimes.into_iter().collect(),
+        confidence,
+        signals,
+    }
+}
+
+fn build_scan_suggestions(
+    readme: &Option<String>,
+    package_json: &Option<PackageInfo>,
+    cargo_toml: &Option<PackageInfo>,
+    stack: &TechStackInfo,
+) -> ScanSuggestions {
+    let project_name = package_json
+        .as_ref()
+        .and_then(|p| p.name.clone())
+        .or_else(|| cargo_toml.as_ref().and_then(|c| c.name.clone()));
+
+    let summary = package_json
+        .as_ref()
+        .and_then(|p| p.description.clone())
+        .or_else(|| cargo_toml.as_ref().and_then(|c| c.description.clone()))
+        .or_else(|| first_readme_summary(readme));
+
+    let mut detected_tags: Vec<String> = Vec::new();
+    detected_tags.extend(stack.frameworks.iter().cloned());
+    detected_tags.extend(stack.languages.iter().cloned());
+    detected_tags.extend(stack.build_tools.iter().cloned());
+    detected_tags.dedup();
+    detected_tags.truncate(8);
+
+    ScanSuggestions {
+        project_name,
+        summary,
+        detected_tags,
+    }
+}
+
+// \u2500\u2500\u2500 Structs \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+struct StackSignal {
+    source: String,
+    signal: String,
+    detail: Option<String>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+struct TechStackInfo {
+    languages: Vec<String>,
+    frameworks: Vec<String>,
+    package_managers: Vec<String>,
+    build_tools: Vec<String>,
+    runtimes: Vec<String>,
+    confidence: String,
+    signals: Vec<StackSignal>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+struct PackageInfo {
     name: Option<String>,
     description: Option<String>,
     version: Option<String>,
 }
 
-#[derive(serde::Serialize)]
-pub struct ProjectMeta {
+// Internal only \u2014 not serialised directly; converted to ScanMeta for responses
+struct ProjectMeta {
     readme: Option<String>,
     package_json: Option<PackageInfo>,
     cargo_toml: Option<PackageInfo>,
+    stack: TechStackInfo,
+    suggestions: ScanSuggestions,
 }
 
-#[derive(serde::Serialize)]
-pub struct RescanResult {
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+struct ScanSuggestions {
+    project_name: Option<String>,
+    summary: Option<String>,
+    detected_tags: Vec<String>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+struct ScanMeta {
+    readme: Option<String>,
+    package_json: Option<PackageInfo>,
+    cargo_toml: Option<PackageInfo>,
+    stack: TechStackInfo,
+    suggestions: ScanSuggestions,
+}
+
+#[derive(serde::Serialize, Debug)]
+struct ScanResult {
+    files: Vec<String>,
+    scan_hash: String,
+    meta: ScanMeta,
+}
+
+#[derive(serde::Serialize, Debug)]
+struct RescanResult {
+    project_id: String,
     files: Vec<String>,
     scan_hash: String,
     folder_exists: bool,
-    meta: Option<ProjectMeta>,
+    meta: Option<ScanMeta>,
 }
 
-// NEW: full scan result including project meta for auto-population
-#[derive(serde::Serialize)]
-pub struct ScanResult {
-    files: Vec<String>,
-    scan_hash: String,
-    meta: ProjectMeta,
+// \u2500\u2500\u2500 Project storage helpers \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+
+fn projects_dir(app: &tauri::AppHandle) -> PathBuf {
+    app.path()
+        .app_data_dir()
+        .unwrap_or_else(|_| PathBuf::from("."))
+        .join("projects")
 }
+
+fn meta_to_scan_meta(meta: ProjectMeta) -> ScanMeta {
+    ScanMeta {
+        readme: meta.readme,
+        package_json: meta.package_json,
+        cargo_toml: meta.cargo_toml,
+        stack: meta.stack,
+        suggestions: meta.suggestions,
+    }
+}
+
+// \u2500\u2500\u2500 Tauri commands \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 
 #[tauri::command]
-fn scan_project_folder(folder_path: String) -> Result<ScanResult, String> {
-    let root = PathBuf::from(&folder_path);
-
-    if !root.exists() {
-        return Err("Selected folder does not exist".to_string());
-    }
-
+async fn scan_project_folder(folder_path: String) -> Result<ScanResult, String> {
+    let root = Path::new(&folder_path);
     if !root.is_dir() {
-        return Err("Selected path is not a folder".to_string());
+        return Err(format!("Not a directory: {}", folder_path));
     }
 
     let mut files: Vec<String> = Vec::new();
-    collect_safe_files(&root, &root, &mut files)?;
+    collect_safe_files(root, root, &mut files)?;
     files.sort();
 
     let scan_hash = compute_scan_hash(&files);
-    let meta = read_project_meta(&root);
+    let meta = meta_to_scan_meta(read_project_meta(root));
 
-    Ok(ScanResult {
-        files,
-        scan_hash,
-        meta,
-    })
+    Ok(ScanResult { files, scan_hash, meta })
 }
 
 #[tauri::command]
-fn rescan_linked_folder(folder_path: String) -> Result<RescanResult, String> {
-    let root = PathBuf::from(&folder_path);
+async fn rescan_linked_folder(
+    project_id: String,
+    folder_path: String,
+) -> Result<RescanResult, String> {
+    let root = Path::new(&folder_path);
 
-    if !root.exists() || !root.is_dir() {
+    if !root.exists() {
         return Ok(RescanResult {
+            project_id,
             files: vec![],
             scan_hash: String::new(),
             folder_exists: false,
@@ -327,14 +656,19 @@ fn rescan_linked_folder(folder_path: String) -> Result<RescanResult, String> {
         });
     }
 
+    if !root.is_dir() {
+        return Err(format!("Not a directory: {}", folder_path));
+    }
+
     let mut files: Vec<String> = Vec::new();
-    collect_safe_files(&root, &root, &mut files)?;
+    collect_safe_files(root, root, &mut files)?;
     files.sort();
 
     let scan_hash = compute_scan_hash(&files);
-    let meta = read_project_meta(&root);
+    let meta = meta_to_scan_meta(read_project_meta(root));
 
     Ok(RescanResult {
+        project_id,
         files,
         scan_hash,
         folder_exists: true,
@@ -342,174 +676,136 @@ fn rescan_linked_folder(folder_path: String) -> Result<RescanResult, String> {
     })
 }
 
-/// Sanitise a project name to a safe filename stem.
-/// Allows letters, digits, hyphens, underscores. Max 100 chars.
-/// Returns Err if the result would be empty (e.g. pure emoji input).
-fn sanitize_project_name(name: &str) -> Result<String, String> {
-    let stem: String = name
-        .replace(' ', "_")
-        .chars()
-        .filter(|c| c.is_alphanumeric() || *c == '_' || *c == '-')
-        .take(100)
-        .collect();
-
-    if stem.is_empty() {
-        return Err("Project name must contain at least one letter or digit".to_string());
-    }
-    Ok(stem)
-}
-
-/// Validate that a file_name is safe to use inside the projects folder:
-///  - must end with ".json"
-///  - must not contain path separators or ".."
-fn validate_file_name(file_name: &str) -> Result<(), String> {
-    if !file_name.ends_with(".json") {
-        return Err("Only .json files are allowed".to_string());
-    }
-    if file_name.contains('/') || file_name.contains('\\') || file_name.contains("..") {
-        return Err("Invalid file name".to_string());
-    }
-    Ok(())
-}
-
-/// Resolve the projects directory inside Tauri's app data dir, creating it if needed.
-/// Falls back to a local `projects/` folder when running outside Tauri (e.g. `cargo test`).
-fn projects_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    let base = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("Could not resolve app data directory: {}", e))?;
-    let path = base.join("projects");
-    if !path.exists() {
-        fs::create_dir_all(&path).map_err(|e| e.to_string())?;
-    }
-    Ok(path)
-}
-
 #[tauri::command]
-fn get_projects_path(app: tauri::AppHandle) -> Result<String, String> {
-    let path = projects_dir(&app)?;
-    Ok(path.to_string_lossy().to_string())
-}
-
-/// Rotate backups for a project — keeps last MAX_BACKUPS numbered snapshots.
-/// Backup files are stored in projects/backups/<stem>/<stem>_001.json … _005.json
-#[tauri::command]
-fn backup_project_file(app: tauri::AppHandle, file_name: String) -> Result<(), String> {
-    const MAX_BACKUPS: u32 = 5;
-
-    validate_file_name(&file_name)?;
-    let projects_path = projects_dir(&app)?;
-    let source = projects_path.join(&file_name);
-
-    if !source.exists() {
-        // Nothing to back up yet
-        return Ok(());
-    }
-
-    // Backup dir: <projects>/backups/<stem>/
-    let stem = file_name.trim_end_matches(".json");
-    let backup_dir = projects_path.join("backups").join(stem);
-    fs::create_dir_all(&backup_dir).map_err(|e| e.to_string())?;
-
-    // Shift existing backups: _005 is dropped, _004 → _005, … _001 → _002
-    for i in (1..MAX_BACKUPS).rev() {
-        let old_name = format!("{}_{:03}.json", stem, i);
-        let new_name = format!("{}_{:03}.json", stem, i + 1);
-        let old_path = backup_dir.join(&old_name);
-        let new_path = backup_dir.join(&new_name);
-        if old_path.exists() {
-            let _ = fs::rename(&old_path, &new_path); // ignore errors on rotation
-        }
-    }
-
-    // Copy current file to _001
-    let first_backup = backup_dir.join(format!("{}_{:03}.json", stem, 1));
-    fs::copy(&source, &first_backup).map_err(|e| e.to_string())?;
-
-    Ok(())
-}
-
-#[tauri::command]
-fn save_project_file(
+async fn save_project_file(
     app: tauri::AppHandle,
     project_name: String,
     project_data: String,
-) -> Result<String, String> {
-    let stem = sanitize_project_name(&project_name)?;
-    let file_name = format!("{}.json", stem);
-    let dir = projects_dir(&app)?;
+) -> Result<(), String> {
+    let dir = projects_dir(&app);
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
 
-    // Atomic write: write to .tmp then rename
-    let tmp_path = dir.join(format!("{}.tmp", stem));
-    let final_path = dir.join(&file_name);
+    let stem = project_name
+        .chars()
+        .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+        .take(100)
+        .collect::<String>();
+
+    let file_path = dir.join(format!("{}.json", stem));
+    let tmp_path = dir.join(format!("{}.json.tmp", stem));
 
     fs::write(&tmp_path, &project_data).map_err(|e| e.to_string())?;
-    fs::rename(&tmp_path, &final_path).map_err(|e| {
-        // Clean up tmp on failure
-        let _ = fs::remove_file(&tmp_path);
-        e.to_string()
-    })?;
+    fs::rename(&tmp_path, &file_path).map_err(|e| e.to_string())?;
 
-    Ok(file_name)
+    Ok(())
 }
 
 #[tauri::command]
-fn load_projects(app: tauri::AppHandle) -> Result<Vec<String>, String> {
-    let path = projects_dir(&app)?;
-    if !path.exists() {
+async fn load_projects(app: tauri::AppHandle) -> Result<Vec<String>, String> {
+    let dir = projects_dir(&app);
+    if !dir.exists() {
         return Ok(vec![]);
     }
 
-    let mut projects = vec![];
-    for entry in fs::read_dir(&path).map_err(|e| e.to_string())? {
-        let entry = entry.map_err(|e| e.to_string())?;
-        let file_name = entry.file_name().to_string_lossy().to_string();
-        // Only surface valid .json files (skip .tmp files from interrupted writes)
-        if file_name.ends_with(".json") && !file_name.contains("..") && !file_name.ends_with(".tmp") {
-            projects.push(file_name);
+    let mut files: Vec<String> = fs::read_dir(&dir)
+        .map_err(|e| e.to_string())?
+        .filter_map(|e| e.ok())
+        .filter_map(|e| {
+            let name = e.file_name().to_string_lossy().to_string();
+            if name.ends_with(".json") && !name.ends_with(".tmp") && !name.contains("backup") {
+                Some(name)
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    files.sort();
+    Ok(files)
+}
+
+#[tauri::command]
+async fn load_project_file(app: tauri::AppHandle, file_name: String) -> Result<String, String> {
+    let path = projects_dir(&app).join(&file_name);
+    fs::read_to_string(&path).map_err(|e| format!("Could not read {}: {}", file_name, e))
+}
+
+#[tauri::command]
+async fn delete_project_file(app: tauri::AppHandle, file_name: String) -> Result<(), String> {
+    let path = projects_dir(&app).join(&file_name);
+    if path.exists() {
+        fs::remove_file(&path).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn get_projects_path(app: tauri::AppHandle) -> Result<String, String> {
+    Ok(projects_dir(&app).to_string_lossy().to_string())
+}
+
+#[tauri::command]
+async fn write_text_file(file_path: String, content: String) -> Result<(), String> {
+    let path = PathBuf::from(&file_path);
+    if let Some(parent) = path.parent() {
+        if !parent.exists() {
+            fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
     }
-    projects.sort();
-    Ok(projects)
+    fs::write(&path, content.as_bytes()).map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 #[tauri::command]
-fn load_project_file(app: tauri::AppHandle, file_name: String) -> Result<String, String> {
-    validate_file_name(&file_name)?;
-    let mut path = projects_dir(&app)?;
-    path.push(&file_name);
-    let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
-    Ok(content)
-}
-
-#[tauri::command]
-fn delete_project_file(app: tauri::AppHandle, file_name: String) -> Result<String, String> {
-    validate_file_name(&file_name)?;
-    let mut path = projects_dir(&app)?;
-    path.push(&file_name);
-
-    if !path.exists() {
-        return Err("Project file not found".to_string());
+async fn backup_project_file(app: tauri::AppHandle, file_name: String) -> Result<(), String> {
+    let projects = projects_dir(&app);
+    let source = projects.join(&file_name);
+    if !source.exists() {
+        return Ok(());
     }
 
-    fs::remove_file(&path).map_err(|e| e.to_string())?;
-    Ok(format!("Deleted {}", file_name))
+    let stem = file_name.trim_end_matches(".json");
+    let backup_dir = projects.join("backups").join(stem);
+    fs::create_dir_all(&backup_dir).map_err(|e| e.to_string())?;
+
+    let mut existing: Vec<_> = fs::read_dir(&backup_dir)
+        .map_err(|e| e.to_string())?
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_name().to_string_lossy().ends_with(".json"))
+        .collect();
+
+    existing.sort_by_key(|e| e.file_name());
+
+    while existing.len() >= 5 {
+        let oldest = existing.remove(0);
+        let _ = fs::remove_file(oldest.path());
+    }
+
+    let next_num = existing.len() + 1;
+    let backup_name = format!("{}_{:03}.json", stem, next_num);
+    fs::copy(&source, &backup_dir.join(backup_name)).map_err(|e| e.to_string())?;
+
+    Ok(())
 }
+
+// \u2500\u2500\u2500 App entry point \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             scan_project_folder,
             rescan_linked_folder,
-            get_projects_path,
-            backup_project_file,
             save_project_file,
             load_projects,
             load_project_file,
-            delete_project_file
+            delete_project_file,
+            get_projects_path,
+            backup_project_file,
+            write_text_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

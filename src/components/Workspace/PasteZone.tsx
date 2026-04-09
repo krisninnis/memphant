@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useProjectStore } from '../../store/projectStore';
 import { useActiveProject } from '../../hooks/useActiveProject';
 import { detectUpdate, computeDiff, applyUpdate, countDiffs } from '../../utils/diffEngine';
 import DiffPreview from './DiffPreview';
+import type { DetectedUpdate } from '../../utils/diffEngine';
 import type { DiffResult } from '../../types/project-brain-types';
 
 type PasteState = 'idle' | 'typing' | 'diff' | 'no-update';
@@ -11,138 +12,200 @@ export function PasteZone() {
   const [pasteText, setPasteText] = useState('');
   const [state, setState] = useState<PasteState>('idle');
   const [diffs, setDiffs] = useState<DiffResult[]>([]);
-  const [detectedUpdate, setDetectedUpdate] = useState<ReturnType<typeof detectUpdate>>(null);
+  const [detectedUpdate, setDetectedUpdate] = useState<DetectedUpdate | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
+
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const activeProject = useActiveProject();
   const updateProject = useProjectStore((s) => s.updateProject);
   const setPreAiBackup = useProjectStore((s) => s.setPreAiBackup);
   const showToast = useProjectStore((s) => s.showToast);
 
+  const resetPasteState = () => {
+    setPasteText('');
+    setState('idle');
+    setDiffs([]);
+    setDetectedUpdate(null);
+    setIsDragOver(false);
+  };
+
   const handleTextChange = (text: string) => {
     setPasteText(text);
+
     if (!text.trim()) {
       setState('idle');
+      setDiffs([]);
+      setDetectedUpdate(null);
       return;
     }
-    setState('typing');
+
+    if (state !== 'typing') {
+      setState('typing');
+    }
   };
 
   const handleAnalyse = () => {
-    if (!pasteText.trim()) return;
+    const trimmedText = pasteText.trim();
+
+    if (!trimmedText) {
+      return;
+    }
+
     if (!activeProject) {
       showToast('Open a project first', 'error');
       return;
     }
 
-    const update = detectUpdate(pasteText);
+    const update = detectUpdate(trimmedText);
+
     if (!update) {
+      setDetectedUpdate(null);
+      setDiffs([]);
       setState('no-update');
       return;
     }
 
-    const computed = computeDiff(activeProject, update);
+    const computedDiffs = computeDiff(activeProject, update);
+
     setDetectedUpdate(update);
-    setDiffs(computed);
+    setDiffs(computedDiffs);
     setState('diff');
   };
 
   const handleApply = () => {
-    if (!activeProject || !detectedUpdate) return;
+    if (!activeProject || !detectedUpdate) {
+      return;
+    }
 
-    // Save rollback backup
-    setPreAiBackup({ ...activeProject });
+    setPreAiBackup({
+      ...activeProject,
+      decisions: activeProject.decisions.map((decision) => ({ ...decision })),
+      changelog: activeProject.changelog.map((entry) => ({ ...entry })),
+      importantAssets: [...activeProject.importantAssets],
+      goals: [...activeProject.goals],
+      rules: [...activeProject.rules],
+      nextSteps: [...activeProject.nextSteps],
+      openQuestions: [...activeProject.openQuestions],
+      platformState: { ...activeProject.platformState },
+      linkedFolder: activeProject.linkedFolder ? { ...activeProject.linkedFolder } : undefined,
+    });
 
-    // Apply the merge
-    const merged = applyUpdate(activeProject, detectedUpdate);
-    updateProject(activeProject.id, merged);
+    const mergedProject = applyUpdate(activeProject, detectedUpdate);
+    updateProject(activeProject.id, mergedProject);
 
-    const total = countDiffs(diffs);
-    showToast(`Project updated with ${total} change${total !== 1 ? 's' : ''}`);
-    handleDiscard();
+    const totalChanges = countDiffs(diffs);
+    showToast(`Project updated with ${totalChanges} change${totalChanges !== 1 ? 's' : ''}`);
+
+    resetPasteState();
   };
 
   const handleDiscard = () => {
-    setPasteText('');
-    setState('idle');
-    setDiffs([]);
-    setDetectedUpdate(null);
+    resetPasteState();
   };
 
-  const copyHint = async () => {
-    const hint = "Can you summarise what changed in my project? Please include a project update with any new goals, decisions, or next steps.";
-    await navigator.clipboard.writeText(hint);
-    showToast('Hint copied — paste it into your AI chat');
+  const handleCopyHint = async () => {
+    const hint =
+      'Can you summarise what changed in my project? Please include a project_brain_update block with any new goals, decisions, and next steps.';
+
+    try {
+      await navigator.clipboard.writeText(hint);
+      showToast('Suggestion copied — paste it into your AI chat');
+    } catch {
+      showToast('Could not copy the suggestion', 'error');
+    }
   };
 
-  // Zone click → focus textarea
   const handleZoneClick = () => {
-    if (state === 'idle') setState('typing');
-    document.getElementById('paste-textarea')?.focus();
+    if (state === 'idle') {
+      setState('typing');
+    }
+
+    requestAnimationFrame(() => {
+      textareaRef.current?.focus();
+    });
+  };
+
+  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setIsDragOver(false);
+
+    const droppedText = event.dataTransfer.getData('text');
+    if (!droppedText) {
+      return;
+    }
+
+    handleTextChange(droppedText);
+    setState('typing');
   };
 
   return (
-    <div className="paste-zone-wrapper">
+    <div className="paste-zone-wrapper" data-tour="paste">
       {state === 'diff' ? (
         <DiffPreview diffs={diffs} onApply={handleApply} onDiscard={handleDiscard} />
       ) : (
         <div
-          className={`paste-zone ${state === 'typing' ? 'has-content' : ''} ${isDragOver ? 'drag-over' : ''}`}
+          className={`paste-zone ${state === 'typing' ? 'has-content' : ''} ${
+            isDragOver ? 'drag-over' : ''
+          }`}
           onClick={handleZoneClick}
-          onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
-          onDragLeave={() => setIsDragOver(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setIsDragOver(false);
-            const text = e.dataTransfer.getData('text');
-            if (text) { handleTextChange(text); setState('typing'); }
+          onDragOver={(event) => {
+            event.preventDefault();
+            setIsDragOver(true);
           }}
+          onDragLeave={() => setIsDragOver(false)}
+          onDrop={handleDrop}
         >
           {state === 'idle' ? (
             <>
               <div className="paste-zone-icon">📋</div>
               <div className="paste-zone-text">Paste AI response here</div>
-              <div className="paste-zone-hint">
-                We'll automatically detect any project updates
-              </div>
+              <div className="paste-zone-hint">We&apos;ll automatically detect any project updates</div>
             </>
           ) : (
             <>
               <textarea
+                ref={textareaRef}
                 id="paste-textarea"
                 className="paste-zone-textarea"
-                placeholder="Paste the AI's response here…"
                 value={pasteText}
                 onChange={(e) => handleTextChange(e.target.value)}
-                onClick={(e) => e.stopPropagation()}
+                placeholder="Paste your AI's response here…"
+                rows={6}
               />
+
               <div className="paste-zone-actions">
-                <button className="paste-zone-submit" onClick={handleAnalyse}>
+                <button
+                  type="button"
+                  className="paste-zone-analyse-btn"
+                  onClick={handleAnalyse}
+                  disabled={!pasteText.trim()}
+                >
                   Check for updates
                 </button>
-                <button className="paste-zone-cancel" onClick={handleDiscard}>
+                <button
+                  type="button"
+                  className="paste-zone-clear-btn"
+                  onClick={resetPasteState}
+                >
                   Clear
                 </button>
               </div>
+
+              {state === 'no-update' && (
+                <div className="paste-zone-no-update">
+                  <p>No project update found in that text.</p>
+                  <button
+                    type="button"
+                    className="paste-zone-hint-btn"
+                    onClick={() => void handleCopyHint()}
+                  >
+                    💡 Copy a prompt to ask your AI for an update
+                  </button>
+                </div>
+              )}
             </>
           )}
-        </div>
-      )}
-
-      {state === 'no-update' && (
-        <div className="paste-zone-no-update">
-          <p>No project updates found in this text.</p>
-          <p className="paste-zone-no-update__hint">
-            You can ask the AI to include one.
-          </p>
-          <div className="paste-zone-no-update__actions">
-            <button className="paste-zone-hint-btn" onClick={() => void copyHint()}>
-              Copy suggestion
-            </button>
-            <button className="paste-zone-cancel" onClick={handleDiscard}>
-              Clear
-            </button>
-          </div>
         </div>
       )}
     </div>

@@ -1,0 +1,161 @@
+/* ── Command Palette ─────────────────────────────────────────────────────── */
+
+.cmd-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 18vh;
+}
+
+.cmd-wrapper {
+  width: 100%;
+  max-width: 580px;
+  background: #1a1f2e;
+  border: 1px solid #2a3348;
+  border-radius: 14px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(79, 142, 247, 0.08);
+  overflow: hidden;
+  animation: cmd-in 0.12s ease-out;
+}
+
+@keyframes cmd-in {
+  from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0)  scale(1); }
+}
+
+/* ── Input row ─────────────────────────────────────────────────────────────── */
+
+.cmd-input-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid #2a3348;
+}
+
+.cmd-input-icon {
+  font-size: 16px;
+  color: #4f8ef7;
+  flex-shrink: 0;
+}
+
+.cmd-input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  color: #e8eaf0;
+  font-size: 15px;
+  caret-color: #4f8ef7;
+}
+
+.cmd-input::placeholder { color: #5a6480; }
+
+.cmd-esc-hint {
+  font-size: 11px;
+  font-weight: 600;
+  color: #5a6480;
+  background: #0f1117;
+  border: 1px solid #2a3348;
+  border-radius: 5px;
+  padding: 2px 6px;
+  cursor: pointer;
+  flex-shrink: 0;
+  letter-spacing: 0.04em;
+  transition: color 0.15s;
+}
+
+.cmd-esc-hint:hover { color: #e8eaf0; }
+
+/* ── List ──────────────────────────────────────────────────────────────────── */
+
+.cmd-list {
+  max-height: 380px;
+  overflow-y: auto;
+  padding: 6px 0 10px;
+  scrollbar-width: thin;
+  scrollbar-color: #2a3348 transparent;
+}
+
+.cmd-list::-webkit-scrollbar { width: 4px; }
+.cmd-list::-webkit-scrollbar-thumb { background: #2a3348; border-radius: 4px; }
+
+.cmd-empty {
+  padding: 20px 16px;
+  color: #5a6480;
+  font-size: 14px;
+  text-align: center;
+}
+
+/* ── Group ─────────────────────────────────────────────────────────────────── */
+
+[cmdk-group-heading] {
+  padding: 8px 16px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #5a6480;
+}
+
+/* ── Item ──────────────────────────────────────────────────────────────────── */
+
+.cmd-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  cursor: pointer;
+  border-radius: 0;
+  transition: background 0.1s;
+  user-select: none;
+}
+
+.cmd-item[aria-selected='true'],
+.cmd-item[data-selected='true'] {
+  background: rgba(79, 142, 247, 0.12);
+}
+
+.cmd-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.cmd-item-icon {
+  font-size: 15px;
+  flex-shrink: 0;
+  width: 20px;
+  text-align: center;
+}
+
+.cmd-item-label {
+  flex: 1;
+  font-size: 14px;
+  color: #e8eaf0;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cmd-item-hint {
+  font-size: 12px;
+  color: #5a6480;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+  flex-shrink: 0;
+}
+
+/* ── Mobile ────────────────────────────────────────────────────────────────── */
+
+@media (max-width: 640px) {
+  .cmd-overlay { padding-top: 10vh; }
+  .cmd-wrapper { max-width: calc(100vw - 32px); }
+  .cmd-item-hint { display: none; }
+}

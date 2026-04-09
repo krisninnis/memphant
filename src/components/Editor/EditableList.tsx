@@ -7,6 +7,8 @@ interface EditableListProps {
   onChange: (items: string[]) => void;
   placeholder?: string;
   addLabel?: string;
+  /** When provided, a ✨ button appears next to the label */
+  onSuggest?: () => void;
 }
 
 export function EditableList({
@@ -15,6 +17,7 @@ export function EditableList({
   onChange,
   placeholder = 'Add item…',
   addLabel = '+ Add',
+  onSuggest,
 }: EditableListProps) {
   const [newItem, setNewItem] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -51,7 +54,19 @@ export function EditableList({
 
   return (
     <div className="field-group">
-      <div className="field-label">{label}</div>
+      <div className="editable-field__header">
+        <div className="field-label">{label}</div>
+        {onSuggest && (
+          <button
+            type="button"
+            className="suggest-btn"
+            onClick={onSuggest}
+            title="Auto-fill"
+          >
+            ✨ Auto-fill
+          </button>
+        )}
+      </div>
       <div className="editable-list">
         {items.map((item, index) => (
           <div key={index} className="list-item">

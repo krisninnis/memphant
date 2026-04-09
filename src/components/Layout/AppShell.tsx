@@ -11,6 +11,8 @@ import TrustFooter from './TrustFooter';
 import Toast from './Toast';
 import WelcomeScreen from './WelcomeScreen';
 import SettingsPage from '../Settings/SettingsPage';
+import TourOverlay from '../Tour/TourOverlay';
+import { CommandPalette } from '../CommandPalette/CommandPalette';
 
 export function AppShell() {
   useTauriSync();
@@ -25,62 +27,38 @@ export function AppShell() {
 
   if (isLoading) {
     return (
-      <div className="app-shell" style={{ placeItems: 'center', display: 'grid' }}>
-        <p style={{ color: '#888' }}>Loading projects…</p>
-      </div>
-    );
-  }
-
-  if (currentView === 'settings') {
-    return (
-      <div className="app-shell">
-        <div className="sidebar">
-          <Sidebar />
-        </div>
-        <div className="workspace">
-          <SettingsPage />
-        </div>
-        {/* Mobile bottom bar */}
-        <div className="mobile-bottom-bar">
-          <button
-            className="mobile-bottom-bar__btn"
-            onClick={() => { setCurrentView('projects'); setMobileDrawerOpen(true); }}
-          >
-            <span className="mobile-bottom-bar__icon">🗂️</span>
-            <span className="mobile-bottom-bar__label">Projects</span>
-          </button>
-          <button
-            className="mobile-bottom-bar__btn mobile-bottom-bar__btn--active"
-            onClick={() => setCurrentView('settings')}
-          >
-            <span className="mobile-bottom-bar__icon">⚙️</span>
-            <span className="mobile-bottom-bar__label">Settings</span>
-          </button>
-        </div>
-        <Toast />
+      <div className="app-shell app-shell--loading">
+        <p className="app-shell__loading-text">Loading projects…</p>
       </div>
     );
   }
 
   const showWelcome = projects.length === 0;
 
+  const closeMobileDrawer = () => setMobileDrawerOpen(false);
+  const openProjectsDrawer = () => {
+    setCurrentView('projects');
+    setMobileDrawerOpen(true);
+  };
+
   return (
     <div className="app-shell">
-      <div className="sidebar">
-        <Sidebar onNavigate={() => setMobileDrawerOpen(false)} />
-      </div>
+      <aside className="sidebar">
+        <Sidebar onNavigate={closeMobileDrawer} />
+      </aside>
 
-      {/* Mobile slide-up drawer */}
       {mobileDrawerOpen && (
-        <div className="mobile-drawer-overlay" onClick={() => setMobileDrawerOpen(false)}>
+        <div className="mobile-drawer-overlay" onClick={closeMobileDrawer}>
           <div className="mobile-drawer" onClick={(e) => e.stopPropagation()}>
-            <Sidebar onNavigate={() => setMobileDrawerOpen(false)} />
+            <Sidebar onNavigate={closeMobileDrawer} />
           </div>
         </div>
       )}
 
-      <div className="workspace">
-        {showWelcome ? (
+      <main className="workspace">
+        {currentView === 'settings' ? (
+          <SettingsPage />
+        ) : showWelcome ? (
           <WelcomeScreen />
         ) : (
           <>
@@ -88,8 +66,9 @@ export function AppShell() {
             <div className="workspace-scroll">
               {activeProject && <WorkflowGuide />}
               <PasteZone />
-              {activeProject && <ProjectEditor />}
-              {!activeProject && (
+              {activeProject ? (
+                <ProjectEditor />
+              ) : (
                 <div className="workspace-hint">
                   <p>Select a project from the sidebar to get started.</p>
                 </div>
@@ -98,29 +77,60 @@ export function AppShell() {
             <TrustFooter />
           </>
         )}
-      </div>
+      </main>
 
-      {/* Mobile bottom bar */}
       <div className="mobile-bottom-bar">
         <button
+          type="button"
           className={`mobile-bottom-bar__btn${mobileDrawerOpen ? ' mobile-bottom-bar__btn--active' : ''}`}
-          onClick={() => setMobileDrawerOpen((o) => !o)}
+          onClick={() => setMobileDrawerOpen((open) => !open)}
         >
-          <span className="mobile-bottom-bar__icon">🗂️</span>
+          <span className="mobile-bottom-bar__icon">📁</span>
           <span className="mobile-bottom-bar__label">
             Projects{projects.length > 0 ? ` (${projects.length})` : ''}
           </span>
         </button>
+
         <button
-          className="mobile-bottom-bar__btn"
-          onClick={() => { setCurrentView('settings'); setMobileDrawerOpen(false); }}
+          type="button"
+          className={`mobile-bottom-bar__btn${currentView === 'settings' ? ' mobile-bottom-bar__btn--active' : ''}`}
+          onClick={() => {
+            setCurrentView('settings');
+            closeMobileDrawer();
+          }}
         >
           <span className="mobile-bottom-bar__icon">⚙️</span>
           <span className="mobile-bottom-bar__label">Settings</span>
         </button>
+
+        <button
+          type="button"
+          className={`mobile-bottom-bar__btn${currentView === 'projects' && !mobileDrawerOpen ? ' mobile-bottom-bar__btn--active' : ''}`}
+          onClick={() => {
+            setCurrentView('projects');
+            closeMobileDrawer();
+          }}
+        >
+          <span className="mobile-bottom-bar__icon">🧠</span>
+          <span className="mobile-bottom-bar__label">Workspace</span>
+        </button>
       </div>
 
+      {currentView === 'settings' && (
+        <button
+          type="button"
+          className="mobile-projects-fab"
+          onClick={openProjectsDrawer}
+          aria-label="Open projects"
+          title="Open projects"
+        >
+          📁
+        </button>
+      )}
+
       <Toast />
+      <TourOverlay />
+      <CommandPalette />
     </div>
   );
 }

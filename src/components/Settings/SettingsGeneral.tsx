@@ -95,6 +95,25 @@ export function SettingsGeneral() {
       </div>
 
       <div className="settings-group">
+        <div className="settings-group-title">Onboarding</div>
+        <div className="setting-row">
+          <div className="setting-info">
+            <div className="setting-label">App tour</div>
+            <div className="setting-description">Replay the guided walkthrough</div>
+          </div>
+          <button
+            className="setting-btn"
+            onClick={() => {
+              localStorage.removeItem('pb_tour_done');
+              showToast('Tour reset — reopen the app to see it again.');
+            }}
+          >
+            Restart Tour
+          </button>
+        </div>
+      </div>
+
+      <div className="settings-group">
         <div className="settings-group-title">Updates</div>
         <div className="setting-row">
           <div className="setting-info">

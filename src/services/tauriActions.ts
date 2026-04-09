@@ -8,6 +8,12 @@
 import { useProjectStore } from '../store/projectStore';
 import type { ProjectMemory, Platform } from '../types/project-brain-types';
 import { hashProjectState } from '../types/project-brain-types';
+import { pushProject, deleteCloudProject } from './cloudSync';
+import { suggestEmptyFields } from '../utils/autoSuggest';
+import type { ProjectTemplate } from '../utils/projectTemplates';
+
+// ─── Free tier limit ────────────────────────────────────────────────────────
+const FREE_TIER_LIMIT = 3;
 
 // ─── Tauri detection ─────────────────────────────────────────────────────────
 
@@ -41,7 +47,7 @@ const browserStore = {
   },
 };
 
-// ─── Tauri lazy imports (only loaded in Tauri context) ────────────────────────
+// ─── Tauri lazy imports (only loaded in Tauri context) ──────────────────────
 
 async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   const { invoke } = await import('@tauri-apps/api/core');
@@ -54,7 +60,7 @@ async function openFolderDialog(): Promise<string | null> {
   return typeof selected === 'string' ? selected : null;
 }
 
-// ─── Old ↔ New format conversion ─────────────────────────────────────────────
+// ─── Old ↔ New format conversion ────────────────────────────────────────────
 
 export function normalizeOldProject(raw: Record<string, any>): ProjectMemory {
   return {
@@ -73,9 +79,10 @@ export function normalizeOldProject(raw: Record<string, any>): ProjectMemory {
     nextSteps: Array.isArray(raw.nextSteps) ? raw.nextSteps : [],
     openQuestions: Array.isArray(raw.openQuestions) ? raw.openQuestions : [],
     importantAssets: Array.isArray(raw.importantAssets) ? raw.importantAssets : [],
-    aiInstructions: typeof raw.aiInstructions === 'string'
-      ? raw.aiInstructions
-      : raw.aiInstructions?.focus || '',
+    aiInstructions:
+      typeof raw.aiInstructions === 'string'
+        ? raw.aiInstructions
+        : raw.aiInstructions?.focus || '',
     linkedFolder: raw.linkedFolder
       ? {
           path: raw.linkedFolder.path,
@@ -158,37 +165,80 @@ export function toOldFormat(project: ProjectMemory): Record<string, any> {
   };
 }
 
-// ─── Scan result types ────────────────────────────────────────────────────────
+// ─── Scan result types ──────────────────────────────────────────────────────
+
+type PackageInfo = {
+  name?: string;
+  description?: string;
+  version?: string;
+};
+
+type StackSignal = {
+  source: string;
+  signal: string;
+  detail?: string;
+};
+
+type TechStackInfo = {
+  languages: string[];
+  frameworks: string[];
+  package_managers: string[];
+  build_tools: string[];
+  runtimes: string[];
+  confidence: string;
+  signals: StackSignal[];
+};
+
+type ScanSuggestions = {
+  project_name?: string;
+  summary?: string;
+  detected_tags: string[];
+};
+
+type ScanMeta = {
+  readme?: string;
+  package_json?: PackageInfo;
+  cargo_toml?: PackageInfo;
+  stack: TechStackInfo;
+  suggestions: ScanSuggestions;
+};
 
 type ScanResult = {
   files: string[];
   scan_hash: string;
-  meta: {
-    readme?: string;
-    package_json?: { name?: string; description?: string; version?: string };
-    cargo_toml?: { name?: string; description?: string; version?: string };
-  };
+  meta: ScanMeta;
 };
 
 type RescanResult = {
+  project_id: string;
   files: string[];
   scan_hash: string;
   folder_exists: boolean;
-  meta?: ScanResult['meta'];
+  meta?: ScanMeta;
 };
 
-// ─── Core storage operations (with browser fallback) ─────────────────────────
+function formatDetectedStack(meta?: ScanMeta): string {
+  if (!meta) return '';
+
+  const parts = [
+    ...meta.stack.frameworks,
+    ...meta.stack.languages.filter((lang) => !meta.stack.frameworks.includes(lang)),
+    ...meta.stack.build_tools,
+  ].slice(0, 3);
+
+  return parts.length > 0 ? `Detected: ${parts.join(', ')}` : '';
+}
+
+// ─── Core storage operations (with browser fallback) ────────────────────────
 
 export async function saveToDisk(project: ProjectMemory): Promise<void> {
   const data = JSON.stringify(toOldFormat(project), null, 2);
   if (isTauri()) {
-    // Rotate backup of the current file before overwriting it
     const stem = project.name.replace(/\s+/g, '_').replace(/[^A-Za-z0-9_\-]/g, '').slice(0, 100);
     const fileName = `${stem}.json`;
     try {
       await tauriInvoke('backup_project_file', { fileName });
     } catch (err) {
-      // Backup failure is non-fatal — log and continue saving
       console.warn('[Project Brain] Backup failed:', err);
     }
     await tauriInvoke('save_project_file', {
@@ -198,6 +248,9 @@ export async function saveToDisk(project: ProjectMemory): Promise<void> {
   } else {
     browserStore.save(project.name, data);
   }
+
+  // Fire-and-forget cloud push (no-op when not logged in)
+  void pushProject(project);
 }
 
 export async function loadAllFromDisk(): Promise<ProjectMemory[]> {
@@ -219,9 +272,24 @@ export async function loadAllFromDisk(): Promise<ProjectMemory[]> {
   return loaded;
 }
 
-// ─── Actions ──────────────────────────────────────────────────────────────────
+// ─── Actions ────────────────────────────────────────────────────────────────
 
 const store = () => useProjectStore.getState();
+
+/** Check free tier limit. Returns true if blocked (caller should abort). */
+function checkFreeTierLimit(): boolean {
+  const { cloudUser, projects, setCurrentView, setSettingsTab, showToast } = store();
+  if (!cloudUser && projects.length >= FREE_TIER_LIMIT) {
+    showToast(
+      `Free plan allows up to ${FREE_TIER_LIMIT} projects. Sign in to unlock unlimited.`,
+      'info',
+    );
+    setSettingsTab('sync');
+    setCurrentView('settings');
+    return true;
+  }
+  return false;
+}
 
 export async function createProject(name: string): Promise<void> {
   if (!name.trim()) {
@@ -229,10 +297,12 @@ export async function createProject(name: string): Promise<void> {
     return;
   }
 
+  if (checkFreeTierLimit()) return;
+
   const now = new Date().toISOString();
   const id = name.trim().replace(/\s+/g, '_').toLowerCase() + '_' + Date.now();
 
-  const project: ProjectMemory = {
+  const baseProject: ProjectMemory = {
     schema_version: 1,
     id,
     name: name.trim(),
@@ -240,7 +310,7 @@ export async function createProject(name: string): Promise<void> {
     goals: [],
     rules: [],
     decisions: [],
-    currentState: 'Project created',
+    currentState: '',
     nextSteps: [],
     openQuestions: [],
     importantAssets: [],
@@ -248,6 +318,15 @@ export async function createProject(name: string): Promise<void> {
       { timestamp: now, field: 'general', action: 'added', summary: 'Project created', source: 'app' },
     ],
     platformState: {},
+  };
+
+  // Auto-fill empty fields using smart suggestions
+  const suggestions = suggestEmptyFields(baseProject);
+  const project: ProjectMemory = {
+    ...baseProject,
+    ...(suggestions.summary      && { summary: suggestions.summary }),
+    ...(suggestions.currentState && { currentState: suggestions.currentState }),
+    ...(suggestions.goals?.length && { goals: suggestions.goals }),
   };
 
   try {
@@ -261,11 +340,53 @@ export async function createProject(name: string): Promise<void> {
   }
 }
 
+export async function createProjectFromTemplate(
+  template: ProjectTemplate,
+  name: string,
+): Promise<void> {
+  if (!name.trim()) {
+    store().showToast('Please enter a project name.');
+    return;
+  }
+  if (checkFreeTierLimit()) return;
+
+  const now = new Date().toISOString();
+  const id = name.trim().replace(/\s+/g, '_').toLowerCase() + '_' + Date.now();
+  const base = template.build(name.trim());
+
+  const project: ProjectMemory = {
+    ...base,
+    id,
+    changelog: [
+      {
+        timestamp: now,
+        field: 'general',
+        action: 'added',
+        summary: `Project created from "${template.label}" template`,
+        source: 'app',
+      },
+    ],
+    platformState: {},
+  };
+
+  try {
+    await saveToDisk(project);
+    store().addProject(project);
+    store().setActiveProject(project.id);
+    store().showToast(`"${project.name}" created from ${template.label} template.`);
+  } catch (err) {
+    console.error('Create from template failed:', err);
+    store().showToast('Could not create that project.', 'error');
+  }
+}
+
 export async function createProjectFromFolder(): Promise<void> {
   if (!isTauri()) {
     store().showToast('Folder scanning requires the desktop app.', 'info');
     return;
   }
+
+  if (checkFreeTierLimit()) return;
 
   const selected = await openFolderDialog();
   if (!selected) return;
@@ -276,8 +397,17 @@ export async function createProjectFromFolder(): Promise<void> {
 
     const result = await tauriInvoke<ScanResult>('scan_project_folder', { folderPath: selected });
 
-    const derivedName = result.meta?.package_json?.name || result.meta?.cargo_toml?.name || folderName;
-    const derivedSummary = result.meta?.package_json?.description || '';
+    const derivedName =
+      result.meta?.suggestions?.project_name ||
+      result.meta?.package_json?.name ||
+      result.meta?.cargo_toml?.name ||
+      folderName;
+
+    const derivedSummary =
+      result.meta?.suggestions?.summary ||
+      result.meta?.package_json?.description ||
+      '';
+
     const now = new Date().toISOString();
     const id = derivedName.replace(/\s+/g, '_').toLowerCase() + '_' + Date.now();
 
@@ -295,7 +425,13 @@ export async function createProjectFromFolder(): Promise<void> {
       importantAssets: result.files.slice(0, 200),
       linkedFolder: { path: selected, scanHash: result.scan_hash, lastScannedAt: now },
       changelog: [
-        { timestamp: now, field: 'general', action: 'added', summary: `Project created from folder: ${folderName}`, source: 'app' },
+        {
+          timestamp: now,
+          field: 'general',
+          action: 'added',
+          summary: `Project created from folder: ${folderName}`,
+          source: 'app',
+        },
       ],
       platformState: {},
     };
@@ -324,6 +460,7 @@ export async function rescanLinkedFolder(): Promise<void> {
 
   try {
     const result = await tauriInvoke<RescanResult>('rescan_linked_folder', {
+      projectId: activeProject.id,
       folderPath: activeProject.linkedFolder.path,
     });
 
@@ -333,6 +470,8 @@ export async function rescanLinkedFolder(): Promise<void> {
     }
 
     const now = new Date().toISOString();
+    const stackSummary = formatDetectedStack(result.meta);
+
     store().updateProject(activeProject.id, {
       importantAssets: result.files.slice(0, 200),
       linkedFolder: {
@@ -342,7 +481,15 @@ export async function rescanLinkedFolder(): Promise<void> {
       },
       changelog: [
         ...activeProject.changelog,
-        { timestamp: now, field: 'general', action: 'updated', summary: 'Linked project rescanned', source: 'system' },
+        {
+          timestamp: now,
+          field: 'general',
+          action: 'updated',
+          summary: stackSummary
+            ? `Linked project rescanned. ${stackSummary}`
+            : 'Linked project rescanned',
+          source: 'system',
+        },
       ],
     });
 
@@ -377,7 +524,13 @@ export async function linkFolder(): Promise<void> {
       linkedFolder: { path: selected, scanHash: result.scan_hash, lastScannedAt: now },
       changelog: [
         ...activeProject.changelog,
-        { timestamp: now, field: 'general', action: 'added', summary: 'Project folder linked and scanned', source: 'app' },
+        {
+          timestamp: now,
+          field: 'general',
+          action: 'added',
+          summary: 'Project folder linked and scanned',
+          source: 'app',
+        },
       ],
     });
 
@@ -427,6 +580,8 @@ export async function deleteProject(id: string): Promise<void> {
     }
     store().removeProject(id);
     store().showToast(`"${project.name}" was removed.`);
+    // Remove from cloud too (no-op when not logged in)
+    void deleteCloudProject(id);
   } catch (err) {
     console.error('Delete failed:', err);
     store().showToast('Could not remove that project.', 'error');
@@ -439,41 +594,212 @@ export async function getProjectsPath(): Promise<string> {
   }
   try {
     return await tauriInvoke<string>('get_projects_path');
-  } catch {
-    return 'Unknown';
+  } catch (err) {
+    console.error('getProjectsPath failed:', err);
+    return 'Unknown path';
   }
 }
 
-export async function copyExportToClipboard(exportText: string, platform: Platform): Promise<void> {
+/**
+ * Copy formatted export text to clipboard and record the sync timestamp
+ * on the project's platform state.
+ */
+export async function copyExportToClipboard(
+  exportText: string,
+  platform: Platform,
+): Promise<void> {
+  const { projects, activeProjectId, updateProject, showToast } = store();
+
   try {
     await navigator.clipboard.writeText(exportText);
-
-    const LABELS: Record<Platform, string> = {
-      chatgpt: 'ChatGPT', claude: 'Claude', grok: 'Grok', perplexity: 'Perplexity', gemini: 'Gemini',
-    };
-
-    const activeProject = store().activeProject();
-    if (activeProject) {
-      const now = new Date().toISOString();
-      const stateHash = hashProjectState(activeProject);
-      const existing = activeProject.platformState[platform] || {};
-      const exportCount = (existing.exportCount || 0) + 1;
-
-      store().updateProject(activeProject.id, {
-        platformState: {
-          ...activeProject.platformState,
-          [platform]: {
-            ...existing,
-            lastExportedAt: now,
-            lastExportHash: stateHash,
-            exportCount,
-          },
-        },
-      });
-    }
-
-    store().showToast(`Copied! Paste into ${LABELS[platform]} to continue.`);
   } catch {
-    store().showToast('Could not copy to clipboard.', 'error');
+    showToast('Could not copy to clipboard — please try again.', 'error');
+    return;
+  }
+
+  // Record the export timestamp and hash on the active project
+  const project = projects.find((p) => p.id === activeProjectId);
+  if (project) {
+    const hash = hashProjectState(project);
+    updateProject(project.id, {
+      platformState: {
+        ...project.platformState,
+        [platform]: {
+          ...project.platformState?.[platform],
+          lastExportedAt: new Date().toISOString(),
+          lastExportHash: hash,
+          exportCount: (project.platformState?.[platform]?.exportCount ?? 0) + 1,
+        },
+      },
+    });
+    void saveToDisk({ ...project, platformState: { ...project.platformState, [platform]: { ...project.platformState?.[platform], lastExportedAt: new Date().toISOString(), lastExportHash: hash } } });
+  }
+
+  showToast(`Copied for ${platform} — paste into your AI to get started`);
+}
+
+// ─── Markdown file export ────────────────────────────────────────────────────
+
+/** Generate a human-readable markdown snapshot of a project. */
+function buildMarkdownSnapshot(project: ProjectMemory): string {
+  const lines: string[] = [];
+  const now = new Date().toLocaleDateString('en-GB', {
+    day: 'numeric', month: 'long', year: 'numeric',
+  });
+
+  lines.push(`# ${project.name}`);
+  lines.push(`*Exported from Project Brain — ${now}*`);
+  lines.push('');
+
+  if (project.summary) {
+    lines.push('## Summary');
+    lines.push(project.summary);
+    lines.push('');
+  }
+
+  if (project.currentState) {
+    lines.push('## What this project is about');
+    lines.push(project.currentState);
+    lines.push('');
+  }
+
+  if (project.goals?.length) {
+    lines.push('## Goals');
+    project.goals.forEach((g) => lines.push(`- ${g}`));
+    lines.push('');
+  }
+
+  if (project.nextSteps?.length) {
+    lines.push('## Next Steps');
+    project.nextSteps.forEach((s) => lines.push(`- ${s}`));
+    lines.push('');
+  }
+
+  if (project.decisions?.length) {
+    lines.push('## Key Decisions');
+    project.decisions.forEach((d) => {
+      const text = typeof d === 'string' ? d : d.decision;
+      const rationale = typeof d === 'object' && d.rationale ? ` — ${d.rationale}` : '';
+      lines.push(`- ${text}${rationale}`);
+    });
+    lines.push('');
+  }
+
+  if (project.openQuestions?.length) {
+    lines.push('## Open Questions');
+    project.openQuestions.forEach((q) => lines.push(`- ${q}`));
+    lines.push('');
+  }
+
+  if (project.rules?.length) {
+    lines.push('## Rules');
+    project.rules.forEach((r) => lines.push(`- ${r}`));
+    lines.push('');
+  }
+
+  if (project.aiInstructions) {
+    lines.push('## How the AI should help');
+    lines.push(project.aiInstructions);
+    lines.push('');
+  }
+
+  if (project.importantAssets?.length) {
+    lines.push('## Important Files & Assets');
+    project.importantAssets.slice(0, 50).forEach((a) => lines.push(`- ${a}`));
+    lines.push('');
+  }
+
+  return lines.join('\n');
+}
+
+// ─── GDPR data export ────────────────────────────────────────────────────────
+
+/**
+ * Download all projects + settings as a single JSON bundle.
+ * In Tauri: opens a save dialog then writes the file.
+ * In browser: triggers a download.
+ */
+export async function downloadAllData(): Promise<void> {
+  const { projects, settings, showToast } = store();
+
+  const payload = {
+    exported_at: new Date().toISOString(),
+    app: 'Project Brain',
+    schema_version: 1,
+    projects: projects.map((p) => toOldFormat(p)),
+    settings,
+  };
+
+  const content = JSON.stringify(payload, null, 2);
+  const defaultName = `project-brain-data-${new Date().toISOString().slice(0, 10)}.json`;
+
+  if (isTauri()) {
+    try {
+      const { save } = await import('@tauri-apps/plugin-dialog');
+      const savePath = await save({
+        defaultPath: defaultName,
+        filters: [{ name: 'JSON', extensions: ['json'] }],
+      });
+      if (!savePath) return;
+      await tauriInvoke('write_text_file', { filePath: savePath, content });
+      showToast('Data exported successfully.');
+    } catch (err) {
+      console.error('Data export failed:', err);
+      showToast('Could not export your data.', 'error');
+    }
+  } else {
+    const blob = new Blob([content], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = defaultName;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Data exported successfully.');
+  }
+}
+
+/**
+ * Export the active project as a markdown file.
+ * In Tauri: opens a save dialog then writes the file.
+ * In browser: triggers a download.
+ */
+export async function exportActiveProjectAsMarkdown(): Promise<void> {
+  const { activeProjectId, projects, showToast } = store();
+  const project = projects.find((p) => p.id === activeProjectId);
+  if (!project) {
+    showToast('No project selected.');
+    return;
+  }
+
+  const content = buildMarkdownSnapshot(project);
+  const safeName = project.name.replace(/[^A-Za-z0-9_\- ]/g, '').trim().replace(/\s+/g, '_');
+  const defaultName = `${safeName}.md`;
+
+  if (isTauri()) {
+    try {
+      const { save } = await import('@tauri-apps/plugin-dialog');
+      const savePath = await save({
+        defaultPath: defaultName,
+        filters: [{ name: 'Markdown', extensions: ['md'] }],
+      });
+      if (!savePath) return; // user cancelled
+
+      await tauriInvoke('write_text_file', { filePath: savePath, content });
+      showToast(`Saved as ${savePath.split(/[\\/]/).pop()}`);
+    } catch (err) {
+      console.error('Markdown export failed:', err);
+      showToast('Could not save the file.', 'error');
+    }
+  } else {
+    // Browser fallback — trigger download
+    const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = defaultName;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast(`Downloaded as ${defaultName}`);
   }
 }

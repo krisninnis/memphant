@@ -5,6 +5,9 @@ export function SettingsProjects() {
   const settings = useProjectStore((s) => s.settings);
   const updateSettings = useProjectStore((s) => s.updateSettings);
   const showToast = useProjectStore((s) => s.showToast);
+  const subscriptionTier = useProjectStore((s) => s.subscriptionTier);
+
+  const isPro = subscriptionTier === 'pro' || subscriptionTier === 'team';
 
   const p = settings.projects;
   const update = (updates: Partial<typeof p>) => {
@@ -70,8 +73,11 @@ export function SettingsProjects() {
             onChange={(e) => update({ defaultExportMode: e.target.value as typeof p.defaultExportMode })}
           >
             <option value="full">Full — everything</option>
+            <option value="smart" disabled={!isPro}>
+              Smart — auto-condensed{isPro ? '' : ' (Pro)'}
+            </option>
             <option value="delta">Changes only</option>
-            <option value="specialist">Smart</option>
+            <option value="specialist">Specialist task</option>
           </select>
         </div>
       </div>

@@ -1,0 +1,150 @@
+/**
+ * Project Brain — Content Script Styles
+ * Floating notification that appears when an update is detected on an AI page.
+ */
+
+#pb-floater {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 2147483647; /* max z-index */
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
+  line-height: 1.4;
+
+  /* Hidden by default */
+  opacity: 0;
+  transform: translateY(12px);
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+#pb-floater.pb-floater--visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.pb-floater__inner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: #1a1a2e;
+  border: 1px solid #2a2a50;
+  border-radius: 14px;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.45),
+    0 2px 8px rgba(0, 0, 0, 0.25);
+  max-width: 360px;
+  min-width: 280px;
+  color: #e0e0f0;
+}
+
+.pb-floater__inner--toast {
+  min-width: unset;
+  max-width: 320px;
+}
+
+.pb-floater__inner--error {
+  border-color: #7f1d1d;
+  background: #1a0e0e;
+}
+
+.pb-floater__icon {
+  font-size: 22px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.pb-floater__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pb-floater__title {
+  font-weight: 700;
+  font-size: 13px;
+  color: #f0f0ff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pb-floater__summary {
+  font-size: 12px;
+  color: #8fa0b8;
+}
+
+.pb-floater__toast-msg {
+  font-size: 13px;
+  color: #f0f0ff;
+}
+
+.pb-floater__btn {
+  flex-shrink: 0;
+  padding: 7px 13px;
+  background: #d97706;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+  white-space: nowrap;
+  font-family: inherit;
+}
+
+.pb-floater__btn:hover {
+  background: #b45309;
+  transform: translateY(-1px);
+}
+
+.pb-floater__btn:active {
+  transform: translateY(0);
+}
+
+.pb-floater__dismiss {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid #2a2a50;
+  border-radius: 50%;
+  color: #666;
+  font-size: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.15s, color 0.15s;
+  font-family: inherit;
+}
+
+.pb-floater__dismiss:hover {
+  border-color: #888;
+  color: #ccc;
+}
+
+/* Respect system dark/light preference — the floater is always dark since
+   it matches Project Brain's UI, but we tweak shadow on light backgrounds. */
+@media (prefers-color-scheme: light) {
+  .pb-floater__inner {
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.25),
+      0 2px 8px rgba(0, 0, 0, 0.15);
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  #pb-floater {
+    transition: opacity 0.1s ease;
+    transform: none !important;
+  }
+}

@@ -298,3 +298,334 @@
     border-bottom: 1px solid #1e1e30;
   }
 }
+
+/* ─── Cloud Sync (SettingsSync) ──────────────────────────────────────────── */
+
+.sync-notice {
+  background: #12121f;
+  border: 1px solid #2a2a40;
+  border-radius: 8px;
+  padding: 16px;
+  margin-top: 12px;
+  font-size: 13px;
+  color: #a0a0b8;
+  line-height: 1.6;
+}
+
+.sync-notice p { margin: 0 0 10px; }
+.sync-notice p:last-child { margin-bottom: 0; }
+
+.sync-code-block {
+  background: #0d0d1a;
+  border: 1px solid #1e1e30;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-family: 'Fira Mono', 'Cascadia Code', monospace;
+  font-size: 12px;
+  color: #d97706;
+  white-space: pre-wrap;
+  margin: 8px 0;
+}
+
+.sync-status-card {
+  background: #12121f;
+  border: 1px solid #2a2a40;
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sync-status-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+}
+
+.sync-label { color: #6c6c8a; }
+.sync-value { color: #e0e0f0; font-weight: 500; }
+
+.sync-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.sync-hint {
+  margin-top: 14px;
+  font-size: 12px;
+  color: #6c6c8a;
+}
+
+/* Tab switcher */
+.sync-tabs {
+  display: flex;
+  gap: 0;
+  margin-top: 16px;
+  border: 1px solid #2a2a40;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.sync-tab {
+  flex: 1;
+  background: transparent;
+  border: none;
+  padding: 9px 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: #6c6c8a;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.sync-tab:hover { background: #1a1a2e; color: #c0c0d8; }
+.sync-tab.active { background: #1e1e30; color: #e0e0f0; }
+
+/* Auth form */
+.sync-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.sync-form-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #8080a0;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.sync-form-input {
+  background: #12121f;
+  border: 1px solid #2a2a40;
+  border-radius: 6px;
+  padding: 9px 12px;
+  font-size: 14px;
+  color: #e0e0f0;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.sync-form-input:focus { border-color: #d97706; }
+.sync-form-input:disabled { opacity: 0.5; }
+
+.sync-form-error {
+  font-size: 13px;
+  color: #f87171;
+  margin: 0;
+}
+
+.sync-submit { width: 100%; justify-content: center; }
+
+/* Shared btn helpers (may already exist globally) */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: background 0.15s, opacity 0.15s;
+}
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-primary  { background: #d97706; color: #fff; }
+.btn-primary:hover:not(:disabled) { background: #b45309; }
+
+.btn-ghost {
+  background: transparent;
+  color: #8080a0;
+  border: 1px solid #2a2a40;
+}
+.btn-ghost:hover:not(:disabled) { background: #1e1e30; color: #c0c0d8; }
+
+/* ─── Sync: notice variants ────────────────────────────────────────────────── */
+.sync-notice--success { border-color: #16a34a; background: #0d1f14; }
+.sync-notice--warning { border-color: #b45309; background: #1f1609; color: #fbbf24; }
+
+/* ─── Sync: forgot password / back link ────────────────────────────────────── */
+.sync-forgot-link {
+  background: none;
+  border: none;
+  color: #8080a0;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+  text-decoration: underline;
+}
+.sync-forgot-link:hover { color: #c0c0d8; }
+
+.sync-back-link { margin-top: 8px; }
+
+/* ─── Sync: hint line and refresh link ─────────────────────────────────────── */
+.sync-hint { margin-top: 12px; font-size: 12px; color: #60607a; }
+
+.sync-refresh-link {
+  background: none;
+  border: none;
+  color: #8080a0;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+.sync-refresh-link:hover:not(:disabled) { color: #c0c0d8; }
+.sync-refresh-link:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ─── Sync: upgrade card ────────────────────────────────────────────────────── */
+.sync-upgrade-card {
+  margin-top: 20px;
+  background: linear-gradient(135deg, #1a1208 0%, #12121f 100%);
+  border: 1px solid #b45309;
+  border-radius: 10px;
+  padding: 18px 20px;
+}
+
+.sync-upgrade-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #fbbf24;
+  margin: 0 0 6px;
+}
+
+.sync-upgrade-desc {
+  font-size: 13px;
+  color: #a0a0b8;
+  margin: 0 0 14px;
+}
+
+.sync-upgrade-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* ─── Sync: actions row ─────────────────────────────────────────────────────── */
+.sync-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+
+/* ─── Sync: pending changes badge ──────────────────────────────────────────── */
+.sync-pending-row .sync-label {
+  color: #f59e0b;
+}
+
+.sync-pending-badge {
+  color: #f59e0b !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  background: rgba(245, 158, 11, 0.1);
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+/* ─── Sync: delete account zone ─────────────────────────────────────────────── */
+.sync-delete-zone {
+  margin-top: 32px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(239, 68, 68, 0.15);
+}
+
+.sync-delete-zone--open {
+  background: rgba(239, 68, 68, 0.05);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 10px;
+  padding: 20px;
+  margin-top: 24px;
+}
+
+.sync-delete-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #ef4444;
+  margin-bottom: 10px;
+}
+
+.sync-delete-desc {
+  font-size: 13px;
+  color: #a0a0b8;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.sync-delete-btn {
+  background: transparent;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #ef4444;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 7px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.sync-delete-btn:hover {
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.sync-delete-input {
+  width: 100%;
+  margin-top: 10px;
+  background: #0f1117;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #e8eaf0;
+  padding: 9px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+  font-family: monospace;
+  letter-spacing: 0.05em;
+}
+
+.sync-delete-input:focus {
+  border-color: #ef4444;
+}
+
+.sync-delete-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
+.sync-delete-confirm-btn {
+  background: #ef4444;
+  color: #fff;
+  border: none;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 9px 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.sync-delete-confirm-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.sync-delete-confirm-btn:not(:disabled):hover {
+  opacity: 0.88;
+}

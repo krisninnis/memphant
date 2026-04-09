@@ -1,25 +1,37 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useProjectStore } from '../../store/projectStore';
 import SettingsGeneral from './SettingsGeneral';
 import SettingsPrivacy from './SettingsPrivacy';
 import SettingsProjects from './SettingsProjects';
 import SettingsPlatforms from './SettingsPlatforms';
 import SettingsAbout from './SettingsAbout';
+import { SettingsSync } from './SettingsSync';
 import './SettingsPage.css';
 
-type SettingsTab = 'general' | 'privacy' | 'projects' | 'platforms' | 'about';
+type SettingsTab = 'general' | 'privacy' | 'projects' | 'platforms' | 'sync' | 'about';
 
 const TABS: { id: SettingsTab; label: string; icon: string }[] = [
   { id: 'general',   label: 'General',    icon: '⚙️' },
   { id: 'privacy',   label: 'Privacy & Security', icon: '🔒' },
   { id: 'projects',  label: 'Projects',   icon: '🗂️' },
   { id: 'platforms', label: 'AI Platforms', icon: '🤖' },
+  { id: 'sync',      label: 'Cloud Backup', icon: '☁️' },
   { id: 'about',     label: 'About',      icon: 'ℹ️' },
 ];
 
 export function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<SettingsTab>('general');
-  const setCurrentView = useProjectStore((s) => s.setCurrentView);
+  const settingsTab     = useProjectStore((s) => s.settingsTab);
+  const setSettingsTab  = useProjectStore((s) => s.setSettingsTab);
+  const [activeTab, setActiveTab] = useState<SettingsTab>((settingsTab as SettingsTab) || 'general');
+  const setCurrentView  = useProjectStore((s) => s.setCurrentView);
+
+  // If the store says to open a specific tab (e.g. free-tier redirect), honour it
+  useEffect(() => {
+    if (settingsTab && settingsTab !== activeTab) {
+      setActiveTab(settingsTab as SettingsTab);
+      setSettingsTab('general'); // reset so it doesn't re-trigger
+    }
+  }, [settingsTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="settings-page">
@@ -55,6 +67,7 @@ export function SettingsPage() {
         {activeTab === 'privacy'   && <SettingsPrivacy />}
         {activeTab === 'projects'  && <SettingsProjects />}
         {activeTab === 'platforms' && <SettingsPlatforms />}
+        {activeTab === 'sync'      && <SettingsSync />}
         {activeTab === 'about'     && <SettingsAbout />}
       </div>
     </div>

@@ -1,6 +1,11 @@
 import { create } from 'zustand';
 import type { ProjectMemory, Platform, AppSettings } from '../types/project-brain-types';
 import { DEFAULT_SETTINGS } from '../types/project-brain-types';
+import type { CloudUser } from '../services/cloudSync';
+
+export type SyncStatus = 'idle' | 'syncing' | 'error';
+export type SubscriptionTier = 'free' | 'pro' | 'team';
+export type SubscriptionStatus = 'none' | 'active' | 'trialing' | 'past_due' | 'canceled';
 
 interface ProjectStore {
   // State
@@ -17,6 +22,18 @@ interface ProjectStore {
   // Rollback state — stores the project snapshot before last AI merge
   preAiBackup: ProjectMemory | null;
 
+  // Cloud sync state
+  cloudUser: CloudUser | null;
+  syncStatus: SyncStatus;
+  lastSyncedAt: string | null;
+
+  // Subscription state (loaded from Supabase after login)
+  subscriptionTier: SubscriptionTier;
+  subscriptionStatus: SubscriptionStatus;
+
+  // Settings navigation
+  settingsTab: string;
+
   // Actions
   setProjects: (projects: ProjectMemory[]) => void;
   setActiveProject: (id: string | null) => void;
@@ -30,6 +47,18 @@ interface ProjectStore {
 
   // Rollback
   setPreAiBackup: (project: ProjectMemory | null) => void;
+
+  // Cloud sync actions
+  setCloudUser: (user: CloudUser | null) => void;
+  setSyncStatus: (status: SyncStatus) => void;
+  setLastSyncedAt: (at: string) => void;
+
+  // Subscription actions
+  setSubscriptionTier: (tier: SubscriptionTier) => void;
+  setSubscriptionStatus: (status: SubscriptionStatus) => void;
+
+  // Settings navigation
+  setSettingsTab: (tab: string) => void;
 
   // Project operations
   updateProject: (id: string, updates: Partial<ProjectMemory>) => void;
@@ -54,6 +83,18 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   currentView: 'projects',
   preAiBackup: null,
 
+  // Cloud sync state
+  cloudUser: null,
+  syncStatus: 'idle' as SyncStatus,
+  lastSyncedAt: null,
+
+  // Subscription state
+  subscriptionTier: 'free' as SubscriptionTier,
+  subscriptionStatus: 'none' as SubscriptionStatus,
+
+  // Settings navigation
+  settingsTab: 'general',
+
   // Actions
   setProjects: (projects) => set({ projects }),
   setActiveProject: (id) => set({ activeProjectId: id }),
@@ -73,6 +114,18 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
   // Rollback
   setPreAiBackup: (project) => set({ preAiBackup: project }),
+
+  // Cloud sync actions
+  setCloudUser: (user) => set({ cloudUser: user }),
+  setSyncStatus: (status) => set({ syncStatus: status }),
+  setLastSyncedAt: (at) => set({ lastSyncedAt: at }),
+
+  // Subscription actions
+  setSubscriptionTier: (tier) => set({ subscriptionTier: tier }),
+  setSubscriptionStatus: (status) => set({ subscriptionStatus: status }),
+
+  // Settings navigation
+  setSettingsTab: (tab) => set({ settingsTab: tab }),
 
   // Project operations
   updateProject: (id, updates) =>

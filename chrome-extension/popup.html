@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Project Brain</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <div class="popup">
+      <!-- Header -->
+      <header class="popup__header">
+        <span class="popup__logo">🧠</span>
+        <div class="popup__title-block">
+          <h1 class="popup__title">Project Brain</h1>
+          <p class="popup__subtitle">AI context, always ready</p>
+        </div>
+      </header>
+
+      <!-- Status panel — shown when an update is detected on the current page -->
+      <section id="update-panel" class="panel panel--update" hidden>
+        <div class="panel__icon">📋</div>
+        <p class="panel__heading">Update detected on this page</p>
+        <p class="panel__body" id="update-summary">—</p>
+        <button class="btn btn--primary" id="copy-btn">Copy &amp; apply</button>
+        <p class="panel__hint">Then paste into Project Brain's update zone.</p>
+      </section>
+
+      <!-- Idle panel — shown when no update is detected -->
+      <section id="idle-panel" class="panel panel--idle">
+        <div class="panel__icon">👀</div>
+        <p class="panel__heading">Watching for updates</p>
+        <p class="panel__body">
+          Ask your AI to end its reply with a
+          <code>project_brain_update</code> block and it'll
+          appear here automatically.
+        </p>
+        <button class="btn btn--secondary" id="hint-btn">
+          Copy prompt hint
+        </button>
+      </section>
+
+      <!-- Copied confirmation -->
+      <p class="confirmation" id="confirmation" hidden>
+        ✅ Copied! Open Project Brain and paste.
+      </p>
+
+      <!-- Footer -->
+      <footer class="popup__footer">
+        <span class="popup__version">v0.1.0</span>
+        <a
+          class="popup__link"
+          href="https://github.com/krisninnis/project-brain"
+          target="_blank"
+          rel="noopener noreferrer"
+        >GitHub ↗</a>
+      </footer>
+    </div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

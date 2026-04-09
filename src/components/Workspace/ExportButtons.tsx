@@ -3,6 +3,7 @@ import { useProjectStore } from '../../store/projectStore';
 import { useActiveProject, useEnabledPlatforms } from '../../hooks/useActiveProject';
 import { copyExportToClipboard } from '../../services/tauriActions';
 import { formatForPlatform, setScannerLevel } from '../../utils/exportFormatters';
+import { scoreExport } from '../../utils/exportQuality';
 import { PLATFORM_CONFIG } from '../../utils/platformConfig';
 import type { Platform } from '../../types/project-brain-types';
 
@@ -22,65 +23,123 @@ function formatSyncAge(isoString: string): string {
 export function ExportButtons() {
   const targetPlatform = useProjectStore((s) => s.targetPlatform);
   const setTargetPlatform = useProjectStore((s) => s.setTargetPlatform);
-  const activeProject = useActiveProject();
   const currentTask = useProjectStore((s) => s.currentTask);
   const showToast = useProjectStore((s) => s.showToast);
-  const enabledPlatforms = useEnabledPlatforms();
-
-  // Read both settings that affect export behaviour
   const defaultExportMode = useProjectStore((s) => s.settings.projects.defaultExportMode);
   const secretsScannerLevel = useProjectStore((s) => s.settings.privacy.secretsScannerLevel);
+  const subscriptionTier = useProjectStore((s) => s.subscriptionTier);
 
-  const handleCopyFor = useCallback(
-    async (platform: Platform) => {
-      if (platform !== targetPlatform) {
-        setTargetPlatform(platform);
-      }
+  const isPro = subscriptionTier === 'pro' || subscriptionTier === 'team';
+  // Fall back to 'full' if the user has Smart selected but isn't on Pro
+  const effectiveExportMode = (defaultExportMode === 'smart' && !isPro) ? 'full' : defaultExportMode;
 
-      if (!activeProject) {
-        showToast('Open a project first', 'error');
-        return;
-      }
-
-      // Apply scanner level before generating export text
-      setScannerLevel(secretsScannerLevel);
-      const exportText = formatForPlatform(activeProject, platform, currentTask, defaultExportMode);
-      await copyExportToClipboard(exportText, platform);
-    },
-    [setTargetPlatform, targetPlatform, activeProject, currentTask, showToast, defaultExportMode, secretsScannerLevel]
-  );
+  const activeProject = useActiveProject();
+  const enabledPlatforms = useEnabledPlatforms();
 
   const visiblePlatforms = enabledPlatforms.slice(0, 5);
+  const targetConfig = PLATFORM_CONFIG[targetPlatform];
+  const targetState = activeProject?.platformState?.[targetPlatform];
+  const syncLabel = targetState?.lastExportedAt
+    ? formatSyncAge(targetState.lastExportedAt)
+    : null;
+  const quality = activeProject ? scoreExport(activeProject) : null;
+
+  const handleSelectPlatform = (platform: Platform) => {
+    if (platform !== targetPlatform) {
+      setTargetPlatform(platform);
+    }
+  };
+
+  const handleCopy = useCallback(async () => {
+    if (!activeProject) {
+      showToast('Open a project first', 'error');
+      return;
+    }
+
+    setScannerLevel(secretsScannerLevel);
+
+    const exportText = formatForPlatform(
+      activeProject,
+      targetPlatform,
+      currentTask,
+      effectiveExportMode,
+    );
+
+    await copyExportToClipboard(exportText, targetPlatform);
+  }, [
+    activeProject,
+    currentTask,
+    effectiveExportMode,
+    secretsScannerLevel,
+    showToast,
+    targetPlatform,
+  ]);
 
   return (
-    <div className="export-buttons">
-      {visiblePlatforms.map((platform) => {
-        const config = PLATFORM_CONFIG[platform];
-        const state = activeProject?.platformState?.[platform];
-        const syncLabel = state?.lastExportedAt ? formatSyncAge(state.lastExportedAt) : null;
+    <div className="export-controls" data-tour="export">
+      {/* Platform selector pills */}
+      <div className="export-buttons" role="tablist" aria-label="Choose AI platform">
+        {visiblePlatforms.map((platform) => {
+          const config = PLATFORM_CONFIG[platform];
+          const isActive = targetPlatform === platform;
+          const state = activeProject?.platformState?.[platform];
+          const age = state?.lastExportedAt ? formatSyncAge(state.lastExportedAt) : null;
 
-        return (
-          <button
-            key={platform}
-            className={`export-pill${targetPlatform === platform ? ' export-pill--active' : ''}`}
-            style={{ '--pill-color': config.color } as React.CSSProperties}
-            onClick={() => void handleCopyFor(platform)}
-            title={
-              syncLabel
-                ? `Last copied for ${config.name}: ${syncLabel}`
-                : `Copy for ${config.name}`
-            }
-          >
-            <span className="export-pill__icon">{config.icon}</span>
-            <span className="export-pill__label">
-              {config.name}
-              {syncLabel && (
-                <span className="export-pill__age">{syncLabel}</span>
-              )}
-            </span>
-          </button>
-        );
-      })}
+          return (
+            <button
+              key={platform}
+              type="button"
+              className={`export-pill${isActive ? ' export-pill--active' : ''}`}
+              style={{ '--pill-color': config.color } as React.CSSProperties}
+              onClick={() => handleSelectPlatform(platform)}
+              title={age ? `${config.name} — last copied ${age}` : `Select ${config.name}`}
+              aria-pressed={isActive}
+            >
+              <span className="export-pill__icon">{config.icon}</span>
+              <span className="export-pill__label">{config.name}</span>
+              {age && <span className="export-pill__age">{age}</span>}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Quality indicator */}
+      {quality && (
+        <div className="export-quality" title={quality.message || `Export is ${quality.label}`}>
+          <div className="export-quality__bar">
+            <div
+              className="export-quality__fill"
+              style={{ width: `${quality.score}%`, background: quality.color }}
+            />
+          </div>
+          <span className="export-quality__label" style={{ color: quality.color }}>
+            {quality.label}
+          </span>
+          {quality.message && (
+            <span className="export-quality__tip">{quality.message}</span>
+          )}
+        </div>
+      )}
+
+      {/* Single prominent copy button for the active platform */}
+      <button
+        type="button"
+        className="export-copy-btn"
+        style={{ '--pill-color': targetConfig.color } as React.CSSProperties}
+        onClick={() => void handleCopy()}
+        disabled={!activeProject}
+        title={
+          syncLabel
+            ? `Last copied for ${targetConfig.name}: ${syncLabel}`
+            : `Copy project context for ${targetConfig.name}`
+        }
+      >
+        <span className="export-copy-btn__icon">{targetConfig.icon}</span>
+        <span className="export-copy-btn__text">
+          Copy for {targetConfig.name}
+          {syncLabel && <span className="export-copy-btn__age">{syncLabel}</span>}
+        </span>
+      </button>
     </div>
   );
 }

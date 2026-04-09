@@ -1,8 +1,5 @@
-// Core types for Project Brain
-// Backward-compatible with existing saved JSON — all new fields are optional.
-
 export type Platform = 'chatgpt' | 'claude' | 'grok' | 'perplexity' | 'gemini';
-export type ExportMode = 'full' | 'delta' | 'specialist';
+export type ExportMode = 'full' | 'delta' | 'specialist' | 'smart';
 
 export interface Decision {
   decision: string;
@@ -21,17 +18,16 @@ export interface ChangelogEntry {
 }
 
 export interface LinkedFolder {
-  path: string;           // NEVER exported
+  path: string; // NEVER exported
   scanHash?: string;
   lastScannedAt?: string;
 }
 
 export interface PlatformState {
-  lastExportedAt?: string;    // when user last copied to this platform
-  lastExportHash?: string;    // hash of project state at that moment
-  lastReplyAt?: string;       // when user last pasted a response back from this platform
+  lastExportedAt?: string;
+  lastExportHash?: string;
+  lastReplyAt?: string;
   exportCount?: number;
-  // A short AI-written note from the last session on this platform
   lastSessionNote?: string;
 }
 
@@ -63,7 +59,7 @@ export interface ProjectBrainUpdate {
   add_decisions?: string[];
   add_nextSteps?: string[];
   add_openQuestions?: string[];
-  session_note?: string;  // AI's summary of what it worked on this session
+  session_note?: string;
 }
 
 export interface DiffResult {
@@ -80,8 +76,6 @@ export interface ExportCache {
   generatedAt: string;
   stateHash: string;
 }
-
-// ─── App Settings ─────────────────────────────────────────────────────────────
 
 export interface AppSettings {
   general: {
@@ -133,15 +127,13 @@ export const DEFAULT_SETTINGS: AppSettings = {
   },
 };
 
-// ─── State hash for delta tracking ────────────────────────────────────────────
-
 export function hashProjectState(project: ProjectMemory): string {
   const key = [
     project.summary,
     project.currentState,
     project.goals.join('|'),
     project.rules.join('|'),
-    project.decisions.map(d => d.decision).join('|'),
+    project.decisions.map((d) => `${d.decision}::${d.rationale || ''}`).join('|'),
     project.nextSteps.join('|'),
     project.openQuestions.join('|'),
   ].join('::');
@@ -151,5 +143,6 @@ export function hashProjectState(project: ProjectMemory): string {
     hash = (hash * 33) ^ key.charCodeAt(i);
     hash = hash >>> 0;
   }
+
   return hash.toString(16).padStart(8, '0');
 }

@@ -6,12 +6,17 @@ export function TaskField() {
 
   return (
     <div className="task-field">
+      <label className="task-field__label" htmlFor="task-field-input">
+        What do you need help with?
+      </label>
       <input
+        id="task-field-input"
         type="text"
         className="task-field__input"
-        placeholder="What should this AI focus on?"
+        placeholder="e.g. Fix the auth bug, Write the landing page copy…"
         value={currentTask}
         onChange={(e) => setCurrentTask(e.target.value)}
+        maxLength={200}
       />
     </div>
   );
