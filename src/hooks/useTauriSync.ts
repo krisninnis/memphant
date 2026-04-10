@@ -47,6 +47,7 @@ export function useTauriSync() {
                 store.setSubscriptionTier('free');
                 store.setSubscriptionStatus('none');
                 store.setSyncStatus('idle');
+                store.setIsAdmin(false);
                 return;
               }
 
@@ -63,6 +64,11 @@ export function useTauriSync() {
               // Update cloudUser in store (covers sign-in, restored session,
               // email change via USER_UPDATED)
               store.setCloudUser(incomingUser);
+
+              // Detect admin role from JWT app_metadata.role
+              // Supabase sets this via service_role or edge functions — never user-configurable
+              const role = (sessionUser.app_metadata as Record<string, unknown>)?.role;
+              store.setIsAdmin(role === 'admin');
 
               // Refresh subscription whenever the authenticated user changes
               try {

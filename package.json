@@ -1,5 +1,5 @@
 {
-  "name": "memphant-desktop",
+  "name": "memephant-desktop",
   "private": true,
   "version": "0.1.4",
   "type": "module",
@@ -17,13 +17,14 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.101.1",
-    "cmdk": "^1.0.0",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-dialog": "^2.6.0",
     "@tauri-apps/plugin-opener": "^2",
     "@tauri-apps/plugin-updater": "^2.10.1",
+    "cmdk": "^1.0.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "sharp": "^0.34.5",
     "stripe": "^22.0.0",
     "uuid": "^9.0.0",
     "zustand": "^5.0.0"

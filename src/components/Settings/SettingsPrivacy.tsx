@@ -1,15 +1,15 @@
 import { useState } from 'react';
 import { useProjectStore } from '../../store/projectStore';
 import { getProjectsPath, loadAllFromDisk, downloadAllData } from '../../services/tauriActions';
-import Toggle from '../Shared/Toggle';
 import ConfirmDialog from '../Shared/ConfirmDialog';
 
 export function SettingsPrivacy() {
-  const settings = useProjectStore((s) => s.settings);
-  const updateSettings = useProjectStore((s) => s.updateSettings);
   const showToast = useProjectStore((s) => s.showToast);
   const setProjects = useProjectStore((s) => s.setProjects);
   const setActiveProject = useProjectStore((s) => s.setActiveProject);
+  const setSettingsTab = useProjectStore((s) => s.setSettingsTab);
+  const settings = useProjectStore((s) => s.settings);
+  const updateSettings = useProjectStore((s) => s.updateSettings);
   const [confirmClear, setConfirmClear] = useState(false);
   const [dataPath, setDataPath] = useState<string | null>(null);
 
@@ -45,7 +45,7 @@ export function SettingsPrivacy() {
       <h2 className="settings-section-title">Privacy &amp; Security</h2>
 
       <div className="settings-trust-box">
-        🔒 Memphant keeps all your data on this device. Nothing is sent to any server.
+        🔒 Memephant keeps all your data on this device. Nothing is sent to any server.
       </div>
 
       <div className="settings-group">
@@ -53,16 +53,17 @@ export function SettingsPrivacy() {
 
         <div className="setting-row">
           <div className="setting-info">
-            <div className="setting-label">Cloud Sync</div>
+            <div className="setting-label">Cloud Backup &amp; Sync</div>
             <div className="setting-description">
-              Sync your projects across devices — coming soon, your data stays fully local for now
+              Back up your projects and sync across devices — sign in to get started
             </div>
           </div>
-          <Toggle
-            value={p.cloudSyncEnabled}
-            onChange={() => showToast('Cloud sync is coming soon', 'info')}
-            disabled
-          />
+          <button
+            className="setting-btn"
+            onClick={() => setSettingsTab('sync')}
+          >
+            Open Cloud Backup →
+          </button>
         </div>
       </div>
 

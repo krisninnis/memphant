@@ -149,12 +149,15 @@ export function SettingsSync() {
   const setSubscriptionTier = useProjectStore((s) => s.setSubscriptionTier);
   const setSubscriptionStatus = useProjectStore((s) => s.setSubscriptionStatus);
 
-  const [mode, setMode] = useState<'signin' | 'signup' | 'reset' | 'resetSent'>('signin');
+  const [mode, setMode] = useState<'signin' | 'signup' | 'reset' | 'resetSent' | 'emailSent' | 'oauthPending'>('signin');
+  const [oauthProvider, setOauthProvider] = useState<'google' | 'apple' | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [resetEmail, setResetEmail] = useState('');
+  const [sentToEmail, setSentToEmail] = useState('');
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState('');
+  const [emailNotConfirmed, setEmailNotConfirmed] = useState(false);
   const [pendingChanges, setPendingChanges] = useState(0);
 
   // Poll offline queue count so the badge stays current
@@ -233,6 +236,7 @@ VITE_SUPABASE_ANON_KEY=your-anon-key`}</pre>
       setSyncStatus('idle');
       setSubscriptionTier('free');
       setSubscriptionStatus('none');
+      useProjectStore.getState().setIsAdmin(false);
       showToast('Signed out of cloud backup.');
     } catch (err) {
       showToast('Sign-out failed.', 'error');
@@ -427,9 +431,9 @@ const sub = await fetchSubscription(cloudUser.id);
       if (mode === 'signin') {
         user = await signIn(email.trim(), password);
       } else {
-        user = await signUp(email.trim(), password);
-        showToast('Account created — check your email to confirm, then sign in.');
-        setMode('signin');
+        await signUp(email.trim(), password);
+        setSentToEmail(email.trim());
+        setMode('emailSent');
         return;
       }
 
@@ -457,7 +461,32 @@ const sub = await fetchSubscription(cloudUser.id);
       showToast('Signed in — your projects are backed up.');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Something went wrong.';
-      setFormError(msg);
+      // Supabase returns "Email not confirmed" when the user hasn't clicked the link
+      const isNotConfirmed =
+        msg.toLowerCase().includes('email not confirmed') ||
+        msg.toLowerCase().includes('not confirmed');
+      if (isNotConfirmed) {
+        setEmailNotConfirmed(true);
+        setFormError("Your email address hasn't been confirmed yet. Check your inbox for the confirmation link.");
+      } else {
+        setEmailNotConfirmed(false);
+        setFormError(msg);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleResendConfirmation(targetEmail: string) {
+    if (!supabase || !targetEmail) return;
+    setBusy(true);
+    try {
+      const { error } = await supabase.auth.resend({ type: 'signup', email: targetEmail });
+      if (error) throw new Error(error.message);
+      showToast(`Confirmation email resent to ${targetEmail}`);
+      setEmailNotConfirmed(false);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Could not resend email.', 'error');
     } finally {
       setBusy(false);
     }
@@ -514,6 +543,94 @@ const sub = await fetchSubscription(cloudUser.id);
           onClick={() => {
             setMode('signin');
             setResetEmail('');
+            setFormError('');
+          }}
+        >
+          ← Back to sign in
+        </button>
+      </section>
+    );
+  }
+
+  // ── OAuth pending (desktop: browser opened, waiting for user to return) ─────
+
+  if (mode === 'oauthPending') {
+    const providerName = oauthProvider === 'apple' ? 'Apple' : 'Google';
+    return (
+      <section className="settings-section">
+        <h2 className="settings-section-title">☁️ Cloud Backup</h2>
+
+        <div className="sync-oauth-pending">
+          <div className="sync-oauth-pending__icon">🌐</div>
+          <h3 className="sync-oauth-pending__title">Sign in opened in your browser</h3>
+          <ol className="sync-oauth-pending__steps">
+            <li>Complete {providerName} sign-in in the browser window that just opened.</li>
+            <li>Once you&apos;re signed in, come back to this window.</li>
+            <li>Click the button below to finish connecting your account.</li>
+          </ol>
+        </div>
+
+        {formError && <p className="sync-form-error" style={{ marginBottom: 12 }}>{formError}</p>}
+
+        <div className="sync-actions">
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => void handleOAuthRefresh()}
+            disabled={busy}
+          >
+            {busy ? 'Connecting…' : "I've signed in — connect my account →"}
+          </button>
+        </div>
+
+        <button
+          type="button"
+          className="btn btn-ghost sync-back-link"
+          onClick={() => {
+            setMode('signin');
+            setFormError('');
+            setOauthProvider(null);
+          }}
+        >
+          ← Back to sign in
+        </button>
+      </section>
+    );
+  }
+
+  // ── Email sent (post sign-up confirmation) ──────────────────────────────────
+
+  if (mode === 'emailSent') {
+    return (
+      <section className="settings-section">
+        <h2 className="settings-section-title">☁️ Cloud Backup</h2>
+
+        <div className="sync-notice sync-notice--success">
+          <p>
+            📬 <strong>Check your inbox.</strong>
+          </p>
+          <p>
+            We sent a confirmation link to <strong>{sentToEmail}</strong>. Click it to activate
+            your account, then come back here and sign in.
+          </p>
+        </div>
+
+        <div className="sync-actions" style={{ marginTop: 16 }}>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => void handleResendConfirmation(sentToEmail)}
+            disabled={busy}
+          >
+            {busy ? 'Sending…' : 'Resend confirmation email'}
+          </button>
+        </div>
+
+        <button
+          type="button"
+          className="btn btn-ghost sync-back-link"
+          onClick={() => {
+            setMode('signin');
             setFormError('');
           }}
         >
@@ -592,10 +709,10 @@ const sub = await fetchSubscription(cloudUser.id);
       const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
       if (isTauri) {
         const { openUrl } = await import(/* @vite-ignore */ '@tauri-apps/plugin-opener');
-await openUrl(data.url);
+        await openUrl(data.url);
         setFormError('');
-        // Show a "waiting" state — the user will complete auth in their browser
-        showToast(`Opened ${provider === 'google' ? 'Google' : 'Apple'} sign-in in your browser. Return here once done, then click Refresh.`);
+        setOauthProvider(provider);
+        setMode('oauthPending');
       } else {
         window.location.href = data.url;
       }
@@ -645,6 +762,7 @@ await openUrl(data.url);
           onClick={() => {
             setMode('signin');
             setFormError('');
+            setEmailNotConfirmed(false);
           }}
         >
           Sign in
@@ -656,6 +774,7 @@ await openUrl(data.url);
           onClick={() => {
             setMode('signup');
             setFormError('');
+            setEmailNotConfirmed(false);
           }}
         >
           Create account
@@ -703,7 +822,21 @@ await openUrl(data.url);
           </button>
         )}
 
-        {formError && <p className="sync-form-error">{formError}</p>}
+        {formError && (
+          <div>
+            <p className="sync-form-error">{formError}</p>
+            {emailNotConfirmed && (
+              <button
+                type="button"
+                className="sync-resend-btn"
+                onClick={() => void handleResendConfirmation(email.trim())}
+                disabled={busy}
+              >
+                {busy ? 'Sending…' : '📬 Resend confirmation email'}
+              </button>
+            )}
+          </div>
+        )}
 
         <button className="btn btn-primary sync-submit" type="submit" disabled={busy}>
           {busy
@@ -752,7 +885,7 @@ await openUrl(data.url);
         onClick={() => void handleOAuthRefresh()}
         disabled={busy}
       >
-        Already signed in via browser? Click to refresh →
+        Already completed browser sign-in? Click to connect →
       </button>
 
       <p className="settings-description sync-hint">

@@ -33,6 +33,9 @@ export function Sidebar({ onNavigate }: SidebarProps) {
   const [selectedTemplate, setSelectedTemplate] = useState<ProjectTemplate | null>(null);
   const [templateName, setTemplateName]     = useState('');
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [cloudNudgeDismissed, setCloudNudgeDismissed] = useState(
+    () => localStorage.getItem('mph_cloud_nudge_dismissed') === '1',
+  );
   const nameInputRef    = useRef<HTMLInputElement>(null);
   const templateNameRef = useRef<HTMLInputElement>(null);
 
@@ -96,7 +99,7 @@ export function Sidebar({ onNavigate }: SidebarProps) {
     <div className="sidebar-inner">
       <div className="sidebar-header">
         <div>
-          <h2 className="sidebar-brand">Memphant</h2>
+          <h2 className="sidebar-brand">Memephant</h2>
           <p className="sidebar-tagline">Your project context, ready for any AI.</p>
         </div>
         <button
@@ -231,6 +234,34 @@ export function Sidebar({ onNavigate }: SidebarProps) {
           </div>
         )}
       </div>
+
+      {/* ── Cloud backup nudge (non-signed-in, has projects, not at limit) ─── */}
+      {!cloudUser && !atLimit && projects.length > 0 && !cloudNudgeDismissed && (
+        <div className="sidebar-cloud-nudge">
+          <div className="sidebar-cloud-nudge__text">
+            <span>☁️</span>
+            <span>Back up your projects and sync across devices</span>
+          </div>
+          <div className="sidebar-cloud-nudge__actions">
+            <button
+              className="sidebar-cloud-nudge__cta"
+              onClick={() => { setSettingsTab('sync'); setCurrentView('settings'); }}
+            >
+              Sign in free →
+            </button>
+            <button
+              className="sidebar-cloud-nudge__dismiss"
+              aria-label="Dismiss"
+              onClick={() => {
+                localStorage.setItem('mph_cloud_nudge_dismissed', '1');
+                setCloudNudgeDismissed(true);
+              }}
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── Free tier nudge ─────────────────────────────────────────────────── */}
       {atLimit && (

@@ -37,6 +37,11 @@ interface ProjectStore {
   // Tour
   tourActive: boolean;
 
+  // Admin
+  /** True when the signed-in user has the admin role. Never set for free/pro/team users.
+   *  Used to conditionally render admin-only UI in future views. */
+  isAdmin: boolean;
+
   // Actions
   setProjects: (projects: ProjectMemory[]) => void;
   setActiveProject: (id: string | null) => void;
@@ -63,6 +68,9 @@ interface ProjectStore {
   // Settings navigation
   setSettingsTab: (tab: string) => void;
   setTourActive: (active: boolean) => void;
+
+  // Admin
+  setIsAdmin: (admin: boolean) => void;
 
   // Project operations
   updateProject: (id: string, updates: Partial<ProjectMemory>) => void;
@@ -102,6 +110,9 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   // Tour
   tourActive: false,
 
+  // Admin
+  isAdmin: false,
+
   // Actions
   setProjects: (projects) => set({ projects }),
   setActiveProject: (id) => set({ activeProjectId: id }),
@@ -134,6 +145,9 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   // Settings navigation
   setSettingsTab: (tab) => set({ settingsTab: tab }),
   setTourActive: (active) => set({ tourActive: active }),
+
+  // Admin
+  setIsAdmin: (admin) => set({ isAdmin: admin }),
 
   // Project operations
   updateProject: (id, updates) =>

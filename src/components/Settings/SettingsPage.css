@@ -424,6 +424,28 @@
   margin: 0;
 }
 
+.sync-resend-btn {
+  background: none;
+  border: 1px solid #2a3a4a;
+  border-radius: 6px;
+  color: #5a9fdf;
+  font-size: 12px;
+  padding: 6px 12px;
+  cursor: pointer;
+  margin-top: 8px;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.sync-resend-btn:hover:not(:disabled) {
+  border-color: #5a9fdf;
+  color: #88bbee;
+}
+
+.sync-resend-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .sync-submit { width: 100%; justify-content: center; }
 
 /* Shared btn helpers (may already exist globally) */
@@ -705,3 +727,43 @@
 
 .sync-oauth-refresh:hover { opacity: 1; }
 .sync-oauth-refresh:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ── OAuth pending state ──────────────────────────────────────────────────── */
+
+.sync-oauth-pending {
+  background: #0c1520;
+  border: 1px solid #1a2e40;
+  border-radius: 10px;
+  padding: 24px 20px;
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+.sync-oauth-pending__icon {
+  font-size: 36px;
+  margin-bottom: 10px;
+  line-height: 1;
+}
+
+.sync-oauth-pending__title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #e0e0e0;
+  margin: 0 0 14px;
+}
+
+.sync-oauth-pending__steps {
+  list-style: decimal;
+  text-align: left;
+  padding-left: 20px;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sync-oauth-pending__steps li {
+  font-size: 13px;
+  color: #8aaabb;
+  line-height: 1.5;
+}

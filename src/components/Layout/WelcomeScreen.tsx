@@ -79,6 +79,9 @@ export function WelcomeScreen() {
   const addProject = useProjectStore((s) => s.addProject);
   const setActiveProject = useProjectStore((s) => s.setActiveProject);
   const showToast = useProjectStore((s) => s.showToast);
+  const cloudUser = useProjectStore((s) => s.cloudUser);
+  const setCurrentView = useProjectStore((s) => s.setCurrentView);
+  const setSettingsTab = useProjectStore((s) => s.setSettingsTab);
 
   const canAdvanceStep1 = name.trim().length > 0;
   const canAdvanceStep2 = summary.trim().length > 0;
@@ -129,8 +132,10 @@ export function WelcomeScreen() {
     return (
       <div className="welcome-screen">
         <div className="welcome-card">
-          <div className="welcome-logo">🐘</div>
-          <h1 className="welcome-title">Memphant</h1>
+          <div className="welcome-logo">
+  <img src="/icons/icon-192.png" alt="Memephant logo" className="welcome-logo__image" />
+</div>
+          <h1 className="welcome-title">Memephant</h1>
           <p className="welcome-tagline">
             Remember your projects so your AIs don&apos;t have to.
           </p>
@@ -163,6 +168,15 @@ export function WelcomeScreen() {
             Switch between ChatGPT, Claude, Grok, Perplexity and Gemini — without starting over.
           </p>
           <p className="welcome-privacy">🔒 Your data stays on this device. No accounts required.</p>
+
+          {!cloudUser && (
+            <button
+              className="welcome-sync-link"
+              onClick={() => { setSettingsTab('sync'); setCurrentView('settings'); }}
+            >
+              ☁️ Sign in to back up &amp; sync across devices →
+            </button>
+          )}
         </div>
       </div>
     );

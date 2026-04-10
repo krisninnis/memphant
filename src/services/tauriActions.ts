@@ -561,7 +561,7 @@ export async function importProjectFromFile(file: File): Promise<void> {
     store().showToast(`"${project.name}" imported.`);
   } catch (err) {
     console.error('Import failed:', err);
-    store().showToast('Could not import that file. Make sure it is a valid Memphant file.', 'error');
+    store().showToast('Could not import that file. Make sure it is a valid Memephant file.', 'error');
   }
 }
 
@@ -648,7 +648,7 @@ function buildMarkdownSnapshot(project: ProjectMemory): string {
   });
 
   lines.push(`# ${project.name}`);
-  lines.push(`*Exported from Memphant — ${now}*`);
+  lines.push(`*Exported from Memephant — ${now}*`);
   lines.push('');
 
   if (project.summary) {
@@ -724,7 +724,7 @@ export async function downloadAllData(): Promise<void> {
 
   const payload = {
     exported_at: new Date().toISOString(),
-    app: 'Memphant',
+    app: 'Memephant',
     schema_version: 1,
     projects: projects.map((p) => toOldFormat(p)),
     settings,

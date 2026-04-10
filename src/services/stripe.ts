@@ -110,7 +110,9 @@ export async function openCustomerPortal(): Promise<boolean> {
 
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
-      throw new Error(body.error || `Portal request failed (${response.status})`);
+      // Prefer the human-readable details message if present (set by 404 path in create-portal)
+      const message = body.details || body.error || `Portal request failed (${response.status})`;
+      throw new Error(message);
     }
 
     const { url } = await response.json();

@@ -7,7 +7,7 @@ import TaskField from './TaskField';
 
 /** The prompt users paste into their AI to activate the memphant_update protocol */
 const ACTIVATION_PROMPT =
-  `After every response, please include a project update block at the end so I can sync your changes back to my Memphant app:
+  `After every response, please include a project update block at the end so I can sync your changes back to my Memephant app:
 
 memphant_update
 {

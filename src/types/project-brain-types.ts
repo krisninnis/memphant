@@ -1,3 +1,8 @@
+/**
+ * @deprecated Use memphant-types.ts instead. This file is a legacy duplicate
+ * from the old brand name and will be removed in a future cleanup pass.
+ * Do not add new types here.
+ */
 export type Platform = 'chatgpt' | 'claude' | 'grok' | 'perplexity' | 'gemini';
 export type ExportMode = 'full' | 'delta' | 'specialist' | 'smart';
 

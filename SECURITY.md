@@ -15,7 +15,7 @@ Older pre-release versions receive no security patches. Please update to the lat
 **Please do not file a public GitHub issue for security vulnerabilities.**
 
 Email: **krisninnis@gmail.com**  
-Subject line: `[SECURITY] Memphant — <brief description>`
+Subject line: `[SECURITY] Memephant — <brief description>`
 
 Include:
 - A description of the vulnerability and its potential impact
@@ -37,9 +37,9 @@ We ask that you give us a reasonable window to patch before public disclosure.
 
 All project data is stored in plain JSON files in your OS application data folder:
 
-- **Windows:** `%APPDATA%\memphant\projects\`
-- **macOS:** `~/Library/Application Support/memphant/projects/`
-- **Linux:** `~/.local/share/memphant/projects/`
+- **Windows:** `%APPDATA%\memephant\projects\`
+- **macOS:** `~/Library/Application Support/memephant/projects/`
+- **Linux:** `~/.local/share/memephant/projects/`
 
 No data leaves your machine unless you explicitly sign in and enable cloud backup.
 

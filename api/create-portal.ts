@@ -44,7 +44,12 @@ export default async function handler(req: any, res: any) {
       .single();
 
     if (error || !data?.stripe_customer_id) {
-      return res.status(404).json({ error: 'No active subscription found for this user.' });
+      // This usually means the Stripe webhook hasn't written the subscription row yet,
+      // or the user downgraded/cancelled before a row existed.
+      return res.status(404).json({
+        error:   'No billing record found for this account.',
+        details: 'If you recently upgraded, wait a moment and try again. If this keeps happening, contact support at hello@memephant.com',
+      });
     }
 
     const returnUrl = process.env.APP_URL

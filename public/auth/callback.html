@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Signing you in — Memphant</title>
+    <title>Signing you in — Memephant</title>
     <style>
       *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -115,7 +115,7 @@
     <div class="card">
       <div class="logo">🐘</div>
       <h1>Signing you in</h1>
-      <p class="sub">Memphant is connecting your account&hellip;</p>
+      <p class="sub">Memephant is connecting your account&hellip;</p>
 
       <div class="status status--loading" id="status">
         <span class="spinner" id="spinner"></span>
@@ -123,9 +123,9 @@
       </div>
 
       <div class="instructions" id="instructions"></div>
-      <button class="close-btn" id="close-btn" onclick="window.close()">Close this tab &amp; return to Memphant</button>
+      <button class="close-btn" id="close-btn" onclick="window.close()">Close this tab &amp; return to Memephant</button>
 
-      <div class="wordmark">Memphant · Remember everything. Explain nothing.</div>
+      <div class="wordmark">Memephant · Remember everything. Explain nothing.</div>
     </div>
 
     <!--
@@ -178,7 +178,7 @@
 
           if (data?.session) {
             showSuccess('✅ You\'re signed in!', `
-              <strong>Desktop app users:</strong> switch back to Memphant and tap the
+              <strong>Desktop app users:</strong> switch back to Memephant and tap the
               <em>"Already signed in via browser? Click to refresh →"</em> link on the
               Cloud Backup page. Your account will connect instantly.<br><br>
               <strong>PWA / web users:</strong> you're all set — your session is saved.
@@ -195,7 +195,7 @@
               if (exchErr) throw exchErr;
               if (exchanged?.session) {
                 showSuccess('✅ You\'re signed in!', `
-                  <strong>Desktop app users:</strong> switch back to Memphant and tap the
+                  <strong>Desktop app users:</strong> switch back to Memephant and tap the
                   <em>"Already signed in via browser? Click to refresh →"</em> link.
                   Your account will connect instantly.<br><br>
                   <strong>PWA / web users:</strong> session saved — you can close this tab.
@@ -209,7 +209,7 @@
               const token = hash.get('access_token');
               if (token) {
                 showSuccess('✅ You\'re signed in!', `
-                  Switch back to Memphant and tap <em>"Click to refresh →"</em> to connect your account.
+                  Switch back to Memephant and tap <em>"Click to refresh →"</em> to connect your account.
                 `);
               } else {
                 showError('⚠️ No session received. Please go back and try again.');

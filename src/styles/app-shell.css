@@ -1691,6 +1691,67 @@ select {
   white-space: nowrap;
 }
 
+/* ── Sidebar cloud backup nudge ──────────────────────────────────────────────── */
+
+.sidebar-cloud-nudge {
+  background: #0c1520;
+  border: 1px solid #1a2e40;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sidebar-cloud-nudge__text {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 12px;
+  color: #7aaacc;
+  line-height: 1.45;
+}
+
+.sidebar-cloud-nudge__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sidebar-cloud-nudge__cta {
+  background: none;
+  border: 1px solid #2a4a6a;
+  border-radius: 6px;
+  color: #5a9fdf;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.sidebar-cloud-nudge__cta:hover {
+  border-color: #5a9fdf;
+  color: #88bbee;
+}
+
+.sidebar-cloud-nudge__dismiss {
+  background: none;
+  border: none;
+  color: #334;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+  transition: color 0.15s;
+}
+
+.sidebar-cloud-nudge__dismiss:hover {
+  color: #778;
+}
+
 /* ── Sidebar template picker ─────────────────────────────────────────────────── */
 
 .sidebar-template-picker {

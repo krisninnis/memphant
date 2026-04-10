@@ -95,6 +95,22 @@
   margin: 0;
 }
 
+.welcome-sync-link {
+  background: none;
+  border: none;
+  color: #5a8fcc;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 4px 0;
+  margin: 0;
+  transition: color 0.15s;
+  text-decoration: none;
+}
+
+.welcome-sync-link:hover {
+  color: #7aaaee;
+}
+
 /* ── Wizard ─────────────────────────────────────────────────────────────── */
 
 .welcome-card--wizard {

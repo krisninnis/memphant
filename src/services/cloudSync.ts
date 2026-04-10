@@ -20,7 +20,7 @@
  *   )
  */
 
-import { supabase, cloudAvailable } from './supabaseClient';
+import { supabase } from './supabaseClient';
 import type { ProjectMemory } from '../types/memphant-types';
 import type { SubscriptionTier, SubscriptionStatus } from '../store/projectStore';
 import { enqueue, dequeue, getAll as getQueued } from './syncQueue';
@@ -104,17 +104,6 @@ export async function signUp(
 export async function signOut(): Promise<void> {
   if (!supabase) return;
   await supabase.auth.signOut();
-}
-
-/** Restore session from Supabase's built-in persistence (called on app start). */
-export async function restoreSession(): Promise<CloudUser | null> {
-  if (!supabase || !cloudAvailable) return null;
-
-  const { data } = await supabase.auth.getSession();
-  const user = data.session?.user;
-  if (!user?.email) return null;
-
-  return { id: user.id, email: user.email };
 }
 
 // ─── Push ─────────────────────────────────────────────────────────────────────

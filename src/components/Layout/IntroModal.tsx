@@ -109,18 +109,20 @@ export function IntroModal({ onStartTour }: IntroModalProps) {
   const showInstallButton = !isInstalled && !!installPrompt;
 
   return (
-    <div className="intro-root" role="dialog" aria-modal="true" aria-label="Welcome to Memphant">
+    <div className="intro-root" role="dialog" aria-modal="true" aria-label="Welcome to Memephant">
       <div className="intro-backdrop" onClick={() => dismiss()} />
 
       <div className="intro-card">
-        <div className="intro-logo">🐘</div>
+        <div className="intro-logo">
+  <img src="/icons/icon-192.png" alt="Memephant logo" className="intro-logo__image" />
+</div>
 
         <h1 className="intro-headline">
           Stop re-explaining your project to every AI
         </h1>
 
         <p className="intro-subtext">
-          Memphant keeps your project in sync across ChatGPT, Claude, Grok and more.
+          Memephant keeps your project in sync across ChatGPT, Claude, Grok and more.
           Start once. Continue anywhere.
         </p>
 

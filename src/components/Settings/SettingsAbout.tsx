@@ -7,14 +7,14 @@ function isTauri(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 }
 
-const PRIVACY_SUMMARY = `Memphant stores everything on your device.
+const PRIVACY_SUMMARY = `Memephant stores everything on your device.
 Nothing is sent to any server. No accounts. No tracking. No analytics.
 
 Your project files live in your OS application data folder.
 You can see the exact path in Settings → Privacy → View stored data.
 
 When you click "Copy for [Platform]", text goes to your clipboard only.
-Memphant never connects to ChatGPT, Claude, or any AI service directly.
+Memephant never connects to ChatGPT, Claude, or any AI service directly.
 
 Open source under MIT licence — inspect everything at github.com/krisninnis/memphant`;
 
@@ -73,7 +73,7 @@ export function SettingsAbout() {
       <div style={{ textAlign: 'center', marginBottom: 32 }}>
         <div style={{ fontSize: 52, marginBottom: 12 }}>🐘</div>
         <h2 className="settings-section-title" style={{ textAlign: 'center' }}>
-          Memphant
+          Memephant
         </h2>
         <p style={{ color: '#666', fontSize: 13 }}>
           Remember your projects so your AIs don&apos;t have to.
@@ -210,7 +210,7 @@ export function SettingsAbout() {
           color: '#444',
         }}
       >
-        Memphant is not affiliated with OpenAI, Anthropic, xAI, Perplexity, or Google.
+        Memephant is not affiliated with OpenAI, Anthropic, xAI, Perplexity, or Google.
       </div>
     </div>
   );

@@ -40,7 +40,7 @@ const STEPS: TourStep[] = [
     target: 'new-project',
     placement: 'right',
     title: 'Create a project',
-    body: 'Start here. Give your project a name and Memphant instantly fills in goals, a summary, and next steps to get you started.',
+    body: 'Start here. Give your project a name and Memephant instantly fills in goals, a summary, and next steps to get you started.',
   },
   {
     id: 'editor',
@@ -54,7 +54,7 @@ const STEPS: TourStep[] = [
     target: 'export',
     placement: 'bottom',
     title: 'Copy to any AI in one click',
-    body: 'Pick a platform — Claude, ChatGPT, Gemini, Grok, Perplexity — and click Copy. Memphant formats the perfect prompt and puts it on your clipboard.',
+    body: 'Pick a platform — Claude, ChatGPT, Gemini, Grok, Perplexity — and click Copy. Memephant formats the perfect prompt and puts it on your clipboard.',
   },
   {
     id: 'paste',

@@ -17,7 +17,7 @@ export function SettingsGeneral() {
   return (
     <div>
       <h2 className="settings-section-title">General</h2>
-      <p className="settings-section-subtitle">How Memphant looks and behaves</p>
+      <p className="settings-section-subtitle">How Memephant looks and behaves</p>
 
       <div className="settings-group">
         <div className="settings-group-title">Appearance</div>
@@ -81,7 +81,7 @@ export function SettingsGeneral() {
         <div className="setting-row">
           <div className="setting-info">
             <div className="setting-label">Run on startup</div>
-            <div className="setting-description">Start Memphant when you log in — coming in next release</div>
+            <div className="setting-description">Start Memephant when you log in — coming in next release</div>
           </div>
           <span className="setting-badge">Coming soon</span>
         </div>

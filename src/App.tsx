@@ -44,7 +44,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryStat
             <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🐘</div>
             <h2 style={{ margin: '0 0 0.5rem', color: '#fff' }}>Something went wrong</h2>
             <p style={{ color: '#888', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
-              Memphant hit an unexpected error. Your project data is safe — it's saved locally
+              Memephant hit an unexpected error. Your project data is safe — it's saved locally
               on your computer.
             </p>
             {this.state.error && (
