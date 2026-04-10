@@ -34,6 +34,9 @@ interface ProjectStore {
   // Settings navigation
   settingsTab: string;
 
+  // Tour
+  tourActive: boolean;
+
   // Actions
   setProjects: (projects: ProjectMemory[]) => void;
   setActiveProject: (id: string | null) => void;
@@ -59,6 +62,7 @@ interface ProjectStore {
 
   // Settings navigation
   setSettingsTab: (tab: string) => void;
+  setTourActive: (active: boolean) => void;
 
   // Project operations
   updateProject: (id: string, updates: Partial<ProjectMemory>) => void;
@@ -95,6 +99,9 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   // Settings navigation
   settingsTab: 'general',
 
+  // Tour
+  tourActive: false,
+
   // Actions
   setProjects: (projects) => set({ projects }),
   setActiveProject: (id) => set({ activeProjectId: id }),
@@ -126,6 +133,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
   // Settings navigation
   setSettingsTab: (tab) => set({ settingsTab: tab }),
+  setTourActive: (active) => set({ tourActive: active }),
 
   // Project operations
   updateProject: (id, updates) =>

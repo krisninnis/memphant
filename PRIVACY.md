@@ -1,30 +1,30 @@
-# Privacy Policy — Project Brain
+# Privacy Policy — Memphant
 
 **Last updated: April 2026**
 
 ## The short version
 
-Project Brain stores everything on your device. Nothing is sent to any server. No accounts, no tracking, no analytics.
+Memphant stores everything on your device. Nothing is sent to any server. No accounts, no tracking, no analytics.
 
 ---
 
-## What data does Project Brain store?
+## What data does Memphant store?
 
-Project Brain stores your project files — the text you type into the app (project names, summaries, goals, decisions, notes, and so on) — as JSON files on **your computer only**.
+Memphant stores your project files — the text you type into the app (project names, summaries, goals, decisions, notes, and so on) — as JSON files on **your computer only**.
 
 These files are stored in your operating system's standard application data directory:
 
-- **Windows:** `%APPDATA%\com.project-brain.app\projects\`
-- **macOS:** `~/Library/Application Support/com.project-brain.app/projects/`
-- **Linux:** `~/.local/share/com.project-brain.app/projects/`
+- **Windows:** `%APPDATA%\com.memphant.app\projects\`
+- **macOS:** `~/Library/Application Support/com.memphant.app/projects/`
+- **Linux:** `~/.local/share/com.memphant.app/projects/`
 
 You can see the exact path by going to **Settings → Privacy → View stored data**.
 
 ---
 
-## Does Project Brain send any data over the internet?
+## Does Memphant send any data over the internet?
 
-**No.** Project Brain has no server connection of any kind. It does not:
+**No.** Memphant has no server connection of any kind. It does not:
 
 - Send your project data to any external service
 - Collect usage statistics or analytics
@@ -36,9 +36,9 @@ The app runs entirely offline and locally.
 
 ---
 
-## Does Project Brain scan my files?
+## Does Memphant scan my files?
 
-If you choose to link a project folder (optional), Project Brain scans the files in that folder to help you build project context. This scan:
+If you choose to link a project folder (optional), Memphant scans the files in that folder to help you build project context. This scan:
 
 - Runs entirely on your device
 - Never sends file contents to any server
@@ -47,9 +47,9 @@ If you choose to link a project folder (optional), Project Brain scans the files
 
 ---
 
-## Does Project Brain export my data to AI platforms?
+## Does Memphant export my data to AI platforms?
 
-When you click "Copy for [Platform]", Project Brain copies formatted text to your clipboard. You then paste this into an AI chat tool yourself. Project Brain does not:
+When you click "Copy for [Platform]", Memphant copies formatted text to your clipboard. You then paste this into an AI chat tool yourself. Memphant does not:
 
 - Connect directly to ChatGPT, Claude, Grok, Perplexity, Gemini, or any other AI service
 - Send any data automatically to any platform
@@ -59,9 +59,9 @@ All AI interaction is manual — you are always in control of what you share.
 
 ---
 
-## Does Project Brain collect personal information?
+## Does Memphant collect personal information?
 
-No. Project Brain does not ask for your name, email address, or any personal information. There are no user accounts. There is no registration process.
+No. Memphant does not ask for your name, email address, or any personal information. There are no user accounts. There is no registration process.
 
 ---
 
@@ -73,9 +73,9 @@ Cloud sync is not currently implemented. When it is introduced in a future versi
 
 ## Open source
 
-Project Brain is open source under the MIT licence. You can inspect exactly what the app does at any time:
+Memphant is open source under the MIT licence. You can inspect exactly what the app does at any time:
 
-**https://github.com/krisninnis/project-brain**
+**https://github.com/krisninnis/memphant**
 
 ---
 

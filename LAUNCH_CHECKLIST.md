@@ -1,4 +1,4 @@
-# Project Brain — SaaS Launch Checklist
+# Memphant — SaaS Launch Checklist
 
 > **App verdict:** Core is ~95% done. You're not far from launch.
 > The gap isn't features — it's the plumbing around the product (payments, landing page, distribution).
@@ -117,7 +117,7 @@ These are validated pain points from forums that current tools don't address. Bu
   - Angle: "I got tired of re-explaining my project to every AI, so I built this"
   - Show the GIF, link to landing page
 - [ ] **Product Hunt** — schedule a launch, prep assets, ask friends to upvote
-- [ ] **Hacker News** — "Show HN: Project Brain — carry context across AI platforms"
+- [ ] **Hacker News** — "Show HN: Memphant — carry context across AI platforms"
 - [ ] **Twitter/X** — demo video, tag @AnthropicAI @OpenAI accounts
 
 ### Ongoing SEO (high-intent search traffic)
@@ -132,7 +132,7 @@ Write one blog post per term — they'll rank within 3 months.
 
 ### The Chrome Extension is your growth engine
 - [ ] It sits in their browser. Every time they use ChatGPT or Claude, they see it.
-- [ ] Add a rating prompt after 3 successful exports: "Enjoying Project Brain? ⭐ Review on Chrome Store"
+- [ ] Add a rating prompt after 3 successful exports: "Enjoying Memphant? ⭐ Review on Chrome Store"
 - [ ] Chrome Web Store search traffic is free and highly targeted
 
 ---
@@ -174,7 +174,7 @@ From the code scan — these need attention before you charge people:
 - [ ] **Email confirmation handling**: After sign-up the user gets a confirmation email but the app doesn't tell them what to do next — add a "Check your email" screen
 - [ ] **3-project limit enforcement**: Needs to be built before you can have a meaningful free tier
 - [ ] **Error monitoring**: Crashes are silent right now — add Sentry before going public
-- [ ] **"Open in app" URL scheme**: So the Chrome extension can open Project Brain directly
+- [ ] **"Open in app" URL scheme**: So the Chrome extension can open Memphant directly
 - [ ] **Tests**: At least cover diffEngine and exportFormatters — these are the core loop
 
 ---

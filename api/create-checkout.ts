@@ -33,7 +33,7 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ error: 'Invalid price ID' });
     }
 
-    const baseUrl = process.env.APP_URL || 'https://memphant-eta.vercel.app';
+    const baseUrl = process.env.APP_URL || 'https://memphant.com';
 
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',

@@ -7,3 +7,6 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     <App />
   </React.StrictMode>,
 );
+
+// Show the Tauri window only after the first browser paint.
+// This avoids revealing a blank WebView before React has actually rendered.

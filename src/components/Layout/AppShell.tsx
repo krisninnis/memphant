@@ -12,6 +12,7 @@ import Toast from './Toast';
 import WelcomeScreen from './WelcomeScreen';
 import SettingsPage from '../Settings/SettingsPage';
 import TourOverlay from '../Tour/TourOverlay';
+import { IntroModal } from './IntroModal';
 import { CommandPalette } from '../CommandPalette/CommandPalette';
 
 export function AppShell() {
@@ -21,6 +22,7 @@ export function AppShell() {
   const currentView = useProjectStore((s) => s.currentView);
   const setCurrentView = useProjectStore((s) => s.setCurrentView);
   const projects = useProjectStore((s) => s.projects);
+  const setTourActive = useProjectStore((s) => s.setTourActive);
   const activeProject = useActiveProject();
 
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
@@ -111,7 +113,7 @@ export function AppShell() {
             closeMobileDrawer();
           }}
         >
-          <span className="mobile-bottom-bar__icon">🧠</span>
+          <span className="mobile-bottom-bar__icon">🐘</span>
           <span className="mobile-bottom-bar__label">Workspace</span>
         </button>
       </div>
@@ -129,6 +131,7 @@ export function AppShell() {
       )}
 
       <Toast />
+      <IntroModal onStartTour={() => setTourActive(true)} />
       <TourOverlay />
       <CommandPalette />
     </div>

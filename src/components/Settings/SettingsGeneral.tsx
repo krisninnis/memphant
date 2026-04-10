@@ -6,6 +6,7 @@ export function SettingsGeneral() {
   const settings = useProjectStore((s) => s.settings);
   const updateSettings = useProjectStore((s) => s.updateSettings);
   const showToast = useProjectStore((s) => s.showToast);
+  const setTourActive = useProjectStore((s) => s.setTourActive);
 
   const g = settings.general;
 
@@ -105,7 +106,9 @@ export function SettingsGeneral() {
             className="setting-btn"
             onClick={() => {
               localStorage.removeItem('pb_tour_done');
-              showToast('Tour reset — reopen the app to see it again.');
+              localStorage.removeItem('mph_intro_done');
+              setTourActive(true);
+              showToast('Starting tour…');
             }}
           >
             Restart Tour

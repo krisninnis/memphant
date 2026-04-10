@@ -129,7 +129,7 @@ export function WelcomeScreen() {
     return (
       <div className="welcome-screen">
         <div className="welcome-card">
-          <div className="welcome-logo">🧠</div>
+          <div className="welcome-logo">🐘</div>
           <h1 className="welcome-title">Memphant</h1>
           <p className="welcome-tagline">
             Remember your projects so your AIs don&apos;t have to.

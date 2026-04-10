@@ -136,7 +136,7 @@ Simplicity over power. Always. Every single decision filters through this rule.
 - `STRIPE_WEBHOOK_SECRET` — from Stripe webhook endpoint details
 - `SUPABASE_URL` — same as VITE_SUPABASE_URL
 - `SUPABASE_SERVICE_ROLE_KEY` — from Supabase Dashboard → Settings → API (service_role key)
-- `APP_URL` — e.g. https://memphant.vercel.app (no trailing slash)
+- `APP_URL` — e.g. https://memphant.com (no trailing slash)
 
 ## Security rules (non-negotiable, never override)
 - Hardcoded Rust exclusion list for .env / keys / tokens — never user-configurable

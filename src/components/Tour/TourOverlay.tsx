@@ -1,17 +1,21 @@
 /**
  * TourOverlay — guided onboarding tour.
  *
- * 5 steps:
- *  1. Welcome modal (centered, no target)
- *  2. New Project button (sidebar)
- *  3. Project editor
- *  4. Export buttons
- *  5. Paste zone
+ * 4 spotlight steps (the intro/welcome screen is now handled by IntroModal):
+ *  1. New Project button (sidebar)
+ *  2. Project editor
+ *  3. Export buttons
+ *  4. Paste zone
  *
- * Uses the classic box-shadow spotlight technique — no external library needed.
- * Completion stored in localStorage so it never shows again.
+ * The tour is OPT-IN only. It never auto-launches.
+ * It is triggered by:
+ *  a) User clicking "Show me how it works" in IntroModal
+ *  b) User clicking "Restart Tour" in Settings (via the tourActive store flag)
+ *
+ * Completion stored in localStorage ('pb_tour_done') so finish state persists.
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useProjectStore } from '../../store/projectStore';
 import './TourOverlay.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -28,14 +32,9 @@ interface TourStep {
 interface Rect { top: number; left: number; width: number; height: number; }
 
 // ─── Steps ────────────────────────────────────────────────────────────────────
+// The welcome/intro step has been removed — IntroModal handles that now.
 
 const STEPS: TourStep[] = [
-  {
-    id: 'welcome',
-    title: 'Welcome to Memphant',
-    body: 'Every time you switch AI platforms you lose context — you have to explain your project from scratch. Memphant fixes that. One project, every AI, always in sync.',
-    cta: 'Show me how →',
-  },
   {
     id: 'new-project',
     target: 'new-project',
@@ -45,7 +44,7 @@ const STEPS: TourStep[] = [
   },
   {
     id: 'editor',
-    target: 'editor-name',      // targets just the project name field, not the whole panel
+    target: 'editor-name',
     placement: 'bottom',
     title: 'Your project memory',
     body: 'Goals, key decisions, next steps — fill these in and every AI you talk to will understand your project instantly, without you having to explain it again.',
@@ -53,7 +52,7 @@ const STEPS: TourStep[] = [
   {
     id: 'export',
     target: 'export',
-    placement: 'bottom',        // below the pills, not above (avoids top-of-screen cutoff)
+    placement: 'bottom',
     title: 'Copy to any AI in one click',
     body: 'Pick a platform — Claude, ChatGPT, Gemini, Grok, Perplexity — and click Copy. Memphant formats the perfect prompt and puts it on your clipboard.',
   },
@@ -72,33 +71,31 @@ const PADDING = 10; // px of breathing room around spotlight
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-interface TourOverlayProps {
-  /** If false, forces the tour off even if localStorage says it should show */
-  enabled?: boolean;
-}
+export function TourOverlay() {
+  const tourActive   = useProjectStore((s) => s.tourActive);
+  const setTourActive = useProjectStore((s) => s.setTourActive);
 
-export function TourOverlay({ enabled = true }: TourOverlayProps) {
   const [stepIndex, setStepIndex] = useState(0);
-  const [visible, setVisible] = useState(false);
+  const [visible, setVisible]     = useState(false);
   const [spotlight, setSpotlight] = useState<Rect | null>(null);
-  const [tooltipPos, setTooltipPos] = useState<{ top?: number; bottom?: number; left?: number; right?: number }>({});
+  const [tooltipPos, setTooltipPos] = useState<{
+    top?: number; bottom?: number; left?: number; right?: number;
+  }>({});
   const tooltipRef = useRef<HTMLDivElement>(null);
 
-  const step = STEPS[stepIndex];
-  const isWelcome = !step.target;
+  const step   = STEPS[stepIndex];
   const isLast = stepIndex === STEPS.length - 1;
 
-  // ── Show on first launch ───────────────────────────────────────────────────
+  // ── Show when tourActive is set in the store ───────────────────────────────
 
   useEffect(() => {
-    if (!enabled) return;
-    const done = localStorage.getItem(STORAGE_KEY);
-    if (!done) {
-      // Small delay so the app finishes rendering before overlay appears
-      const t = setTimeout(() => setVisible(true), 600);
+    if (tourActive) {
+      setStepIndex(0);
+      // Small delay so the app shell finishes any pending renders
+      const t = setTimeout(() => setVisible(true), 400);
       return () => clearTimeout(t);
     }
-  }, [enabled]);
+  }, [tourActive]);
 
   // ── Position spotlight + tooltip whenever step changes ────────────────────
 
@@ -112,7 +109,6 @@ export function TourOverlay({ enabled = true }: TourOverlayProps) {
     const el = document.querySelector(`[data-tour="${step.target}"]`);
     if (!el) return;
 
-    // Scroll target into view quietly
     el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 
     const rect = el.getBoundingClientRect();
@@ -124,11 +120,10 @@ export function TourOverlay({ enabled = true }: TourOverlayProps) {
     };
     setSpotlight(sp);
 
-    // Position tooltip relative to spotlight — clamped to viewport
     const margin   = 16;
     const tooltipW = 300;
-    const tooltipH = 200; // conservative estimate
-    const pad      = 12;  // min distance from screen edge
+    const tooltipH = 200;
+    const pad      = 12;
 
     const clampLeft = (x: number) =>
       Math.max(pad, Math.min(x, window.innerWidth  - tooltipW - pad));
@@ -176,6 +171,7 @@ export function TourOverlay({ enabled = true }: TourOverlayProps) {
   function finish() {
     localStorage.setItem(STORAGE_KEY, '1');
     setVisible(false);
+    setTourActive(false);
   }
 
   function next() {
@@ -199,89 +195,63 @@ export function TourOverlay({ enabled = true }: TourOverlayProps) {
   return (
     <div className="tour-root" role="dialog" aria-modal="true" aria-label="Onboarding tour">
 
-      {/* Overlay / backdrop */}
-      {isWelcome ? (
-        // Welcome: simple full-screen dark bg
-        <div className="tour-backdrop" onClick={(e) => e.stopPropagation()} />
-      ) : (
-        // Spotlight: dark bg with transparent hole via box-shadow
-        spotlight && (
-          <div
-            className="tour-spotlight"
-            style={{
-              top:    spotlight.top,
-              left:   spotlight.left,
-              width:  spotlight.width,
-              height: spotlight.height,
-            }}
-          />
-        )
+      {/* Spotlight: dark bg with transparent hole via box-shadow */}
+      {spotlight && (
+        <div
+          className="tour-spotlight"
+          style={{
+            top:    spotlight.top,
+            left:   spotlight.left,
+            width:  spotlight.width,
+            height: spotlight.height,
+          }}
+        />
       )}
 
-      {/* Tooltip / modal card */}
-      {isWelcome ? (
-        <div className="tour-modal" role="document">
-          <div className="tour-modal__icon">✦</div>
-          <h2 className="tour-modal__title">{step.title}</h2>
-          <p className="tour-modal__body">{step.body}</p>
-          <div className="tour-modal__footer">
-            <button className="tour-btn tour-btn--ghost" onClick={finish}>
-              Skip tour
-            </button>
+      {/* Tooltip card */}
+      <div
+        ref={tooltipRef}
+        className={`tour-tooltip tour-tooltip--${step.placement ?? 'top'}`}
+        style={tooltipPos}
+        role="document"
+      >
+        {/* Arrow pointing toward the target */}
+        <div className="tour-tooltip__arrow" />
+
+        {/* Step counter */}
+        <div className="tour-tooltip__meta">
+          <div className="tour-dots">
+            {STEPS.map((s, i) => (
+              <span
+                key={s.id}
+                className={`tour-dot ${i === stepIndex ? 'tour-dot--active' : ''}`}
+              />
+            ))}
+          </div>
+          <span className="tour-step-count">
+            {stepIndex + 1} of {STEPS.length}
+          </span>
+        </div>
+
+        <h3 className="tour-tooltip__title">{step.title}</h3>
+        <p className="tour-tooltip__body">{step.body}</p>
+
+        <div className="tour-tooltip__footer">
+          <button className="tour-btn tour-btn--ghost" onClick={finish}>
+            Skip
+          </button>
+          <div className="tour-nav">
+            {stepIndex > 0 && (
+              <button className="tour-btn tour-btn--back" onClick={prev}>
+                ← Back
+              </button>
+            )}
             <button className="tour-btn tour-btn--primary" onClick={next}>
               {ctaText}
             </button>
           </div>
         </div>
-      ) : (
-        <div
-          ref={tooltipRef}
-          className={`tour-tooltip tour-tooltip--${step.placement ?? 'top'}`}
-          style={tooltipPos}
-          role="document"
-        >
-          {/* Arrow */}
-          <div className="tour-tooltip__arrow" />
-
-          {/* Step counter */}
-          <div className="tour-tooltip__meta">
-            <div className="tour-dots">
-              {STEPS.filter(s => s.target).map((s, i) => {
-                const targetedSteps = STEPS.filter(s => s.target);
-                const currentTargetIndex = targetedSteps.findIndex(s => s.id === step.id);
-                return (
-                  <span
-                    key={s.id}
-                    className={`tour-dot ${i === currentTargetIndex ? 'tour-dot--active' : ''}`}
-                  />
-                );
-              })}
-            </div>
-            <span className="tour-step-count">
-              {STEPS.filter(s => s.target).findIndex(s => s.id === step.id) + 1} of {STEPS.filter(s => s.target).length}
-            </span>
-          </div>
-
-          <h3 className="tour-tooltip__title">{step.title}</h3>
-          <p className="tour-tooltip__body">{step.body}</p>
-
-          <div className="tour-tooltip__footer">
-            <button className="tour-btn tour-btn--ghost" onClick={finish}>
-              Skip
-            </button>
-            <div className="tour-nav">
-              {stepIndex > 1 && (
-                <button className="tour-btn tour-btn--back" onClick={prev}>
-                  ← Back
-                </button>
-              )}
-              <button className="tour-btn tour-btn--primary" onClick={next}>
-                {ctaText}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 }

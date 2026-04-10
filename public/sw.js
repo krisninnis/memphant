@@ -15,17 +15,23 @@ const PRECACHE_URLS = [
 // ─── Install: pre-cache the app shell ────────────────────────────────────────
 
 self.addEventListener('install', (event) => {
+  // Pre-cache the app shell. Do NOT call skipWaiting() here — forcing
+  // immediate activation mid-navigation breaks module script loading on
+  // first install (the SW intercepts the JS bundle fetch before it has
+  // anything in cache, which can cause a blank screen on first load).
   event.waitUntil(
     caches
       .open(CACHE_NAME)
-      .then((cache) => cache.addAll(PRECACHE_URLS))
-      .then(() => self.skipWaiting()),
+      .then((cache) => cache.addAll(PRECACHE_URLS)),
   );
 });
 
 // ─── Activate: clean up old caches ───────────────────────────────────────────
 
 self.addEventListener('activate', (event) => {
+  // Do NOT call clients.claim() here — claiming open clients mid-navigation
+  // causes the same blank-screen race condition as skipWaiting().
+  // The SW takes control naturally on the next navigation.
   event.waitUntil(
     caches
       .keys()
@@ -35,8 +41,7 @@ self.addEventListener('activate', (event) => {
             .filter((key) => key !== CACHE_NAME)
             .map((key) => caches.delete(key)),
         ),
-      )
-      .then(() => self.clients.claim()),
+      ),
   );
 });
 
@@ -99,6 +104,5 @@ self.addEventListener('fetch', (event) => {
 
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'SKIP_WAITING') {
-    self.skipWaiting();
-  }
+   }
 });

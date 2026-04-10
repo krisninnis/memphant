@@ -8,9 +8,9 @@
 
 ## 1. Rename the GitHub repo
 
-The code now says "memphant" everywhere, but your GitHub repo is probably still called `project-brain`.
+The code says "memphant" everywhere. If you have not yet renamed the GitHub repo, do it now.
 
-1. Go to **github.com/krisninnis/project-brain**
+1. Go to **github.com/krisninnis/memphant** (or the old URL — GitHub redirects automatically)
 2. Click **Settings** (top tab, not the profile Settings)
 3. Under "General → Repository name", change it to **`memphant`**
 4. Click **Rename**
@@ -42,7 +42,7 @@ Porkbun tends to be cheapest (~$8–12/year for .com). Once you've bought one:
 
 ## 3. Rename your Vercel project + set custom domain
 
-1. Go to **vercel.com/dashboard** → click your current project (probably `project-brain`)
+1. Go to **vercel.com/dashboard** → click your current project ("memphant")
 2. **Settings → General → Project Name** → change to `memphant` → Save
 3. **Settings → Domains** → Add domain → type your new domain (e.g. `memphant.com`)
 4. Vercel shows you DNS records to add — go to your domain registrar and add them:

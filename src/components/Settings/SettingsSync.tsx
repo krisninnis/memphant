@@ -580,7 +580,7 @@ const sub = await fetchSubscription(cloudUser.id);
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
-          redirectTo: `${(import.meta as any).env?.VITE_APP_URL ?? 'https://memphant.vercel.app'}/auth/callback`,
+          redirectTo: `${(import.meta as any).env?.VITE_APP_URL ?? 'https://memphant.com'}/auth/callback`,
           skipBrowserRedirect: true,
         },
       });

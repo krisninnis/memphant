@@ -11,14 +11,16 @@
   },
   "app": {
     "windows": [
-      {
-        "title": "Memphant",
-        "width": 1100,
-        "height": 700,
-        "minWidth": 400,
-        "minHeight": 500
-      }
-    ],
+  {
+    "title": "Memphant",
+    "width": 1100,
+    "height": 700,
+    "minWidth": 400,
+    "minHeight": 500,
+    "visible": true,
+    "devtools": true
+  }
+],
     "security": {
       "csp": null
     }
@@ -39,7 +41,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEVFM0Q4QzlEQzMwMkNBMUIKUldRYnlnTERuWXc5N3RwZll1Z0oyM29YV0Q2UWZQaXNrUEkxdFV5SGNlam9ROWR3ZEEwU2RFU08K",
       "endpoints": [
-        "https://github.com/krisninnis/project-brain/releases/latest/download/latest.json"
+        "https://github.com/krisninnis/memphant/releases/latest/download/latest.json"
       ]
     }
   }

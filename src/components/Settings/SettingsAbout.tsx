@@ -71,7 +71,7 @@ export function SettingsAbout() {
   return (
     <div>
       <div style={{ textAlign: 'center', marginBottom: 32 }}>
-        <div style={{ fontSize: 52, marginBottom: 12 }}>🧠</div>
+        <div style={{ fontSize: 52, marginBottom: 12 }}>🐘</div>
         <h2 className="settings-section-title" style={{ textAlign: 'center' }}>
           Memphant
         </h2>

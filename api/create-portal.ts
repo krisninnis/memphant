@@ -49,7 +49,7 @@ export default async function handler(req: any, res: any) {
 
     const returnUrl = process.env.APP_URL
       ? `${process.env.APP_URL}/success`
-      : 'https://memphant-eta.vercel.app/success';
+      : 'https://memphant.com/success';
 
     const portalSession = await stripe.billingPortal.sessions.create({
       customer:   data.stripe_customer_id,
