@@ -19,29 +19,47 @@ interface SidebarProps {
 
 type CreateMode = 'none' | 'name' | 'templates' | 'template-name';
 
-export function Sidebar({ onNavigate }: SidebarProps) {
-  const projects        = useProjectStore((s) => s.projects);
-  const cloudUser       = useProjectStore((s) => s.cloudUser);
-  const activeProjectId = useProjectStore((s) => s.activeProjectId);
-  const setActiveProject  = useProjectStore((s) => s.setActiveProject);
-  const setCurrentView    = useProjectStore((s) => s.setCurrentView);
-  const setSettingsTab    = useProjectStore((s) => s.setSettingsTab);
+function getInitials(email: string) {
+  const name = email.split('@')[0] || 'U';
+  const parts = name.split(/[._-]+/).filter(Boolean);
+  if (parts.length >= 2) return `${parts[0][0] ?? ''}${parts[1][0] ?? ''}`.toUpperCase();
+  return name.slice(0, 2).toUpperCase();
+}
 
-  const [createMode, setCreateMode]         = useState<CreateMode>('none');
-  const [newName, setNewName]               = useState('');
-  const [searchQuery, setSearchQuery]       = useState('');
+function getDisplayName(email: string) {
+  const raw = email.split('@')[0] || 'User';
+  return raw
+    .split(/[._-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+export function Sidebar({ onNavigate }: SidebarProps) {
+  const projects = useProjectStore((s) => s.projects);
+  const cloudUser = useProjectStore((s) => s.cloudUser);
+  const activeProjectId = useProjectStore((s) => s.activeProjectId);
+  const subscriptionTier = useProjectStore((s) => s.subscriptionTier);
+
+  const setActiveProject = useProjectStore((s) => s.setActiveProject);
+  const setCurrentView = useProjectStore((s) => s.setCurrentView);
+  const setSettingsTab = useProjectStore((s) => s.setSettingsTab);
+
+  const [createMode, setCreateMode] = useState<CreateMode>('none');
+  const [newName, setNewName] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState<ProjectTemplate | null>(null);
-  const [templateName, setTemplateName]     = useState('');
+  const [templateName, setTemplateName] = useState('');
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [cloudNudgeDismissed, setCloudNudgeDismissed] = useState(
     () => localStorage.getItem('mph_cloud_nudge_dismissed') === '1',
   );
-  const nameInputRef    = useRef<HTMLInputElement>(null);
+
+  const nameInputRef = useRef<HTMLInputElement>(null);
   const templateNameRef = useRef<HTMLInputElement>(null);
 
   const atLimit = !cloudUser && projects.length >= FREE_TIER_LIMIT;
 
-  // ── Filtered project list ──────────────────────────────────────────────────
   const filteredProjects = searchQuery.trim()
     ? projects.filter((p) => {
         const q = searchQuery.toLowerCase();
@@ -57,8 +75,6 @@ export function Sidebar({ onNavigate }: SidebarProps) {
         );
       })
     : projects;
-
-  // ── Handlers ──────────────────────────────────────────────────────────────
 
   const resetCreate = () => {
     setCreateMode('none');
@@ -91,9 +107,22 @@ export function Sidebar({ onNavigate }: SidebarProps) {
     setTimeout(() => nameInputRef.current?.focus(), 50);
   };
 
+  const openCloudBackup = () => {
+    setSettingsTab('sync');
+    setCurrentView('settings');
+    onNavigate?.();
+  };
+
   const pendingDeleteProject = pendingDeleteId
     ? projects.find((p) => p.id === pendingDeleteId)
     : null;
+
+  const planLabel =
+    subscriptionTier === 'pro'
+      ? 'Pro'
+      : subscriptionTier === 'team'
+        ? 'Team'
+        : 'Free';
 
   return (
     <div className="sidebar-inner">
@@ -105,7 +134,10 @@ export function Sidebar({ onNavigate }: SidebarProps) {
         <button
           type="button"
           className="sidebar-settings-btn"
-          onClick={() => { setCurrentView('settings'); onNavigate?.(); }}
+          onClick={() => {
+            setCurrentView('settings');
+            onNavigate?.();
+          }}
           title="Settings"
           aria-label="Open settings"
         >
@@ -113,7 +145,6 @@ export function Sidebar({ onNavigate }: SidebarProps) {
         </button>
       </div>
 
-      {/* ── Create actions ──────────────────────────────────────────────────── */}
       <div className="sidebar-actions">
         {createMode === 'none' && (
           <>
@@ -125,16 +156,22 @@ export function Sidebar({ onNavigate }: SidebarProps) {
             >
               + New Project
             </button>
+
             <button
               type="button"
               className="sidebar-action-btn"
               onClick={() => {
-                if (atLimit) { setSettingsTab('sync'); setCurrentView('settings'); return; }
+                if (atLimit) {
+                  setSettingsTab('sync');
+                  setCurrentView('settings');
+                  return;
+                }
                 setCreateMode('templates');
               }}
             >
               📋 From template
             </button>
+
             <button
               type="button"
               className="sidebar-action-btn"
@@ -145,7 +182,6 @@ export function Sidebar({ onNavigate }: SidebarProps) {
           </>
         )}
 
-        {/* Name entry */}
         {createMode === 'name' && (
           <div className="sidebar-create-form">
             <input
@@ -175,7 +211,6 @@ export function Sidebar({ onNavigate }: SidebarProps) {
           </div>
         )}
 
-        {/* Template picker */}
         {createMode === 'templates' && (
           <div className="sidebar-template-picker">
             <p className="sidebar-template-title">Pick a template</p>
@@ -200,7 +235,6 @@ export function Sidebar({ onNavigate }: SidebarProps) {
           </div>
         )}
 
-        {/* Template name entry */}
         {createMode === 'template-name' && selectedTemplate && (
           <div className="sidebar-create-form">
             <p className="sidebar-template-chosen">
@@ -235,7 +269,6 @@ export function Sidebar({ onNavigate }: SidebarProps) {
         )}
       </div>
 
-      {/* ── Cloud backup nudge (non-signed-in, has projects, not at limit) ─── */}
       {!cloudUser && !atLimit && projects.length > 0 && !cloudNudgeDismissed && (
         <div className="sidebar-cloud-nudge">
           <div className="sidebar-cloud-nudge__text">
@@ -243,10 +276,7 @@ export function Sidebar({ onNavigate }: SidebarProps) {
             <span>Back up your projects and sync across devices</span>
           </div>
           <div className="sidebar-cloud-nudge__actions">
-            <button
-              className="sidebar-cloud-nudge__cta"
-              onClick={() => { setSettingsTab('sync'); setCurrentView('settings'); }}
-            >
+            <button className="sidebar-cloud-nudge__cta" onClick={openCloudBackup}>
               Sign in free →
             </button>
             <button
@@ -263,18 +293,13 @@ export function Sidebar({ onNavigate }: SidebarProps) {
         </div>
       )}
 
-      {/* ── Free tier nudge ─────────────────────────────────────────────────── */}
       {atLimit && (
-        <button
-          className="sidebar-upgrade-nudge"
-          onClick={() => { setSettingsTab('sync'); setCurrentView('settings'); }}
-        >
+        <button className="sidebar-upgrade-nudge" onClick={openCloudBackup}>
           <span>🔒 Free plan — 3 projects</span>
           <span className="sidebar-upgrade-cta">Unlock unlimited →</span>
         </button>
       )}
 
-      {/* ── Search ──────────────────────────────────────────────────────────── */}
       {projects.length > 2 && (
         <div className="sidebar-search">
           <input
@@ -296,7 +321,6 @@ export function Sidebar({ onNavigate }: SidebarProps) {
         </div>
       )}
 
-      {/* ── Project list ────────────────────────────────────────────────────── */}
       <div className="sidebar-projects">
         {projects.length === 0 && (
           <p className="sidebar-empty">
@@ -321,6 +345,58 @@ export function Sidebar({ onNavigate }: SidebarProps) {
             onDelete={() => setPendingDeleteId(project.id)}
           />
         ))}
+      </div>
+
+      <div className="sidebar-account-dock">
+        {!cloudUser ? (
+          <div className="sidebar-auth-card">
+            <div className="sidebar-auth-card__copy">
+              <div className="sidebar-auth-card__title">Back up and sync</div>
+              <div className="sidebar-auth-card__text">
+                Create an account to access your projects across devices.
+              </div>
+            </div>
+
+            <div className="sidebar-auth-card__actions">
+              <button
+                type="button"
+                className="sidebar-auth-btn sidebar-auth-btn--primary"
+                onClick={openCloudBackup}
+              >
+                Create account
+              </button>
+              <button
+                type="button"
+                className="sidebar-auth-btn sidebar-auth-btn--secondary"
+                onClick={openCloudBackup}
+              >
+                Sign in
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            className="sidebar-account-card"
+            onClick={openCloudBackup}
+            title="Open account and cloud backup"
+          >
+            <div className="sidebar-account-card__avatar">
+              {getInitials(cloudUser.email)}
+            </div>
+
+            <div className="sidebar-account-card__meta">
+              <div className="sidebar-account-card__name">
+                {getDisplayName(cloudUser.email)}
+              </div>
+              <div className="sidebar-account-card__subline">
+                {planLabel} plan
+              </div>
+            </div>
+
+            <div className="sidebar-account-card__chevron">›</div>
+          </button>
+        )}
       </div>
 
       {pendingDeleteProject && (

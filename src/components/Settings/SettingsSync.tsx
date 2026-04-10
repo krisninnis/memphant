@@ -478,19 +478,35 @@ const sub = await fetchSubscription(cloudUser.id);
   }
 
   async function handleResendConfirmation(targetEmail: string) {
-    if (!supabase || !targetEmail) return;
-    setBusy(true);
-    try {
-      const { error } = await supabase.auth.resend({ type: 'signup', email: targetEmail });
-      if (error) throw new Error(error.message);
-      showToast(`Confirmation email resent to ${targetEmail}`);
-      setEmailNotConfirmed(false);
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : 'Could not resend email.', 'error');
-    } finally {
-      setBusy(false);
-    }
+  if (!supabase || !targetEmail) return;
+
+  const AUTH_CALLBACK_URL =
+    (import.meta as any).env?.VITE_APP_URL
+      ? `${(import.meta as any).env.VITE_APP_URL}/auth/callback`
+      : (import.meta as any).env?.VITE_API_URL
+        ? `${(import.meta as any).env.VITE_API_URL}/auth/callback`
+        : 'https://memephant.com/auth/callback';
+
+  setBusy(true);
+  try {
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email: targetEmail,
+      options: {
+        emailRedirectTo: AUTH_CALLBACK_URL,
+      },
+    });
+
+    if (error) throw new Error(error.message);
+
+    showToast(`Confirmation email resent to ${targetEmail}`);
+    setEmailNotConfirmed(false);
+  } catch (err) {
+    showToast(err instanceof Error ? err.message : 'Could not resend email.', 'error');
+  } finally {
+    setBusy(false);
   }
+}
 
   // ── Forgot password ─────────────────────────────────────────────────────────
 
@@ -697,7 +713,7 @@ const sub = await fetchSubscription(cloudUser.id);
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
-          redirectTo: `${(import.meta as any).env?.VITE_APP_URL ?? 'https://memphant.com'}/auth/callback`,
+          redirectTo: `${(import.meta as any).env?.VITE_APP_URL ?? 'https://memephant.com'}/auth/callback`,
           skipBrowserRedirect: true,
         },
       });

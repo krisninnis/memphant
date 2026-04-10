@@ -25,12 +25,22 @@ import type { ProjectMemory } from '../types/memphant-types';
 import type { SubscriptionTier, SubscriptionStatus } from '../store/projectStore';
 import { enqueue, dequeue, getAll as getQueued } from './syncQueue';
 
+
 // ─── Retry helper ─────────────────────────────────────────────────────────────
 
 /**
  * Call `fn` up to `maxAttempts` times with exponential back-off.
  * Throws on final failure.
  */
+// ─── Auth callback URL (used for email confirmation + OAuth fallback) ─────────
+
+const AUTH_CALLBACK_URL =
+  (import.meta as any).env?.VITE_APP_URL
+    ? `${(import.meta as any).env.VITE_APP_URL}/auth/callback`
+    : (import.meta as any).env?.VITE_API_URL
+      ? `${(import.meta as any).env.VITE_API_URL}/auth/callback`
+      : 'https://memephant.com/auth/callback';
+
 async function withRetry<T>(
   fn: () => Promise<T>,
   maxAttempts = 4,
@@ -90,8 +100,13 @@ export async function signUp(
 ): Promise<CloudUser> {
   if (!supabase) throw new Error('Cloud sync not configured.');
 
-  const { data, error } = await supabase.auth.signUp({ email, password });
-
+ const { data, error } = await supabase.auth.signUp({
+  email,
+  password,
+  options: {
+    emailRedirectTo: AUTH_CALLBACK_URL,
+  },
+});
   if (error) throw new Error(error.message);
 
   // Supabase may require email confirmation — handle gracefully
