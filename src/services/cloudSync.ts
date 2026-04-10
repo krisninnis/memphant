@@ -21,7 +21,7 @@
  */
 
 import { supabase, cloudAvailable } from './supabaseClient';
-import type { ProjectMemory } from '../types/project-brain-types';
+import type { ProjectMemory } from '../types/memphant-types';
 import type { SubscriptionTier, SubscriptionStatus } from '../store/projectStore';
 import { enqueue, dequeue, getAll as getQueued } from './syncQueue';
 

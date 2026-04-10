@@ -1,23 +1,41 @@
 /**
- * Project Brain — Content Script
+ * Memphant — Content Script
  *
  * Runs on ChatGPT, Claude, Grok, Perplexity, and Gemini pages.
- * Watches for `project_brain_update` JSON blocks in AI responses,
- * then shows a floating "Apply to Project Brain" button.
  *
- * On click → copies the extracted JSON to clipboard so the user can
- * switch to the Project Brain app and have it auto-detected in the paste zone.
+ * Two jobs:
+ *  1. DETECT — Watch AI responses for memphant_update JSON blocks,
+ *              show a floating "Apply to Memphant" button when found.
+ *  2. INJECT — Add a small "🐘 Copy for Memphant" button to every AI
+ *              message so users can grab the full response easily.
  */
 
 'use strict';
 
-// ─── State ───────────────────────────────────────────────────────────────────
+// ─── Platform detection ────────────────────────────────────────────────────────
+
+const PLATFORM = (() => {
+  const h = location.hostname;
+  if (h.includes('chatgpt.com') || h.includes('chat.openai.com')) return 'chatgpt';
+  if (h.includes('claude.ai'))      return 'claude';
+  if (h.includes('grok.com') || h.includes('x.com')) return 'grok';
+  if (h.includes('perplexity.ai'))  return 'perplexity';
+  if (h.includes('gemini.google'))  return 'gemini';
+  return 'unknown';
+})();
+
+const PLATFORM_LABEL = {
+  chatgpt: 'ChatGPT', claude: 'Claude', grok: 'Grok',
+  perplexity: 'Perplexity', gemini: 'Gemini', unknown: 'AI',
+}[PLATFORM];
+
+// ─── State ────────────────────────────────────────────────────────────────────
 
 let lastDetectedJson = null;
-let toastTimeout = null;
-let observerActive = false;
+let toastTimeout     = null;
+let observerActive   = false;
 
-// ─── Detection logic (mirrors diffEngine.ts) ─────────────────────────────────
+// ─── Detection logic ──────────────────────────────────────────────────────────
 
 const PROJECT_FIELDS = [
   'summary', 'currentState', 'goals', 'rules',
@@ -25,184 +43,158 @@ const PROJECT_FIELDS = [
 ];
 
 function hasProjectFields(obj) {
-  if (typeof obj !== 'object' || obj === null) return false;
-  return PROJECT_FIELDS.some((field) => field in obj);
+  return typeof obj === 'object' && obj !== null &&
+    PROJECT_FIELDS.some((f) => f in obj);
 }
 
 function tryParseJson(str) {
-  try {
-    const parsed = JSON.parse(str.trim());
-    return hasProjectFields(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
+  try { const p = JSON.parse(str.trim()); return hasProjectFields(p) ? p : null; }
+  catch { return null; }
 }
 
 function extractUpdateFromText(text) {
   if (!text || text.length < 20) return null;
 
-  // Strategy 1: explicit project_brain_update marker
-  const markerMatch = text.match(/project_brain_update\s*[\r\n]*(\{[\s\S]*?\})/i);
-  if (markerMatch) {
-    const parsed = tryParseJson(markerMatch[1]);
-    if (parsed) return parsed;
+  const m1 = text.match(/memphant_update\s*[\r\n]*(\{[\s\S]*?\})/i);
+  if (m1) { const p = tryParseJson(m1[1]); if (p) return p; }
+
+  for (const m of text.matchAll(/```(?:json)?\s*([\s\S]*?)```/gi)) {
+    const p = tryParseJson(m[1]); if (p) return p;
   }
 
-  // Strategy 2: fenced code block containing JSON with project fields
-  const codeBlockMatches = text.matchAll(/```(?:json)?\s*([\s\S]*?)```/gi);
-  for (const match of codeBlockMatches) {
-    const parsed = tryParseJson(match[1]);
-    if (parsed) return parsed;
-  }
-
-  // Strategy 3: bare JSON object with project fields
-  const bareMatch = text.match(
-    /\{[\s\S]*?"(?:summary|goals|decisions|currentState|nextSteps|openQuestions)"[\s\S]*?\}/,
-  );
-  if (bareMatch) {
-    const parsed = tryParseJson(bareMatch[0]);
-    if (parsed) return parsed;
-  }
+  const m3 = text.match(/\{[\s\S]*?"(?:summary|goals|decisions|currentState|nextSteps|openQuestions)"[\s\S]*?\}/);
+  if (m3) { const p = tryParseJson(m3[0]); if (p) return p; }
 
   return null;
 }
 
-// ─── DOM scanning ─────────────────────────────────────────────────────────────
+// ─── DOM selectors per platform ───────────────────────────────────────────────
+
+const RESPONSE_SELECTORS = {
+  chatgpt:    '[data-message-author-role="assistant"], .markdown.prose',
+  claude:     '[data-testid="assistant-message"], .font-claude-message',
+  grok:       '[class*="ModelResponse"], [class*="message-bubble"]',
+  perplexity: '[class*="AnswerBody"], [class*="prose"]',
+  gemini:     'model-response, [class*="model-response"]',
+  unknown:    'article, main',
+};
 
 function getPageText() {
-  // Each platform structures its response text differently.
-  // We grab all likely response containers and join their text.
-  const selectors = [
-    // ChatGPT
-    '[data-message-author-role="assistant"]',
-    '.markdown.prose',
-    // Claude
-    '[data-testid="assistant-message"]',
-    '.font-claude-message',
-    // Grok
-    '[class*="message-bubble"]',
-    '[class*="response"]',
-    // Perplexity
-    '[class*="prose"]',
-    '[class*="answer"]',
-    // Gemini
-    'model-response',
-    '[class*="model-response"]',
-    // Generic fallback
-    'article',
-    'main',
-  ];
-
-  const seen = new Set();
-  let combined = '';
-
-  for (const selector of selectors) {
-    try {
-      const nodes = document.querySelectorAll(selector);
-      nodes.forEach((node) => {
-        if (!seen.has(node)) {
-          seen.add(node);
-          combined += '\n' + node.innerText;
-        }
-      });
-    } catch {
-      // Selector may not be valid in some browsers — skip
-    }
-  }
-
+  const seen = new Set(); let combined = '';
+  const sel = (RESPONSE_SELECTORS[PLATFORM] || '') + ', article, main';
+  try {
+    document.querySelectorAll(sel).forEach((node) => {
+      if (!seen.has(node)) { seen.add(node); combined += '\n' + node.innerText; }
+    });
+  } catch { /* skip */ }
   return combined;
 }
 
-// ─── UI ───────────────────────────────────────────────────────────────────────
+// ─── Floating banner ──────────────────────────────────────────────────────────
 
 function getOrCreateFloater() {
-  let floater = document.getElementById('pb-floater');
-  if (!floater) {
-    floater = document.createElement('div');
-    floater.id = 'pb-floater';
-    floater.setAttribute('role', 'status');
-    floater.setAttribute('aria-live', 'polite');
-    document.body.appendChild(floater);
+  let el = document.getElementById('mph-floater');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'mph-floater';
+    el.setAttribute('role', 'status');
+    document.body.appendChild(el);
   }
-  return floater;
+  return el;
 }
 
 function showFloater(updateJson) {
   lastDetectedJson = updateJson;
   const floater = getOrCreateFloater();
-
-  // Count how many fields the update touches
-  const fieldCount = PROJECT_FIELDS.filter(
-    (f) => updateJson[f] !== undefined,
-  ).length;
-
-  const arrayFields = ['goals', 'rules', 'decisions', 'nextSteps', 'openQuestions', 'importantAssets'];
-  const itemCount = arrayFields.reduce((sum, f) => {
-    const val = updateJson[f];
-    return sum + (Array.isArray(val) ? val.length : 0);
-  }, 0);
-
+  const fieldCount = PROJECT_FIELDS.filter((f) => updateJson[f] !== undefined).length;
+  const arr = ['goals','rules','decisions','nextSteps','openQuestions','importantAssets'];
+  const itemCount = arr.reduce((s, f) => s + (Array.isArray(updateJson[f]) ? updateJson[f].length : 0), 0);
   const summary = itemCount > 0
-    ? `${itemCount} update${itemCount !== 1 ? 's' : ''} across ${fieldCount} field${fieldCount !== 1 ? 's' : ''}`
+    ? `${itemCount} item${itemCount !== 1 ? 's' : ''} across ${fieldCount} field${fieldCount !== 1 ? 's' : ''}`
     : `${fieldCount} field${fieldCount !== 1 ? 's' : ''} updated`;
 
   floater.innerHTML = `
-    <div class="pb-floater__inner">
-      <span class="pb-floater__icon">🧠</span>
-      <div class="pb-floater__body">
-        <span class="pb-floater__title">Project update detected</span>
-        <span class="pb-floater__summary">${summary}</span>
+    <div class="mph-floater__inner">
+      <span class="mph-floater__icon">🐘</span>
+      <div class="mph-floater__body">
+        <span class="mph-floater__title">Memphant update detected</span>
+        <span class="mph-floater__summary">${summary}</span>
       </div>
-      <button class="pb-floater__btn" id="pb-copy-btn" title="Copy update to clipboard">
-        Copy &amp; apply
-      </button>
-      <button class="pb-floater__dismiss" id="pb-dismiss-btn" aria-label="Dismiss" title="Dismiss">✕</button>
-    </div>
-  `;
-
-  floater.classList.add('pb-floater--visible');
-
-  document.getElementById('pb-copy-btn').addEventListener('click', handleCopy);
-  document.getElementById('pb-dismiss-btn').addEventListener('click', dismissFloater);
+      <button class="mph-floater__btn" id="mph-copy-btn">Copy &amp; apply</button>
+      <button class="mph-floater__dismiss" id="mph-dismiss-btn" aria-label="Dismiss">✕</button>
+    </div>`;
+  floater.classList.add('mph-floater--visible');
+  document.getElementById('mph-copy-btn').addEventListener('click', handleCopy);
+  document.getElementById('mph-dismiss-btn').addEventListener('click', dismissFloater);
 }
 
 function dismissFloater() {
-  const floater = document.getElementById('pb-floater');
-  if (floater) floater.classList.remove('pb-floater--visible');
+  const el = document.getElementById('mph-floater');
+  if (el) el.classList.remove('mph-floater--visible');
 }
 
 function showToast(message, isError = false) {
   const floater = getOrCreateFloater();
   floater.innerHTML = `
-    <div class="pb-floater__inner pb-floater__inner--toast${isError ? ' pb-floater__inner--error' : ''}">
-      <span class="pb-floater__icon">${isError ? '⚠️' : '✅'}</span>
-      <span class="pb-floater__toast-msg">${message}</span>
-    </div>
-  `;
-  floater.classList.add('pb-floater--visible');
-
+    <div class="mph-floater__inner mph-floater__inner--toast${isError ? ' mph-floater__inner--error' : ''}">
+      <span class="mph-floater__icon">${isError ? '⚠️' : '✅'}</span>
+      <span class="mph-floater__toast-msg">${message}</span>
+    </div>`;
+  floater.classList.add('mph-floater--visible');
   clearTimeout(toastTimeout);
   toastTimeout = setTimeout(dismissFloater, 3000);
 }
 
 async function handleCopy() {
   if (!lastDetectedJson) return;
-
-  // Format the JSON cleanly for the paste zone
-  const jsonString = JSON.stringify(lastDetectedJson, null, 2);
-  const payload = `project_brain_update\n${jsonString}`;
-
+  const payload = `memphant_update\n${JSON.stringify(lastDetectedJson, null, 2)}`;
   try {
     await navigator.clipboard.writeText(payload);
-    showToast('Copied! Switch to Project Brain and paste.');
-    // Notify background to badge the icon
+    showToast('Copied! Switch to Memphant and paste.');
     chrome.runtime.sendMessage({ type: 'UPDATE_COPIED' });
-  } catch {
-    showToast('Could not copy — please copy manually.', true);
-  }
+  } catch { showToast('Could not copy — try again.', true); }
 }
 
-// ─── Observer ────────────────────────────────────────────────────────────────
+// ─── Inject "Copy for Memphant" buttons ──────────────────────────────────────
+
+function injectCopyButton(node) {
+  if (!node || node.dataset.mphInjected) return;
+  node.dataset.mphInjected = 'true';
+
+  const btn = document.createElement('button');
+  btn.className = 'mph-inject-btn';
+  btn.title = `Copy this ${PLATFORM_LABEL} response into Memphant`;
+  btn.innerHTML = '🐘 Copy for Memphant';
+
+  btn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    const text = node.innerText || '';
+    const payload = `--- ${PLATFORM_LABEL} response (paste into Memphant) ---\n\n${text}`;
+    try {
+      await navigator.clipboard.writeText(payload);
+      btn.textContent = '✅ Copied!';
+      setTimeout(() => { btn.innerHTML = '🐘 Copy for Memphant'; }, 2000);
+    } catch { btn.textContent = '⚠️ Failed'; }
+  });
+
+  // Try to find the message's action bar; otherwise just append
+  const anchor = node.querySelector('[class*="action"], [class*="footer"], [class*="toolbar"]') || node;
+  anchor.appendChild(btn);
+}
+
+function injectAllButtons() {
+  const selMap = {
+    chatgpt:    '[data-message-author-role="assistant"]',
+    claude:     '[data-testid="assistant-message"]',
+    grok:       '[class*="ModelResponse"]',
+    perplexity: '[class*="AnswerBody"]',
+    gemini:     'model-response',
+  };
+  const sel = selMap[PLATFORM];
+  if (sel) document.querySelectorAll(sel).forEach(injectCopyButton);
+}
+
+// ─── Observer ─────────────────────────────────────────────────────────────────
 
 let scanDebounce = null;
 
@@ -211,35 +203,22 @@ function scheduleScan() {
   scanDebounce = setTimeout(() => {
     const text = getPageText();
     const update = extractUpdateFromText(text);
-
-    if (update) {
-      // Only show if the JSON changed since last detection
-      const jsonStr = JSON.stringify(update);
-      if (jsonStr !== JSON.stringify(lastDetectedJson)) {
-        showFloater(update);
-        // Tell background script so it can badge the icon
-        chrome.runtime.sendMessage({ type: 'UPDATE_FOUND', data: update });
-      }
+    if (update && JSON.stringify(update) !== JSON.stringify(lastDetectedJson)) {
+      showFloater(update);
+      chrome.runtime.sendMessage({ type: 'UPDATE_FOUND', data: update });
     }
-  }, 600);
+    injectAllButtons();
+  }, 700);
 }
 
 function startObserver() {
   if (observerActive) return;
   observerActive = true;
-
-  const observer = new MutationObserver(scheduleScan);
-  observer.observe(document.body, {
-    childList: true,
-    subtree: true,
-    characterData: true,
+  new MutationObserver(scheduleScan).observe(document.body, {
+    childList: true, subtree: true, characterData: true,
   });
-
-  // Run once immediately in case there's already content
   scheduleScan();
 }
-
-// ─── Init ─────────────────────────────────────────────────────────────────────
 
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', startObserver);
@@ -247,12 +226,7 @@ if (document.readyState === 'loading') {
   startObserver();
 }
 
-// Listen for messages from the popup
 chrome.runtime.onMessage.addListener((msg) => {
-  if (msg.type === 'GET_CURRENT_UPDATE') {
-    return Promise.resolve({ update: lastDetectedJson });
-  }
-  if (msg.type === 'COPY_UPDATE') {
-    void handleCopy();
-  }
+  if (msg.type === 'GET_CURRENT_UPDATE') return Promise.resolve({ update: lastDetectedJson });
+  if (msg.type === 'COPY_UPDATE') void handleCopy();
 });

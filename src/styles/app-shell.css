@@ -732,6 +732,67 @@ select {
   color: #fff;
 }
 
+/* ── GitHub Repository field ──────────────────────────────────────────────── */
+
+.github-repo-field {
+  margin-bottom: 20px;
+}
+
+.field-label-optional {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: #444;
+  font-size: 10px;
+}
+
+.github-repo-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.github-repo-input {
+  flex: 1;
+  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+  font-size: 13px;
+  color: #93c5fd;
+}
+
+.github-repo-input::placeholder {
+  color: #3a3a5a;
+  font-family: inherit;
+}
+
+.github-repo-link {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  background: #16213e;
+  border: 1px solid #2a3f5f;
+  border-radius: 7px;
+  color: #93c5fd;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.github-repo-link:hover {
+  background: #1e2f50;
+  border-color: #4a6fa5;
+  color: #bfdbfe;
+}
+
+.github-repo-hint {
+  margin-top: 6px;
+  font-size: 11px;
+  color: #555;
+  line-height: 1.4;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────── */
+
 .editable-list,
 .decision-list,
 .decision-add-form {
@@ -1659,19 +1720,4 @@ select {
   font-size: 12px;
   cursor: pointer;
   text-align: left;
-  width: 100%;
-  transition: border-color 0.15s, background 0.15s;
-}
-
-.sidebar-template-option:hover {
-  border-color: #d97706;
-  background: #14141f;
-  color: #e0e0e0;
-}
-
-.sidebar-template-chosen {
-  font-size: 12px;
-  color: #d97706;
-  margin: 0 0 6px;
-  font-weight: 600;
 }

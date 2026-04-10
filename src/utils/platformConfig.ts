@@ -1,4 +1,4 @@
-import type { Platform } from '../types/project-brain-types';
+import type { Platform } from '../types/memphant-types';
 
 export const PLATFORM_CONFIG: Record<Platform, { name: string; color: string; icon: string }> = {
   chatgpt: { name: 'ChatGPT', color: '#10a37f', icon: '🤖' },

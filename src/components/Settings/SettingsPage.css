@@ -629,3 +629,79 @@
 .sync-delete-confirm-btn:not(:disabled):hover {
   opacity: 0.88;
 }
+
+/* ─── Sync: OAuth buttons ───────────────────────────────────────────────────── */
+.sync-oauth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 20px 0 16px;
+  color: #5a6480;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.sync-oauth-divider::before,
+.sync-oauth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #2a3348;
+}
+
+.sync-oauth-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sync-oauth-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s, background 0.15s;
+  border: 1px solid #2a3348;
+}
+
+.sync-oauth-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.sync-oauth-btn--google {
+  background: #fff;
+  color: #1a1a1a;
+  border-color: #e0e0e0;
+}
+
+.sync-oauth-btn--google:not(:disabled):hover { background: #f5f5f5; }
+
+.sync-oauth-btn--apple {
+  background: #1a1f2e;
+  color: #e8eaf0;
+  border-color: #3a3f50;
+}
+
+.sync-oauth-btn--apple:not(:disabled):hover { background: #222840; }
+
+.sync-oauth-refresh {
+  display: block;
+  margin: 14px auto 0;
+  background: none;
+  border: none;
+  color: #4f8ef7;
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  opacity: 0.8;
+  transition: opacity 0.15s;
+}
+
+.sync-oauth-refresh:hover { opacity: 1; }
+.sync-oauth-refresh:disabled { opacity: 0.4; cursor: not-allowed; }

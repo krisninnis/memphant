@@ -1,7 +1,7 @@
 import { useProjectStore } from '../../store/projectStore';
 import Toggle from '../Shared/Toggle';
 import { PLATFORM_CONFIG } from '../../utils/platformConfig';
-import type { Platform } from '../../types/project-brain-types';
+import type { Platform } from '../../types/memphant-types';
 
 const ALL_PLATFORMS: Platform[] = ['chatgpt', 'claude', 'grok', 'perplexity', 'gemini'];
 

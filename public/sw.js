@@ -1,10 +1,10 @@
 /**
- * Project Brain — Service Worker
+ * Memphant — Service Worker
  * Caches the app shell so it works offline on mobile.
  * Strategy: Cache-first for assets, network-first for navigation.
  */
 
-const CACHE_NAME = 'project-brain-v1';
+const CACHE_NAME = 'memphant-v1';
 
 // App shell files to pre-cache on install
 const PRECACHE_URLS = [

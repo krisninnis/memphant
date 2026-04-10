@@ -1,4 +1,4 @@
-import type { ProjectMemory } from '../../types/project-brain-types';
+import type { ProjectMemory } from '../../types/memphant-types';
 
 interface ProjectCardProps {
   project: ProjectMemory;

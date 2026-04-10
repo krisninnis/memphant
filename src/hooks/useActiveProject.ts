@@ -12,7 +12,7 @@
  */
 import { useMemo } from 'react';
 import { useProjectStore } from '../store/projectStore';
-import type { ProjectMemory } from '../types/project-brain-types';
+import type { ProjectMemory } from '../types/memphant-types';
 
 export function useActiveProject(): ProjectMemory | null {
   const activeProjectId = useProjectStore((s) => s.activeProjectId);

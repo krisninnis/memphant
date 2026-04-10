@@ -9,7 +9,7 @@
 import { useState } from 'react';
 import { useProjectStore } from '../../store/projectStore';
 import { createProjectFromFolder, createProjectFromTemplate, saveToDisk } from '../../services/tauriActions';
-import type { ProjectMemory } from '../../types/project-brain-types';
+import type { ProjectMemory } from '../../types/memphant-types';
 import { PROJECT_TEMPLATES } from '../../utils/projectTemplates';
 import type { ProjectTemplate } from '../../utils/projectTemplates';
 import './WelcomeScreen.css';
@@ -130,7 +130,7 @@ export function WelcomeScreen() {
       <div className="welcome-screen">
         <div className="welcome-card">
           <div className="welcome-logo">🧠</div>
-          <h1 className="welcome-title">Project Brain</h1>
+          <h1 className="welcome-title">Memphant</h1>
           <p className="welcome-tagline">
             Remember your projects so your AIs don&apos;t have to.
           </p>

@@ -8,7 +8,7 @@
  * Quality improves when a linked folder has been scanned (tech stack
  * keywords surface in the project name or rules).
  */
-import type { ProjectMemory } from '../types/project-brain-types';
+import type { ProjectMemory } from '../types/memphant-types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

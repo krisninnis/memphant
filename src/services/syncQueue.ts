@@ -4,12 +4,12 @@
  * When a push fails (offline / transient error), the project is saved here.
  * On next successful online sync, all queued items are drained.
  *
- * DB: project-brain-sync / store: pending-pushes
+ * DB: memphant-sync / store: pending-pushes
  */
 
-import type { ProjectMemory } from '../types/project-brain-types';
+import type { ProjectMemory } from '../types/memphant-types';
 
-const DB_NAME    = 'project-brain-sync';
+const DB_NAME    = 'memphant-sync';
 const DB_VERSION = 1;
 const STORE      = 'pending-pushes';
 

@@ -5,11 +5,11 @@ import { linkFolder, rescanLinkedFolder, exportActiveProjectAsMarkdown } from '.
 import ExportButtons from './ExportButtons';
 import TaskField from './TaskField';
 
-/** The prompt users paste into their AI to activate the project_brain_update protocol */
+/** The prompt users paste into their AI to activate the memphant_update protocol */
 const ACTIVATION_PROMPT =
-  `After every response, please include a project update block at the end so I can sync your changes back to my Project Brain app:
+  `After every response, please include a project update block at the end so I can sync your changes back to my Memphant app:
 
-project_brain_update
+memphant_update
 {
   "summary": "one-sentence summary of the project",
   "currentState": "what is true right now after your work",

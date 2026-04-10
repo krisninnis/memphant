@@ -15,7 +15,7 @@ Older pre-release versions receive no security patches. Please update to the lat
 **Please do not file a public GitHub issue for security vulnerabilities.**
 
 Email: **krisninnis@gmail.com**  
-Subject line: `[SECURITY] Project Brain — <brief description>`
+Subject line: `[SECURITY] Memphant — <brief description>`
 
 Include:
 - A description of the vulnerability and its potential impact
@@ -37,9 +37,9 @@ We ask that you give us a reasonable window to patch before public disclosure.
 
 All project data is stored in plain JSON files in your OS application data folder:
 
-- **Windows:** `%APPDATA%\project-brain\projects\`
-- **macOS:** `~/Library/Application Support/project-brain/projects/`
-- **Linux:** `~/.local/share/project-brain/projects/`
+- **Windows:** `%APPDATA%\memphant\projects\`
+- **macOS:** `~/Library/Application Support/memphant/projects/`
+- **Linux:** `~/.local/share/memphant/projects/`
 
 No data leaves your machine unless you explicitly sign in and enable cloud backup.
 
@@ -54,7 +54,7 @@ When cloud backup is enabled:
 
 ### Secret redaction
 
-Before **every** export, Project Brain scans the output and strips credentials matching:
+Before **every** export, Memphant scans the output and strips credentials matching:
 
 | Pattern | What it catches |
 |---------|-----------------|
@@ -69,7 +69,7 @@ These patterns are hardcoded in the Rust backend and the TypeScript export utili
 
 ### No telemetry
 
-Project Brain collects no analytics, crash reports, or usage data. The clipboard watcher is opt-in only and is never active by default.
+Memphant collects no analytics, crash reports, or usage data. The clipboard watcher is opt-in only and is never active by default.
 
 ### Tauri security
 
@@ -94,6 +94,6 @@ The script checks every table in the `public` schema and exits non-zero if any t
 
 ## Known limitations
 
-- **Clipboard watcher** (opt-in): When enabled, the app monitors the clipboard for AI responses matching the Project Brain schema. Only pastes matching the schema are processed; raw clipboard data is never logged.
+- **Clipboard watcher** (opt-in): When enabled, the app monitors the clipboard for AI responses matching the Memphant schema. Only pastes matching the schema are processed; raw clipboard data is never logged.
 - **Linked folder scanning**: Scans are limited to file names and metadata. File contents are read only for specific recognised files (README.md, package.json, Cargo.toml, etc.) and are sanitised before display.
 - **Offline queue**: When cloud sync fails, unsent project data is stored in IndexedDB locally until the next successful sync. This data is scoped to the app origin and is not accessible to other applications.

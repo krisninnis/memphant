@@ -3,7 +3,7 @@
  * Each formatter takes a ProjectMemory + optional task + mode and returns a string.
  * CRITICAL: linkedFolder.path is NEVER included in any output.
  */
-import type { ProjectMemory, Platform, ExportMode } from '../types/project-brain-types';
+import type { ProjectMemory, Platform, ExportMode } from '../types/memphant-types';
 
 const STANDARD_PATTERNS = [
   /sk-[A-Za-z0-9]{20,}/g,
@@ -75,7 +75,7 @@ function decisionsBlock(decisions: ProjectMemory['decisions'], indent = '  '): s
 const RESPONSE_FORMAT = `
 When you finish, include a project update block at the end of your response like this:
 
-project_brain_update
+memphant_update
 {
   "summary": "one-sentence summary of the project",
   "currentState": "what is true right now after your work",
@@ -89,6 +89,10 @@ function formatForClaude(project: ProjectMemory, task?: string): string {
 
   lines.push(`<project_context>`);
   lines.push(`  <name>${sanitize(project.name)}</name>`);
+  if (project.githubRepo) {
+    lines.push(`  <github_repo>${project.githubRepo}</github_repo>`);
+    lines.push(`  <!-- The GitHub repo above is public — you can browse the code directly -->`);
+  }
   lines.push(`  <summary>${sanitize(project.summary || '(no summary yet)')}</summary>`);
   lines.push(`  <current_state>${sanitize(project.currentState || '(not set)')}</current_state>`);
 
@@ -143,6 +147,11 @@ function formatForChatGPT(project: ProjectMemory, task?: string): string {
 
   lines.push(`# Project: ${sanitize(project.name)}`);
   lines.push('');
+  if (project.githubRepo) {
+    lines.push(`**GitHub Repo:** ${project.githubRepo}`);
+    lines.push(`*(Public repo — you can browse the code directly at the link above)*`);
+    lines.push('');
+  }
   lines.push(`Here's where we are with this project:`);
   lines.push('');
   lines.push(sanitize(project.summary || '(no summary yet)'));
@@ -202,6 +211,7 @@ function formatForGrok(project: ProjectMemory, task?: string): string {
   const lines: string[] = [];
 
   lines.push(`PROJECT: ${sanitize(project.name)}`);
+  if (project.githubRepo) lines.push(`REPO: ${project.githubRepo}`);
   lines.push(`STATUS: ${sanitize(project.currentState || 'not set')}`);
   if (task && task.trim()) lines.push(`TASK: ${sanitize(task)}`);
   lines.push(`GOALS: ${sanitizeList(project.goals).join(', ') || 'none'}`);
@@ -229,7 +239,7 @@ function formatForGrok(project: ProjectMemory, task?: string): string {
 
   lines.push('');
   lines.push(
-    `When done, include: project_brain_update {"summary":"...","goals":[...],"currentState":"...","nextSteps":[...]}`
+    `When done, include: memphant_update {"summary":"...","goals":[...],"currentState":"...","nextSteps":[...]}`
   );
 
   return lines.join('\n');
@@ -240,6 +250,10 @@ function formatForPerplexity(project: ProjectMemory, task?: string): string {
 
   lines.push(`I'm working on a project called ${sanitize(project.name)}.`);
   lines.push('');
+  if (project.githubRepo) {
+    lines.push(`The code lives at: ${project.githubRepo}`);
+    lines.push('');
+  }
   lines.push(sanitize(project.summary || '(no summary yet)'));
   lines.push('');
   lines.push(`Current state: ${sanitize(project.currentState || 'not set')}`);
@@ -280,6 +294,10 @@ function formatForGemini(project: ProjectMemory, task?: string): string {
 
   lines.push(`## Project: **${sanitize(project.name)}**`);
   lines.push('');
+  if (project.githubRepo) {
+    lines.push(`**GitHub:** ${project.githubRepo}`);
+    lines.push('');
+  }
   lines.push(sanitize(project.summary || '(no summary yet)'));
   lines.push('');
 

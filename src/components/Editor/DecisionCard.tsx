@@ -1,6 +1,6 @@
 /** Decision card — shows a decision with optional rationale and source */
 import { useState } from 'react';
-import type { Decision } from '../../types/project-brain-types';
+import type { Decision } from '../../types/memphant-types';
 
 interface DecisionCardProps {
   decision: Decision;

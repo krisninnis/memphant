@@ -32,8 +32,8 @@ interface Rect { top: number; left: number; width: number; height: number; }
 const STEPS: TourStep[] = [
   {
     id: 'welcome',
-    title: 'Welcome to Project Brain',
-    body: 'Every time you switch AI platforms you lose context — you have to explain your project from scratch. Project Brain fixes that. One project, every AI, always in sync.',
+    title: 'Welcome to Memphant',
+    body: 'Every time you switch AI platforms you lose context — you have to explain your project from scratch. Memphant fixes that. One project, every AI, always in sync.',
     cta: 'Show me how →',
   },
   {
@@ -41,7 +41,7 @@ const STEPS: TourStep[] = [
     target: 'new-project',
     placement: 'right',
     title: 'Create a project',
-    body: 'Start here. Give your project a name and Project Brain instantly fills in goals, a summary, and next steps to get you started.',
+    body: 'Start here. Give your project a name and Memphant instantly fills in goals, a summary, and next steps to get you started.',
   },
   {
     id: 'editor',
@@ -55,7 +55,7 @@ const STEPS: TourStep[] = [
     target: 'export',
     placement: 'bottom',        // below the pills, not above (avoids top-of-screen cutoff)
     title: 'Copy to any AI in one click',
-    body: 'Pick a platform — Claude, ChatGPT, Gemini, Grok, Perplexity — and click Copy. Project Brain formats the perfect prompt and puts it on your clipboard.',
+    body: 'Pick a platform — Claude, ChatGPT, Gemini, Grok, Perplexity — and click Copy. Memphant formats the perfect prompt and puts it on your clipboard.',
   },
   {
     id: 'paste',

@@ -2,7 +2,7 @@
  * DiffPreview — shows a visual diff of changes from a pasted AI update.
  * Shown in the Paste Zone after detecting a valid update.
  */
-import type { DiffResult } from '../../types/project-brain-types';
+import type { DiffResult } from '../../types/memphant-types';
 import { fieldLabel } from '../../utils/diffEngine';
 
 interface DiffPreviewProps {

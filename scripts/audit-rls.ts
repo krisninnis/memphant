@@ -2,7 +2,7 @@
 /**
  * scripts/audit-rls.ts
  *
- * Supabase Row-Level Security audit for Project Brain.
+ * Supabase Row-Level Security audit for Memphant.
  *
  * Checks every table in the public schema and reports:
  *   ✓  RLS enabled + policies present
@@ -206,7 +206,7 @@ function printAudit(audits: TableAudit[]) {
   const totalOk   = audits.filter((a) => a.status === 'ok').length;
 
   console.log('\n╔══════════════════════════════════════════════╗');
-  console.log('║        Project Brain — RLS Audit Report       ║');
+  console.log('║        Memphant — RLS Audit Report       ║');
   console.log('╚══════════════════════════════════════════════╝\n');
 
   for (const audit of audits) {

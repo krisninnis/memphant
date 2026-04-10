@@ -5,7 +5,7 @@ import { copyExportToClipboard } from '../../services/tauriActions';
 import { formatForPlatform, setScannerLevel } from '../../utils/exportFormatters';
 import { scoreExport } from '../../utils/exportQuality';
 import { PLATFORM_CONFIG } from '../../utils/platformConfig';
-import type { Platform } from '../../types/project-brain-types';
+import type { Platform } from '../../types/memphant-types';
 
 function formatSyncAge(isoString: string): string {
   const diffMs = Date.now() - new Date(isoString).getTime();

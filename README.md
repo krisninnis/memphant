@@ -1,14 +1,14 @@
-# 🧠 Project Brain
+# 🧠 Memphant
 
 > Remember your projects so your AIs don't have to.
 
-**Project Brain** is a local-first desktop app that stores your project context and exports it — shaped correctly for each AI platform — so you can switch between ChatGPT, Claude, Grok, Perplexity, and Gemini without rebuilding context from scratch.
+**Memphant** is a local-first desktop app that stores your project context and exports it — shaped correctly for each AI platform — so you can switch between ChatGPT, Claude, Grok, Perplexity, and Gemini without rebuilding context from scratch.
 
 ---
 
 ## The problem it solves
 
-Every AI session starts blank. When you switch platforms, or start a new chat, you have to re-explain your entire project. Project Brain is the fix: a structured workspace that holds your project memory and sends the right context into whichever AI you pick up next.
+Every AI session starts blank. When you switch platforms, or start a new chat, you have to re-explain your entire project. Memphant is the fix: a structured workspace that holds your project memory and sends the right context into whichever AI you pick up next.
 
 ---
 
@@ -17,7 +17,7 @@ Every AI session starts blank. When you switch platforms, or start a new chat, y
 1. **Store your project** — name, summary, goals, decisions, next steps, open questions
 2. **Copy for your AI** — one click copies a platform-shaped handoff prompt to your clipboard
 3. **Paste into your AI** — the AI gets up to speed instantly
-4. **Paste the response back** — Project Brain detects any project updates and shows you a diff
+4. **Paste the response back** — Memphant detects any project updates and shows you a diff
 5. **Apply changes** — one click updates your project memory
 
 The AI feels like it already knows the project. You never start over.
@@ -83,7 +83,7 @@ Upgrade inside the app: **Settings → Cloud Backup → Upgrade to Pro**.
 
 ### Download
 
-Grab the latest installer from the [Releases page](https://github.com/krisninnis/project-brain/releases).
+Grab the latest installer from the [Releases page](https://github.com/krisninnis/memphant/releases).
 
 - **Windows:** `.msi` or `.exe`
 - **macOS (Apple Silicon):** `aarch64.dmg`
@@ -95,8 +95,8 @@ Grab the latest installer from the [Releases page](https://github.com/krisninnis
 **Prerequisites:** [Node.js 20+](https://nodejs.org), [Rust](https://rustup.rs), [Tauri prerequisites](https://tauri.app/start/prerequisites/)
 
 ```bash
-git clone https://github.com/krisninnis/project-brain
-cd project-brain
+git clone https://github.com/krisninnis/memphant
+cd memphant
 npm install
 npm run tauri dev
 ```
@@ -121,13 +121,13 @@ Starts a local tunnel and prints a public URL you can open on any device.
 
 ## Where your data lives
 
-Project Brain stores everything in your OS application data directory:
+Memphant stores everything in your OS application data directory:
 
 | Platform | Path |
 |---|---|
-| Windows | `%APPDATA%\com.kris.project-brain-desktop\projects\` |
-| macOS | `~/Library/Application Support/com.kris.project-brain-desktop/projects/` |
-| Linux | `~/.local/share/com.kris.project-brain-desktop/projects/` |
+| Windows | `%APPDATA%\com.kris.memphant-desktop\projects\` |
+| macOS | `~/Library/Application Support/com.kris.memphant-desktop/projects/` |
+| Linux | `~/.local/share/com.kris.memphant-desktop/projects/` |
 
 You can find the exact path in **Settings → Privacy → View stored data**. Rolling backups (last 5 saves per project) are kept in a `backups/` subdirectory.
 
@@ -141,12 +141,12 @@ Your project data never leaves your machine unless you explicitly sign in to ena
 
 ## The update loop protocol
 
-When you copy a project export into an AI, it includes an instruction asking the AI to return a `project_brain_update` block. When you paste that response back into Project Brain, the app detects the block, computes a diff, and shows you what will change before applying anything.
+When you copy a project export into an AI, it includes an instruction asking the AI to return a `memphant_update` block. When you paste that response back into Memphant, the app detects the block, computes a diff, and shows you what will change before applying anything.
 
 Example update block (the AI returns this):
 
 ```json
-project_brain_update
+memphant_update
 {
   "summary": "Updated summary of the project",
   "currentState": "What is true right now",

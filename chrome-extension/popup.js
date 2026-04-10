@@ -1,5 +1,5 @@
 /**
- * Project Brain — Popup Script
+ * Memphant — Popup Script
  * Queries the active tab's content script for any detected update,
  * then renders the appropriate panel.
  */
@@ -14,9 +14,9 @@ const PROJECT_FIELDS = [
 const ARRAY_FIELDS = ['goals', 'rules', 'decisions', 'nextSteps', 'openQuestions', 'importantAssets'];
 
 const HINT_PROMPT =
-  'Please end your reply with a project_brain_update JSON block summarising ' +
+  'Please end your reply with a memphant_update JSON block summarising ' +
   'any new goals, decisions, next steps, or changes to current state. ' +
-  'Format: project_brain_update\n{ "goals": [], "decisions": [], "nextSteps": [] }';
+  'Format: memphant_update\n{ "goals": [], "decisions": [], "nextSteps": [] }';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -95,17 +95,17 @@ async function init() {
     if (!currentUpdate || !tab.id) return;
 
     const jsonStr = JSON.stringify(currentUpdate, null, 2);
-    const payload = `project_brain_update\n${jsonStr}`;
+    const payload = `memphant_update\n${jsonStr}`;
 
     try {
       await navigator.clipboard.writeText(payload);
-      showConfirmation('✅ Copied! Open Project Brain and paste.');
+      showConfirmation('✅ Copied! Open Memphant and paste.');
       chrome.runtime.sendMessage({ type: 'UPDATE_COPIED' });
     } catch {
       // Clipboard may need focus — fall back to messaging content script
       try {
         await chrome.tabs.sendMessage(tab.id, { type: 'COPY_UPDATE' });
-        showConfirmation('✅ Copied! Open Project Brain and paste.');
+        showConfirmation('✅ Copied! Open Memphant and paste.');
       } catch {
         showConfirmation('⚠️ Could not copy — try the page button instead.');
       }

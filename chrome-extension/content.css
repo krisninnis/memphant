@@ -1,9 +1,9 @@
 /**
- * Project Brain — Content Script Styles
+ * Memphant — Content Script Styles
  * Floating notification that appears when an update is detected on an AI page.
  */
 
-#pb-floater {
+#mph-floater {
   position: fixed;
   bottom: 24px;
   right: 24px;
@@ -19,13 +19,13 @@
   transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
-#pb-floater.pb-floater--visible {
+#mph-floater.mph-floater--visible {
   opacity: 1;
   transform: translateY(0);
   pointer-events: auto;
 }
 
-.pb-floater__inner {
+.mph-floater__inner {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -41,23 +41,23 @@
   color: #e0e0f0;
 }
 
-.pb-floater__inner--toast {
+.mph-floater__inner--toast {
   min-width: unset;
   max-width: 320px;
 }
 
-.pb-floater__inner--error {
+.mph-floater__inner--error {
   border-color: #7f1d1d;
   background: #1a0e0e;
 }
 
-.pb-floater__icon {
+.mph-floater__icon {
   font-size: 22px;
   flex-shrink: 0;
   line-height: 1;
 }
 
-.pb-floater__body {
+.mph-floater__body {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -65,7 +65,7 @@
   min-width: 0;
 }
 
-.pb-floater__title {
+.mph-floater__title {
   font-weight: 700;
   font-size: 13px;
   color: #f0f0ff;
@@ -74,17 +74,17 @@
   text-overflow: ellipsis;
 }
 
-.pb-floater__summary {
+.mph-floater__summary {
   font-size: 12px;
   color: #8fa0b8;
 }
 
-.pb-floater__toast-msg {
+.mph-floater__toast-msg {
   font-size: 13px;
   color: #f0f0ff;
 }
 
-.pb-floater__btn {
+.mph-floater__btn {
   flex-shrink: 0;
   padding: 7px 13px;
   background: #d97706;
@@ -99,16 +99,16 @@
   font-family: inherit;
 }
 
-.pb-floater__btn:hover {
+.mph-floater__btn:hover {
   background: #b45309;
   transform: translateY(-1px);
 }
 
-.pb-floater__btn:active {
+.mph-floater__btn:active {
   transform: translateY(0);
 }
 
-.pb-floater__dismiss {
+.mph-floater__dismiss {
   flex-shrink: 0;
   width: 26px;
   height: 26px;
@@ -126,15 +126,15 @@
   font-family: inherit;
 }
 
-.pb-floater__dismiss:hover {
+.mph-floater__dismiss:hover {
   border-color: #888;
   color: #ccc;
 }
 
 /* Respect system dark/light preference — the floater is always dark since
-   it matches Project Brain's UI, but we tweak shadow on light backgrounds. */
+   it matches Memphant's UI, but we tweak shadow on light backgrounds. */
 @media (prefers-color-scheme: light) {
-  .pb-floater__inner {
+  .mph-floater__inner {
     box-shadow:
       0 8px 32px rgba(0, 0, 0, 0.25),
       0 2px 8px rgba(0, 0, 0, 0.15);
@@ -143,8 +143,62 @@
 
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
-  #pb-floater {
+  #mph-floater {
     transition: opacity 0.1s ease;
     transform: none !important;
   }
+}
+
+/* ─── Injected "Copy for Memphant" button ────────────────────────────────────
+   Appended to each AI response node on ChatGPT, Claude, Grok, Perplexity,
+   and Gemini. Designed to blend with platform UIs while staying identifiable.
+*/
+
+.mph-inject-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  margin-top: 6px;
+  margin-left: 2px;
+  background: transparent;
+  border: 1px solid rgba(217, 119, 6, 0.45);
+  border-radius: 6px;
+  color: #d97706;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  cursor: pointer;
+  line-height: 1.4;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.1s;
+  white-space: nowrap;
+  /* Sit on top of platform overlays */
+  position: relative;
+  z-index: 9999;
+}
+
+.mph-inject-btn:hover {
+  background: rgba(217, 119, 6, 0.1);
+  border-color: #d97706;
+  color: #f59e0b;
+  transform: translateY(-1px);
+}
+
+.mph-inject-btn:active {
+  transform: translateY(0);
+  background: rgba(217, 119, 6, 0.18);
+}
+
+/* Flash class — applied for 1 second after copy */
+.mph-inject-btn--copied {
+  background: rgba(16, 163, 127, 0.15);
+  border-color: #10a37f;
+  color: #10a37f;
+}
+
+/* Wrapper div that holds the button — so we don't break flex layouts */
+.mph-inject-wrap {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
 }

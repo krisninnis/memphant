@@ -4,7 +4,7 @@ import { useActiveProject } from '../../hooks/useActiveProject';
 import { detectUpdate, computeDiff, applyUpdate, countDiffs } from '../../utils/diffEngine';
 import DiffPreview from './DiffPreview';
 import type { DetectedUpdate } from '../../utils/diffEngine';
-import type { DiffResult } from '../../types/project-brain-types';
+import type { DiffResult } from '../../types/memphant-types';
 
 type PasteState = 'idle' | 'typing' | 'diff' | 'no-update';
 
@@ -106,7 +106,7 @@ export function PasteZone() {
 
   const handleCopyHint = async () => {
     const hint =
-      'Can you summarise what changed in my project? Please include a project_brain_update block with any new goals, decisions, and next steps.';
+      'Can you summarise what changed in my project? Please include a memphant_update block with any new goals, decisions, and next steps.';
 
     try {
       await navigator.clipboard.writeText(hint);

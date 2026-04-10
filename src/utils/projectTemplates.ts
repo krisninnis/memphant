@@ -3,7 +3,7 @@
  * Used in WelcomeScreen and CreateProject to give users a head start.
  */
 
-import type { ProjectMemory } from '../types/project-brain-types';
+import type { ProjectMemory } from '../types/memphant-types';
 
 export interface ProjectTemplate {
   id: string;

@@ -6,8 +6,8 @@
  * all Tauri invoke() calls fall back to localStorage so the app remains usable.
  */
 import { useProjectStore } from '../store/projectStore';
-import type { ProjectMemory, Platform } from '../types/project-brain-types';
-import { hashProjectState } from '../types/project-brain-types';
+import type { ProjectMemory, Platform } from '../types/memphant-types';
+import { hashProjectState } from '../types/memphant-types';
 import { pushProject, deleteCloudProject } from './cloudSync';
 import { suggestEmptyFields } from '../utils/autoSuggest';
 import type { ProjectTemplate } from '../utils/projectTemplates';
@@ -23,7 +23,7 @@ function isTauri(): boolean {
 
 // ─── Browser localStorage fallback storage ───────────────────────────────────
 
-const LS_PREFIX = 'pb_project:';
+const LS_PREFIX = 'mph_project:';
 
 const browserStore = {
   save(projectName: string, data: string): void {
@@ -239,7 +239,7 @@ export async function saveToDisk(project: ProjectMemory): Promise<void> {
     try {
       await tauriInvoke('backup_project_file', { fileName });
     } catch (err) {
-      console.warn('[Project Brain] Backup failed:', err);
+      console.warn('[Memphant] Backup failed:', err);
     }
     await tauriInvoke('save_project_file', {
       projectName: project.name,
@@ -561,7 +561,7 @@ export async function importProjectFromFile(file: File): Promise<void> {
     store().showToast(`"${project.name}" imported.`);
   } catch (err) {
     console.error('Import failed:', err);
-    store().showToast('Could not import that file. Make sure it is a valid Project Brain file.', 'error');
+    store().showToast('Could not import that file. Make sure it is a valid Memphant file.', 'error');
   }
 }
 
@@ -648,7 +648,7 @@ function buildMarkdownSnapshot(project: ProjectMemory): string {
   });
 
   lines.push(`# ${project.name}`);
-  lines.push(`*Exported from Project Brain — ${now}*`);
+  lines.push(`*Exported from Memphant — ${now}*`);
   lines.push('');
 
   if (project.summary) {
@@ -724,14 +724,14 @@ export async function downloadAllData(): Promise<void> {
 
   const payload = {
     exported_at: new Date().toISOString(),
-    app: 'Project Brain',
+    app: 'Memphant',
     schema_version: 1,
     projects: projects.map((p) => toOldFormat(p)),
     settings,
   };
 
   const content = JSON.stringify(payload, null, 2);
-  const defaultName = `project-brain-data-${new Date().toISOString().slice(0, 10)}.json`;
+  const defaultName = `memphant-data-${new Date().toISOString().slice(0, 10)}.json`;
 
   if (isTauri()) {
     try {

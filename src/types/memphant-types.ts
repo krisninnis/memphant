@@ -44,6 +44,7 @@ export interface ProjectMemory {
   openQuestions: string[];
   importantAssets: string[];
   aiInstructions?: string;
+  githubRepo?: string;       // Optional public GitHub repo URL — included in AI exports
   linkedFolder?: LinkedFolder;
   changelog: ChangelogEntry[];
   platformState: Partial<Record<Platform, PlatformState>>;

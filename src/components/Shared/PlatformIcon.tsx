@@ -1,4 +1,4 @@
-import type { Platform } from '../../types/project-brain-types';
+import type { Platform } from '../../types/memphant-types';
 import { PLATFORM_CONFIG } from '../../utils/platformConfig';
 
 interface PlatformIconProps {

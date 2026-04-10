@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Project Brain",
+  "name": "Memphant",
   "version": "0.1.0",
-  "description": "Auto-detect project updates from AI chats and apply them to Project Brain in one click.",
+  "description": "Auto-detect project updates from AI chats and apply them to Memphant in one click.",
 
   "permissions": [
     "clipboardWrite",
@@ -49,7 +49,7 @@
       "48": "icons/icon-48.png",
       "128": "icons/icon-128.png"
     },
-    "default_title": "Project Brain"
+    "default_title": "Memphant"
   },
 
   "icons": {

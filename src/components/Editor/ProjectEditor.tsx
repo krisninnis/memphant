@@ -68,6 +68,35 @@ export function ProjectEditor() {
         />
       </div>
 
+      {/* GitHub Repository */}
+      <div className="field-group github-repo-field">
+        <div className="field-label">GitHub Repository <span className="field-label-optional">(optional)</span></div>
+        <div className="github-repo-input-row">
+          <input
+            className="field-input github-repo-input"
+            type="url"
+            value={activeProject.githubRepo || ''}
+            onChange={(e) => update('githubRepo', e.target.value)}
+            placeholder="https://github.com/username/repo"
+            spellCheck={false}
+          />
+          {activeProject.githubRepo?.startsWith('https://github.com/') && (
+            <a
+              className="github-repo-link"
+              href={activeProject.githubRepo}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Open repo in browser"
+            >
+              Open ↗
+            </a>
+          )}
+        </div>
+        <p className="github-repo-hint">
+          Paste a public GitHub URL — AIs can browse your code directly from this link.
+        </p>
+      </div>
+
       {/* Summary */}
       <EditableField
         label="Summary"

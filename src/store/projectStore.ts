@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import type { ProjectMemory, Platform, AppSettings } from '../types/project-brain-types';
-import { DEFAULT_SETTINGS } from '../types/project-brain-types';
+import type { ProjectMemory, Platform, AppSettings } from '../types/memphant-types';
+import { DEFAULT_SETTINGS } from '../types/memphant-types';
 import type { CloudUser } from '../services/cloudSync';
 
 export type SyncStatus = 'idle' | 'syncing' | 'error';

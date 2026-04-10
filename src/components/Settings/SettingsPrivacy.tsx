@@ -45,7 +45,7 @@ export function SettingsPrivacy() {
       <h2 className="settings-section-title">Privacy &amp; Security</h2>
 
       <div className="settings-trust-box">
-        🔒 Project Brain keeps all your data on this device. Nothing is sent to any server.
+        🔒 Memphant keeps all your data on this device. Nothing is sent to any server.
       </div>
 
       <div className="settings-group">

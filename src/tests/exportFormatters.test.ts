@@ -4,7 +4,7 @@
  */
 
 import { formatForPlatform, setScannerLevel } from '../utils/exportFormatters';
-import type { ProjectMemory } from '../types/project-brain-types';
+import type { ProjectMemory } from '../types/memphant-types';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -132,7 +132,7 @@ describe('claude format', () => {
 
   it('includes the response format prompt', () => {
     const output = formatForPlatform(makeProject(), 'claude');
-    expect(output).toContain('project_brain_update');
+    expect(output).toContain('memphant_update');
   });
 });
 

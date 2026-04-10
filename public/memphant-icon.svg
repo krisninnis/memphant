@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Head -->
+  <circle cx="32" cy="28" r="18" fill="#4f8ef7"/>
+  <!-- Left ear -->
+  <ellipse cx="14" cy="27" rx="9" ry="12" fill="#6d59f0"/>
+  <ellipse cx="15" cy="27" rx="6" ry="8" fill="#4f8ef7"/>
+  <!-- Right ear -->
+  <ellipse cx="50" cy="27" rx="9" ry="12" fill="#6d59f0"/>
+  <ellipse cx="49" cy="27" rx="6" ry="8" fill="#4f8ef7"/>
+  <!-- Body -->
+  <ellipse cx="32" cy="48" rx="16" ry="14" fill="#4f8ef7"/>
+  <!-- Trunk (curled up) -->
+  <path d="M24 38 C18 44, 14 44, 13 40 C12 36, 16 33, 20 37" stroke="#3b7ae0" stroke-width="4" stroke-linecap="round" fill="none"/>
+  <!-- Eyes -->
+  <circle cx="26" cy="25" r="3.5" fill="white"/>
+  <circle cx="38" cy="25" r="3.5" fill="white"/>
+  <circle cx="27" cy="25.5" r="2" fill="#1a1f2e"/>
+  <circle cx="39" cy="25.5" r="2" fill="#1a1f2e"/>
+  <!-- Smile -->
+  <path d="M27 33 Q32 37 37 33" stroke="white" stroke-width="1.5" stroke-linecap="round" fill="none" opacity="0.8"/>
+  <!-- Legs -->
+  <rect x="22" y="56" width="8" height="8" rx="4" fill="#3b7ae0"/>
+  <rect x="34" y="56" width="8" height="8" rx="4" fill="#3b7ae0"/>
+</svg>

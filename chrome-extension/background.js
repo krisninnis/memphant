@@ -1,5 +1,5 @@
 /**
- * Project Brain — Background Service Worker (MV3)
+ * Memphant — Background Service Worker (MV3)
  *
  * Responsibilities:
  * - Badge the extension icon when an update is detected on a tab

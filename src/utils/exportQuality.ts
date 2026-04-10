@@ -3,7 +3,7 @@
  * Returns a 0-100 score and a short message telling the user
  * how useful their export will be for the AI.
  */
-import type { ProjectMemory } from '../types/project-brain-types';
+import type { ProjectMemory } from '../types/memphant-types';
 
 export interface QualityScore {
   score: number;        // 0–100

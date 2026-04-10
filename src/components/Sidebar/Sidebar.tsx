@@ -96,7 +96,7 @@ export function Sidebar({ onNavigate }: SidebarProps) {
     <div className="sidebar-inner">
       <div className="sidebar-header">
         <div>
-          <h2 className="sidebar-brand">Project Brain</h2>
+          <h2 className="sidebar-brand">Memphant</h2>
           <p className="sidebar-tagline">Your project context, ready for any AI.</p>
         </div>
         <button

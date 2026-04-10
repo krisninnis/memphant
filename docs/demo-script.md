@@ -1,4 +1,4 @@
-# Project Brain — 60-Second Demo Script
+# Memphant — 60-Second Demo Script
 
 A tight Loom walkthrough showing the core loop. Keep it under 90 seconds total.
 
@@ -21,11 +21,11 @@ A tight Loom walkthrough showing the core loop. Keep it under 90 seconds total.
 
 ### 0:00 — 0:08 | Hook
 
-> *Screen: Project Brain open, My SaaS App selected*
+> *Screen: Memphant open, My SaaS App selected*
 
 **Say:**
 > "Every time I start a new AI chat, I have to explain my whole project from scratch.
-> Project Brain fixes that in one click."
+> Memphant fixes that in one click."
 
 ---
 
@@ -45,7 +45,7 @@ A tight Loom walkthrough showing the core loop. Keep it under 90 seconds total.
 
 **Say:**
 > "I pick my AI platform — today I'm using Claude — and click copy.
-> Project Brain formats it perfectly for Claude's style."
+> Memphant formats it perfectly for Claude's style."
 
 ---
 
@@ -62,11 +62,11 @@ A tight Loom walkthrough showing the core loop. Keep it under 90 seconds total.
 
 ### 0:50 — 1:05 | Paste Claude's response back
 
-> *Screen: Copy Claude's response, switch back to Project Brain, paste into Paste Zone*
+> *Screen: Copy Claude's response, switch back to Memphant, paste into Paste Zone*
 
 **Say:**
 > "When Claude updates my plan or makes a key decision, I paste its response back in.
-> Project Brain detects exactly what changed and shows me a diff."
+> Memphant detects exactly what changed and shows me a diff."
 
 > *Screen: Diff preview appears — show 1–2 changed fields*
 

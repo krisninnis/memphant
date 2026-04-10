@@ -1,6 +1,6 @@
 {
-  "name": "Project Brain",
-  "short_name": "Project Brain",
+  "name": "Memphant",
+  "short_name": "Memphant",
   "description": "Carry your project memory between AI tools — local-first, private by default.",
   "start_url": "/",
   "scope": "/",
@@ -54,7 +54,7 @@
       "sizes": "390x844",
       "type": "image/png",
       "form_factor": "narrow",
-      "label": "Project Brain on mobile"
+      "label": "Memphant on mobile"
     }
   ],
   "shortcuts": [

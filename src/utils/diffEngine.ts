@@ -2,7 +2,7 @@
  * Diff engine — detects, computes, and applies AI project updates.
  * Used by the Paste Zone to process AI responses.
  */
-import type { Decision, DiffResult, ProjectMemory } from '../types/project-brain-types';
+import type { Decision, DiffResult, ProjectMemory } from '../types/memphant-types';
 
 /** The structure of an AI update block */
 export interface DetectedUpdate {
@@ -189,7 +189,7 @@ function parseNaturalLanguage(text: string): DetectedUpdate | null {
  * Tries three strategies in order of reliability.
  */
 export function detectUpdate(text: string): DetectedUpdate | null {
-  const markerMatch = text.match(/project_brain_update\s*([\s\S]*?\{[\s\S]*\})/i);
+  const markerMatch = text.match(/memphant_update\s*([\s\S]*?\{[\s\S]*\})/i);
   if (markerMatch) {
     const parsed = parseCandidateJson(markerMatch[1].trim());
     if (parsed) return parsed;

@@ -761,3 +761,4 @@ await openUrl(data.url);
     </section>
   );
 }
+

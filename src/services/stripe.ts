@@ -20,7 +20,7 @@ const PRICE_IDS: Record<string, string | undefined> = {
 };
 
 // The Vercel deployment that hosts the serverless functions
-const API_BASE = import.meta.env.VITE_API_URL || 'https://project-brain.vercel.app';
+const API_BASE = import.meta.env.VITE_API_URL || 'https://memphant.vercel.app';
 
 // ── Tauri check ───────────────────────────────────────────────────────────────
 

@@ -9,7 +9,7 @@ import {
   applyUpdate,
   countDiffs,
 } from '../utils/diffEngine';
-import type { ProjectMemory } from '../types/project-brain-types';
+import type { ProjectMemory } from '../types/memphant-types';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -40,7 +40,7 @@ describe('detectUpdate', () => {
     const text = `
 Some AI response here.
 
-project_brain_update
+memphant_update
 {
   "currentState": "Almost done.",
   "nextSteps": ["Deploy to staging"]
@@ -59,7 +59,7 @@ project_brain_update
 
   it('handles an update block with all fields', () => {
     const text = `
-project_brain_update
+memphant_update
 {
   "summary": "Updated summary",
   "currentState": "New state",
@@ -78,7 +78,7 @@ project_brain_update
 
   it('returns null for malformed JSON in the block', () => {
     const text = `
-project_brain_update
+memphant_update
 { "currentState": "Missing closing brace"
     `;
     expect(() => detectUpdate(text)).not.toThrow();
@@ -86,7 +86,7 @@ project_brain_update
 
   it('ignores empty string items in arrays', () => {
     const text = `
-project_brain_update
+memphant_update
 {
   "goals": ["  ", "", "Real goal"]
 }
