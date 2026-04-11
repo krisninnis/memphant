@@ -98,6 +98,12 @@ export interface AppSettings {
     cloudSyncEnabled: boolean;
     secretsScannerLevel: 'standard' | 'strict';
   };
+  localAi: {
+    enabled: boolean;
+    provider: 'ollama';
+    model: string;
+    endpoint: string;
+  };
   projects: {
     autoRescanOnOpen: boolean;
     snapshotCount: number;
@@ -119,6 +125,12 @@ export const DEFAULT_SETTINGS: AppSettings = {
   privacy: {
     cloudSyncEnabled: false,
     secretsScannerLevel: 'standard',
+  },
+  localAi: {
+    enabled: false,
+    provider: 'ollama',
+    model: 'llama3.1:8b',
+    endpoint: 'http://127.0.0.1:11434',
   },
   projects: {
     autoRescanOnOpen: false,

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useProjectStore } from '../../store/projectStore';
 import { useActiveProject } from '../../hooks/useActiveProject';
 import { detectUpdate, computeDiff, applyUpdate, countDiffs } from '../../utils/diffEngine';
@@ -16,6 +16,8 @@ type DetectionMeta = {
 
 const LOCAL_AI_MIN_CONFIDENCE = 0.45;
 const LOCAL_AI_HIGH_CONFIDENCE = 0.75;
+const AUTO_ANALYSE_DEBOUNCE_MS = 800;
+const AUTO_ANALYSE_MIN_LENGTH = 50;
 
 export function PasteZone() {
   const [pasteText, setPasteText] = useState('');
@@ -24,31 +26,56 @@ export function PasteZone() {
   const [detectedUpdate, setDetectedUpdate] = useState<DetectedUpdate | null>(null);
   const [detectionMeta, setDetectionMeta] = useState<DetectionMeta>(null);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [autoChecking, setAutoChecking] = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const autoAnalyseTimeoutRef = useRef<number | null>(null);
+  const analyseRequestIdRef = useRef(0);
+  const lastAutoAnalysedKeyRef = useRef<string | null>(null);
+  const inFlightAutoKeyRef = useRef<string | null>(null);
+  const pasteTextRef = useRef('');
 
   const activeProject = useActiveProject();
   const updateProject = useProjectStore((s) => s.updateProject);
   const setPreAiBackup = useProjectStore((s) => s.setPreAiBackup);
   const showToast = useProjectStore((s) => s.showToast);
 
+  useEffect(() => {
+    pasteTextRef.current = pasteText;
+  }, [pasteText]);
+
+  const clearAutoAnalyseState = useCallback(() => {
+    if (autoAnalyseTimeoutRef.current !== null) {
+      window.clearTimeout(autoAnalyseTimeoutRef.current);
+      autoAnalyseTimeoutRef.current = null;
+    }
+
+    lastAutoAnalysedKeyRef.current = null;
+    inFlightAutoKeyRef.current = null;
+    setAutoChecking(false);
+  }, []);
+
   const resetPasteState = () => {
+    clearAutoAnalyseState();
     setPasteText('');
     setState('idle');
     setDiffs([]);
     setDetectedUpdate(null);
     setDetectionMeta(null);
     setIsDragOver(false);
+    setAutoChecking(false);
   };
 
   const handleTextChange = (text: string) => {
     setPasteText(text);
 
     if (!text.trim()) {
+      clearAutoAnalyseState();
       setState('idle');
       setDiffs([]);
       setDetectedUpdate(null);
       setDetectionMeta(null);
+      setAutoChecking(false);
       return;
     }
 
@@ -57,21 +84,15 @@ export function PasteZone() {
     }
   };
 
-  const handleAnalyse = async () => {
-    const trimmedText = pasteText.trim();
+  const analyseText = useCallback(async (text: string) => {
+    const trimmedText = text.trim();
+    if (!trimmedText || !activeProject) return;
 
-    if (!trimmedText) {
-      return;
-    }
-
-    if (!activeProject) {
-      showToast('Open a project first', 'error');
-      return;
-    }
+    const requestId = ++analyseRequestIdRef.current;
 
     const result = detectUpdate(trimmedText);
     let update = result.update;
-    let detectionSource = result.source;
+    let detectionSource: string = result.source;
     let detectionConfidence = result.confidence;
 
     if (!update || detectionConfidence < LOCAL_AI_HIGH_CONFIDENCE) {
@@ -86,6 +107,10 @@ export function PasteZone() {
         detectionSource = localResult.source;
         detectionConfidence = localResult.confidence;
       }
+    }
+
+    if (requestId !== analyseRequestIdRef.current || pasteTextRef.current.trim() !== trimmedText) {
+      return;
     }
 
     if (!update) {
@@ -130,7 +155,109 @@ export function PasteZone() {
         );
       }
     }
+  }, [activeProject, showToast]);
+
+  const handleAnalyse = async () => {
+    const trimmedText = pasteText.trim();
+
+    if (!trimmedText) {
+      return;
+    }
+
+    if (!activeProject) {
+      showToast('Open a project first', 'error');
+      return;
+    }
+
+    clearAutoAnalyseState();
+    await analyseText(trimmedText);
   };
+
+  useEffect(() => {
+    if (state !== 'typing' || !activeProject) {
+      if (autoAnalyseTimeoutRef.current !== null) {
+        window.clearTimeout(autoAnalyseTimeoutRef.current);
+        autoAnalyseTimeoutRef.current = null;
+      }
+      setAutoChecking(false);
+      return;
+    }
+
+    const trimmedText = pasteText.trim();
+    if (trimmedText.length < AUTO_ANALYSE_MIN_LENGTH) {
+      if (autoAnalyseTimeoutRef.current !== null) {
+        window.clearTimeout(autoAnalyseTimeoutRef.current);
+        autoAnalyseTimeoutRef.current = null;
+      }
+      setAutoChecking(false);
+      return;
+    }
+
+    const analysisKey = `${activeProject.id}:${trimmedText}`;
+    if (
+      lastAutoAnalysedKeyRef.current === analysisKey ||
+      inFlightAutoKeyRef.current === analysisKey
+    ) {
+      if (autoAnalyseTimeoutRef.current !== null) {
+        window.clearTimeout(autoAnalyseTimeoutRef.current);
+        autoAnalyseTimeoutRef.current = null;
+      }
+      setAutoChecking(Boolean(inFlightAutoKeyRef.current));
+      return;
+    }
+
+    if (autoAnalyseTimeoutRef.current !== null) {
+      window.clearTimeout(autoAnalyseTimeoutRef.current);
+    }
+
+    setAutoChecking(true);
+    autoAnalyseTimeoutRef.current = window.setTimeout(() => {
+      autoAnalyseTimeoutRef.current = null;
+
+      if (
+        state !== 'typing' ||
+        !activeProject ||
+        pasteText.trim().length < AUTO_ANALYSE_MIN_LENGTH
+      ) {
+        setAutoChecking(false);
+        return;
+      }
+
+      const latestKey = `${activeProject.id}:${pasteText.trim()}`;
+      if (latestKey !== analysisKey || inFlightAutoKeyRef.current === latestKey) {
+        setAutoChecking(Boolean(inFlightAutoKeyRef.current));
+        return;
+      }
+
+      inFlightAutoKeyRef.current = latestKey;
+      setAutoChecking(true);
+
+      void analyseText(pasteText.trim()).finally(() => {
+        if (inFlightAutoKeyRef.current === latestKey) {
+          inFlightAutoKeyRef.current = null;
+        }
+
+        if (pasteTextRef.current.trim() === trimmedText) {
+          lastAutoAnalysedKeyRef.current = latestKey;
+        }
+
+        if (!autoAnalyseTimeoutRef.current && !inFlightAutoKeyRef.current) {
+          setAutoChecking(false);
+        }
+      });
+    }, AUTO_ANALYSE_DEBOUNCE_MS);
+
+    return () => {
+      if (autoAnalyseTimeoutRef.current !== null) {
+        window.clearTimeout(autoAnalyseTimeoutRef.current);
+        autoAnalyseTimeoutRef.current = null;
+      }
+    };
+  }, [activeProject, analyseText, pasteText, state]);
+
+  useEffect(() => () => {
+    clearAutoAnalyseState();
+  }, [clearAutoAnalyseState]);
 
   const handleApply = () => {
     if (!activeProject || !detectedUpdate) {
@@ -255,6 +382,10 @@ export function PasteZone() {
                   Clear
                 </button>
               </div>
+
+              {autoChecking && (
+                <div className="paste-zone-hint" aria-live="polite">Auto-checking...</div>
+              )}
 
               {state === 'no-update' && (
                 <div className="paste-zone-no-update">

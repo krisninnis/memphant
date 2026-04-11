@@ -1,7 +1,10 @@
 import { useState } from 'react';
 import { useProjectStore } from '../../store/projectStore';
 import { getProjectsPath, loadAllFromDisk, downloadAllData } from '../../services/tauriActions';
+import { checkOllamaAvailability } from '../../services/localAiService';
 import ConfirmDialog from '../Shared/ConfirmDialog';
+import Toggle from '../Shared/Toggle';
+import '../Shared/Toggle.css';
 
 export function SettingsPrivacy() {
   const showToast = useProjectStore((s) => s.showToast);
@@ -16,6 +19,29 @@ export function SettingsPrivacy() {
   const p = settings.privacy;
   const update = (updates: Partial<typeof p>) => {
     updateSettings({ privacy: { ...p, ...updates } });
+  };
+
+  const localAi = settings.localAi;
+  const updateLocalAi = (updates: Partial<typeof localAi>, opts?: { toast?: boolean }) => {
+    updateSettings({ localAi: { ...localAi, ...updates } });
+    if (opts?.toast) {
+      showToast('Setting saved');
+    }
+  };
+
+  const handleTestLocalAi = async () => {
+    const endpoint = localAi.endpoint?.trim();
+    if (!endpoint) {
+      showToast('Set an Ollama endpoint first', 'error');
+      return;
+    }
+
+    const ok = await checkOllamaAvailability(endpoint);
+    if (ok) {
+      showToast('Ollama is reachable', 'success');
+    } else {
+      showToast('Could not reach Ollama at that endpoint', 'error');
+    }
   };
 
   const handleViewStoredData = async () => {
@@ -88,6 +114,68 @@ export function SettingsPrivacy() {
             <option value="standard">Standard</option>
             <option value="strict">Strict</option>
           </select>
+        </div>
+      </div>
+
+      <div className="settings-group">
+        <div className="settings-group-title">Local AI (Optional)</div>
+
+        <div className="setting-row">
+          <div className="setting-info">
+            <div className="setting-label">Use local Ollama model</div>
+            <div className="setting-description">
+              Optional. If enabled and available, Memephant will try Ollama to extract structured updates, then fall back safely.
+            </div>
+          </div>
+          <Toggle
+            value={localAi.enabled}
+            onChange={(v) => updateLocalAi({ enabled: v }, { toast: true })}
+          />
+        </div>
+
+        <div className="setting-row">
+          <div className="setting-info">
+            <div className="setting-label">Ollama endpoint</div>
+            <div className="setting-description">Default: http://127.0.0.1:11434</div>
+          </div>
+          <input
+            className="setting-select"
+            value={localAi.endpoint}
+            onChange={(e) => updateLocalAi({ endpoint: e.target.value })}
+            placeholder="http://127.0.0.1:11434"
+            spellCheck={false}
+            inputMode="url"
+            disabled={!localAi.enabled}
+          />
+        </div>
+
+        <div className="setting-row">
+          <div className="setting-info">
+            <div className="setting-label">Model</div>
+            <div className="setting-description">Example: llama3.1:8b</div>
+          </div>
+          <input
+            className="setting-select"
+            value={localAi.model}
+            onChange={(e) => updateLocalAi({ model: e.target.value })}
+            placeholder="llama3.1:8b"
+            spellCheck={false}
+            disabled={!localAi.enabled}
+          />
+        </div>
+
+        <div className="setting-row">
+          <div className="setting-info">
+            <div className="setting-label">Connection</div>
+            <div className="setting-description">Check whether Ollama is running at your configured endpoint</div>
+          </div>
+          <button
+            className="setting-btn"
+            onClick={() => void handleTestLocalAi()}
+            disabled={!localAi.enabled}
+          >
+            Test connection
+          </button>
         </div>
       </div>
 

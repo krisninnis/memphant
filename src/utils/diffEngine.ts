@@ -133,8 +133,8 @@ function parseCandidateJson(candidate: string): DetectedUpdate | null {
 
 function parseNaturalLanguage(text: string): DetectedUpdate | null {
   const update: DetectedUpdate = {};
+  
   const trimmed = text.trim();
-
   if (!trimmed) {
     return null;
   }
@@ -319,6 +319,10 @@ function stripCodeFences(text: string): string {
 export function detectUpdate(text: string): DetectionResult {
   const trimmed = text.trim();
 
+  if (/<script|iframe|onerror=|javascript:/i.test(text)) {
+    return { update: null, source: 'none', confidence: 0 };
+  }
+
   if (!trimmed) {
     return { update: null, source: 'none', confidence: 0 };
   }
@@ -342,12 +346,26 @@ export function detectUpdate(text: string): DetectionResult {
     }
   }
 
-  // 3. fenced code block
+  // 3. fenced code block (STRICT)
   const codeBlockMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
   if (codeBlockMatch?.[1]) {
-    const parsed = parseCandidateJson(stripCodeFences(codeBlockMatch[1]));
+    const cleaned = stripCodeFences(codeBlockMatch[1]);
+    const parsed = parseCandidateJson(cleaned);
     if (parsed) {
       return { update: parsed, source: 'code_block', confidence: 0.9 };
+    }
+  }
+
+  // 3.5 SUPER FALLBACK — try ANY code block content
+  const anyCodeBlock = trimmed.match(/```[\s\S]*?```/g);
+
+  if (anyCodeBlock) {
+    for (const block of anyCodeBlock) {
+      const cleaned = stripCodeFences(block);
+      const parsed = parseCandidateJson(cleaned);
+      if (parsed) {
+        return { update: parsed, source: 'code_block', confidence: 0.7 };
+      }
     }
   }
 
@@ -360,13 +378,16 @@ export function detectUpdate(text: string): DetectionResult {
     }
   }
 
-  // 4.5 SUPER FALLBACK - loose JSON detection (handles messy AI output)
-  const looseMatch = trimmed.match(/\{[\s\S]*?"currentState"[\s\S]*?\}/);
-
-  if (looseMatch) {
-    const parsed = parseCandidateJson(looseMatch[0]);
-    if (parsed) {
-      return { update: parsed, source: 'bare_json', confidence: 0.6 };
+  // 4.5 FINAL FALLBACK — brute-force JSON scan
+  for (let i = 0; i < trimmed.length; i++) {
+    if (trimmed[i] === '{') {
+      const candidate = extractBalancedJsonFrom(trimmed, i);
+      if (candidate && candidate.includes('currentState')) {
+        const parsed = parseCandidateJson(candidate);
+        if (parsed) {
+          return { update: parsed, source: 'bare_json', confidence: 0.65 };
+        }
+      }
     }
   }
 

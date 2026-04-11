@@ -1,11 +1,14 @@
 import type { DetectedUpdate } from '../utils/diffEngine';
+import { detectUpdate } from '../utils/diffEngine';
+import { useProjectStore } from '../store/projectStore';
 
 export type LocalAiExtractionSource =
   | 'strict_json'
   | 'code_block'
   | 'bare_json'
   | 'natural_language'
-  | 'smart_local_fallback';
+  | 'smart_local_fallback'
+  | 'ollama';
 
 export interface LocalAiExtractionResult {
   update: DetectedUpdate | null;
@@ -13,6 +16,20 @@ export interface LocalAiExtractionResult {
   confidence: number;
   notes: string[];
 }
+
+type LocalAiSettings = {
+  enabled: boolean;
+  provider: 'ollama';
+  model: string;
+  endpoint: string;
+};
+
+const OLLAMA_PING_TIMEOUT_MS = 1200;
+const OLLAMA_GENERATE_TIMEOUT_MS = 12_000;
+const OLLAMA_MAX_INPUT_CHARS = 18_000;
+const OLLAMA_CACHE_TTL_MS = 10_000;
+
+let ollamaAvailabilityCache: { endpoint: string; ok: boolean; checkedAt: number } | null = null;
 
 function dedupeStrings(values: string[]): string[] {
   return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
@@ -180,6 +197,156 @@ function buildHeuristicUpdate(text: string): LocalAiExtractionResult {
   };
 }
 
+function getLocalAiSettings(): LocalAiSettings | null {
+  try {
+    const settings = useProjectStore.getState().settings as unknown as { localAi?: LocalAiSettings };
+    if (!settings?.localAi) return null;
+    return settings.localAi;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeEndpoint(endpoint: string): string {
+  const trimmed = endpoint.trim();
+  return trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed;
+}
+
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit | undefined,
+  timeoutMs: number,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
+async function pingOllama(endpoint: string): Promise<boolean> {
+  const normalized = normalizeEndpoint(endpoint);
+
+  if (
+    ollamaAvailabilityCache &&
+    ollamaAvailabilityCache.endpoint === normalized &&
+    Date.now() - ollamaAvailabilityCache.checkedAt < OLLAMA_CACHE_TTL_MS
+  ) {
+    return ollamaAvailabilityCache.ok;
+  }
+
+  try {
+    const res = await fetchWithTimeout(
+      `${normalized}/api/tags`,
+      { method: 'GET' },
+      OLLAMA_PING_TIMEOUT_MS,
+    );
+
+    const ok = res.ok;
+    ollamaAvailabilityCache = { endpoint: normalized, ok, checkedAt: Date.now() };
+    return ok;
+  } catch {
+    ollamaAvailabilityCache = { endpoint: normalized, ok: false, checkedAt: Date.now() };
+    return false;
+  }
+}
+
+export async function checkOllamaAvailability(endpoint: string): Promise<boolean> {
+  return pingOllama(endpoint);
+}
+
+function buildOllamaPrompt(text: string): { system: string; prompt: string } {
+  const system =
+    'You extract structured project updates from messy AI chat logs. ' +
+    'Return ONLY a single JSON object, with no markdown, no code fences, and no commentary. ' +
+    'Use only these keys when relevant: summary, currentState, goals, rules, decisions, nextSteps, openQuestions, importantAssets. ' +
+    'For decisions, use an array of objects like { "decision": string, "rationale"?: string }. ' +
+    'If no meaningful project update is present, return an empty JSON object {}.';
+
+  const prompt =
+    'Extract the project update from the following text and return ONLY the JSON object:\n\n' +
+    text;
+
+  return { system, prompt };
+}
+
+async function tryExtractWithOllama(text: string, settings: LocalAiSettings): Promise<LocalAiExtractionResult> {
+  const notes: string[] = [];
+
+  const endpoint = normalizeEndpoint(settings.endpoint || '');
+  const model = (settings.model || '').trim();
+
+  if (!endpoint || !model) {
+    return { update: null, source: 'ollama', confidence: 0, notes: ['Ollama is enabled but endpoint/model is missing'] };
+  }
+
+  const reachable = await pingOllama(endpoint);
+  if (!reachable) {
+    return { update: null, source: 'ollama', confidence: 0, notes: ['Ollama endpoint not reachable'] };
+  }
+
+  const trimmed = text.trim();
+  const sliced = trimmed.length > OLLAMA_MAX_INPUT_CHARS ? trimmed.slice(0, OLLAMA_MAX_INPUT_CHARS) : trimmed;
+  if (trimmed.length > OLLAMA_MAX_INPUT_CHARS) {
+    notes.push(`Input truncated to ${OLLAMA_MAX_INPUT_CHARS} chars`);
+  }
+
+  const { system, prompt } = buildOllamaPrompt(sliced);
+
+  try {
+    const res = await fetchWithTimeout(
+      `${endpoint}/api/generate`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model,
+          system,
+          prompt,
+          stream: false,
+          options: {
+            temperature: 0,
+          },
+        }),
+      },
+      OLLAMA_GENERATE_TIMEOUT_MS,
+    );
+
+    if (!res.ok) {
+      return {
+        update: null,
+        source: 'ollama',
+        confidence: 0,
+        notes: [`Ollama request failed (${res.status})`],
+      };
+    }
+
+    const data = (await res.json()) as { response?: unknown };
+    const responseText = typeof data?.response === 'string' ? data.response.trim() : '';
+
+    if (!responseText) {
+      return { update: null, source: 'ollama', confidence: 0, notes: ['Ollama returned an empty response'] };
+    }
+
+    const parsed = detectUpdate(responseText);
+    if (parsed.update) {
+      return {
+        update: parsed.update,
+        source: 'ollama',
+        confidence: Math.max(0.7, Math.min(0.92, parsed.confidence || 0.85)),
+        notes: notes.length ? notes : ['Parsed Ollama JSON successfully'],
+      };
+    }
+
+    return { update: null, source: 'ollama', confidence: 0, notes: ['Ollama response was not valid project-update JSON'] };
+  } catch {
+    return { update: null, source: 'ollama', confidence: 0, notes: ['Ollama request threw an error'] };
+  }
+}
+
 /**
  * Phase 1 local AI service.
  *
@@ -193,5 +360,14 @@ function buildHeuristicUpdate(text: string): LocalAiExtractionResult {
 export async function extractStructuredProjectUpdate(
   text: string,
 ): Promise<LocalAiExtractionResult> {
+  const settings = getLocalAiSettings();
+
+  if (settings?.enabled && settings.provider === 'ollama') {
+    const ollama = await tryExtractWithOllama(text, settings);
+    if (ollama.update) {
+      return ollama;
+    }
+  }
+
   return buildHeuristicUpdate(text);
 }
