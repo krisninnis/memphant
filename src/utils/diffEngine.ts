@@ -360,6 +360,16 @@ export function detectUpdate(text: string): DetectionResult {
     }
   }
 
+  // 4.5 SUPER FALLBACK - loose JSON detection (handles messy AI output)
+  const looseMatch = trimmed.match(/\{[\s\S]*?"currentState"[\s\S]*?\}/);
+
+  if (looseMatch) {
+    const parsed = parseCandidateJson(looseMatch[0]);
+    if (parsed) {
+      return { update: parsed, source: 'bare_json', confidence: 0.6 };
+    }
+  }
+
   // 5. natural language fallback
   const natural = parseNaturalLanguage(trimmed);
   if (natural) {
