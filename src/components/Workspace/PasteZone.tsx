@@ -9,6 +9,11 @@ import type { DiffResult } from '../../types/memphant-types';
 
 type PasteState = 'idle' | 'typing' | 'diff' | 'no-update';
 
+type DetectionMeta = {
+  source: string;
+  confidence: number;
+} | null;
+
 const LOCAL_AI_MIN_CONFIDENCE = 0.45;
 const LOCAL_AI_HIGH_CONFIDENCE = 0.75;
 
@@ -17,6 +22,7 @@ export function PasteZone() {
   const [state, setState] = useState<PasteState>('idle');
   const [diffs, setDiffs] = useState<DiffResult[]>([]);
   const [detectedUpdate, setDetectedUpdate] = useState<DetectedUpdate | null>(null);
+  const [detectionMeta, setDetectionMeta] = useState<DetectionMeta>(null);
   const [isDragOver, setIsDragOver] = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -31,6 +37,7 @@ export function PasteZone() {
     setState('idle');
     setDiffs([]);
     setDetectedUpdate(null);
+    setDetectionMeta(null);
     setIsDragOver(false);
   };
 
@@ -41,6 +48,7 @@ export function PasteZone() {
       setState('idle');
       setDiffs([]);
       setDetectedUpdate(null);
+      setDetectionMeta(null);
       return;
     }
 
@@ -82,6 +90,7 @@ export function PasteZone() {
 
     if (!update) {
       setDetectedUpdate(null);
+      setDetectionMeta(null);
       setDiffs([]);
       setState('no-update');
       return;
@@ -91,6 +100,7 @@ export function PasteZone() {
 
     if (computedDiffs.length === 0) {
       setDetectedUpdate(null);
+      setDetectionMeta(null);
       setDiffs([]);
       setState('no-update');
       showToast('No new project changes were found in that text.', 'info');
@@ -99,6 +109,10 @@ export function PasteZone() {
 
     setDetectedUpdate(update);
     setDiffs(computedDiffs);
+    setDetectionMeta({
+      source: detectionSource,
+      confidence: detectionConfidence,
+    });
     setState('diff');
 
     if (detectionSource === 'smart_local_fallback') {
@@ -187,7 +201,12 @@ export function PasteZone() {
   return (
     <div className="paste-zone-wrapper" data-tour="paste">
       {state === 'diff' ? (
-        <DiffPreview diffs={diffs} onApply={handleApply} onDiscard={handleDiscard} />
+        <DiffPreview
+          diffs={diffs}
+          detectionMeta={detectionMeta}
+          onApply={handleApply}
+          onDiscard={handleDiscard}
+        />
       ) : (
         <div
           className={`paste-zone ${state === 'typing' ? 'has-content' : ''} ${
@@ -215,7 +234,7 @@ export function PasteZone() {
                 className="paste-zone-textarea"
                 value={pasteText}
                 onChange={(e) => handleTextChange(e.target.value)}
-                placeholder="Paste your AI's response here…"
+                placeholder="Paste your AI&apos;s response here…"
                 rows={6}
               />
 

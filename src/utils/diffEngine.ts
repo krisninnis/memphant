@@ -70,9 +70,31 @@ function normaliseDecisions(
   return cleaned.length > 0 ? cleaned : undefined;
 }
 
+function hasProjectFields(obj: unknown): obj is DetectedUpdate {
+  if (typeof obj !== 'object' || obj === null) return false;
+  const o = obj as Record<string, unknown>;
+
+  return Boolean(
+    o.summary ||
+      o.goals ||
+      o.decisions ||
+      o.currentState ||
+      o.nextSteps ||
+      o.openQuestions ||
+      o.rules ||
+      o.importantAssets,
+  );
+}
+
 function parseCandidateJson(candidate: string): DetectedUpdate | null {
+  const trimmed = candidate.trim();
+
+  if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) {
+    return null;
+  }
+
   try {
-    const parsed = JSON.parse(candidate) as Record<string, unknown>;
+    const parsed = JSON.parse(trimmed) as Record<string, unknown>;
     if (!hasProjectFields(parsed)) return null;
 
     const normalised: DetectedUpdate = {};
@@ -108,6 +130,7 @@ function parseCandidateJson(candidate: string): DetectedUpdate | null {
     return null;
   }
 }
+
 function parseNaturalLanguage(text: string): DetectedUpdate | null {
   const update: DetectedUpdate = {};
   const trimmed = text.trim();
@@ -190,7 +213,9 @@ function parseNaturalLanguage(text: string): DetectedUpdate | null {
   }
 
   // Open questions
-  const questionMatches = trimmed.match(/(?:question:|open question:|unclear|not sure)\s+([^.]+)/gi);
+  const questionMatches = trimmed.match(
+    /(?:question:|open question:|unclear|not sure)\s+([^.]+)/gi,
+  );
   if (questionMatches) {
     const openQuestions = questionMatches
       .map((question) =>
@@ -205,6 +230,7 @@ function parseNaturalLanguage(text: string): DetectedUpdate | null {
 
   return Object.keys(update).length > 0 ? update : null;
 }
+
 export type DetectionSource =
   | 'strict_json'
   | 'code_block'
@@ -219,62 +245,128 @@ export interface DetectionResult {
   confidence: number;
 }
 
+function extractBalancedJsonFrom(text: string, startIndex: number): string | null {
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  let started = false;
+  let result = '';
+
+  for (let i = startIndex; i < text.length; i++) {
+    const char = text[i];
+
+    if (!started) {
+      if (char !== '{') continue;
+      started = true;
+    }
+
+    result += char;
+
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+
+    if (char === '\\') {
+      escaped = true;
+      continue;
+    }
+
+    if (char === '"') {
+      inString = !inString;
+      continue;
+    }
+
+    if (inString) continue;
+
+    if (char === '{') depth++;
+    if (char === '}') depth--;
+
+    if (started && depth === 0) {
+      return result.trim();
+    }
+  }
+
+  return null;
+}
+
+function extractJsonAfterMarker(text: string, markerRegex: RegExp): string | null {
+  const match = markerRegex.exec(text);
+  if (!match || match.index === undefined) return null;
+
+  const markerEnd = match.index + match[0].length;
+  return extractBalancedJsonFrom(text, markerEnd);
+}
+
+function extractLastJsonObject(text: string): string | null {
+  for (let i = text.length - 1; i >= 0; i--) {
+    if (text[i] === '{') {
+      const candidate = extractBalancedJsonFrom(text, i);
+      if (candidate) return candidate;
+    }
+  }
+  return null;
+}
+
+function stripCodeFences(text: string): string {
+  return text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+}
+
 /**
  * Scan pasted text for a project update block.
  * Tries several strategies in order of reliability and returns metadata.
  */
 export function detectUpdate(text: string): DetectionResult {
-  // 1. memphant_update block (BEST)
-  const markerMatch = text.match(/memphant_update\s*([\s\S]*?\{[\s\S]*\})/i);
-  if (markerMatch) {
-    const parsed = parseCandidateJson(markerMatch[1].trim());
+  const trimmed = text.trim();
+
+  if (!trimmed) {
+    return { update: null, source: 'none', confidence: 0 };
+  }
+
+  // 1. memphant_update marker + balanced JSON
+  const strictJson = extractJsonAfterMarker(trimmed, /memphant_update\s*/i);
+  if (strictJson) {
+    const parsed = parseCandidateJson(strictJson);
     if (parsed) {
       return { update: parsed, source: 'strict_json', confidence: 1.0 };
     }
   }
 
-  // 2. JSON code block
-  const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
-  if (codeBlockMatch) {
-    const parsed = parseCandidateJson(codeBlockMatch[1].trim());
+  // 2. XML wrapper
+  const xmlMatch = trimmed.match(/<memphant_update>([\s\S]*?)<\/memphant_update>/i);
+  if (xmlMatch?.[1]) {
+    const xmlInner = stripCodeFences(xmlMatch[1]);
+    const parsed = parseCandidateJson(xmlInner);
+    if (parsed) {
+      return { update: parsed, source: 'code_block', confidence: 0.95 };
+    }
+  }
+
+  // 3. fenced code block
+  const codeBlockMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (codeBlockMatch?.[1]) {
+    const parsed = parseCandidateJson(stripCodeFences(codeBlockMatch[1]));
     if (parsed) {
       return { update: parsed, source: 'code_block', confidence: 0.9 };
     }
   }
 
-  // 3. Bare JSON
-  const bareJsonMatch = text.match(
-    /\{[\s\S]*"(?:summary|goals|decisions|currentState|nextSteps|openQuestions|importantAssets)"[\s\S]*\}/,
-  );
-  if (bareJsonMatch) {
-    const parsed = parseCandidateJson(bareJsonMatch[0].trim());
+  // 4. last likely JSON object
+  const lastJson = extractLastJsonObject(trimmed);
+  if (lastJson) {
+    const parsed = parseCandidateJson(lastJson);
     if (parsed) {
       return { update: parsed, source: 'bare_json', confidence: 0.75 };
     }
   }
 
-  // 4. Natural language fallback
-  const natural = parseNaturalLanguage(text);
+  // 5. natural language fallback
+  const natural = parseNaturalLanguage(trimmed);
   if (natural) {
     return { update: natural, source: 'natural_language', confidence: 0.4 };
   }
 
   return { update: null, source: 'none', confidence: 0 };
-}
-function hasProjectFields(obj: unknown): obj is DetectedUpdate {
-  if (typeof obj !== 'object' || obj === null) return false;
-  const o = obj as Record<string, unknown>;
-
-  return Boolean(
-    o.summary ||
-      o.goals ||
-      o.decisions ||
-      o.currentState ||
-      o.nextSteps ||
-      o.openQuestions ||
-      o.rules ||
-      o.importantAssets,
-  );
 }
 
 /** Compute a human-readable diff between current project and an incoming update */
@@ -292,7 +384,13 @@ export function computeDiff(current: ProjectMemory, update: DetectedUpdate): Dif
     }
   }
 
-  for (const field of ['goals', 'rules', 'nextSteps', 'openQuestions', 'importantAssets'] as const) {
+  for (const field of [
+    'goals',
+    'rules',
+    'nextSteps',
+    'openQuestions',
+    'importantAssets',
+  ] as const) {
     const incoming = update[field];
     if (!incoming || !Array.isArray(incoming)) continue;
 
@@ -329,14 +427,14 @@ export function computeDiff(current: ProjectMemory, update: DetectedUpdate): Dif
 /** Map internal field names to human-readable UI labels */
 export function fieldLabel(field: string): string {
   const labels: Record<string, string> = {
-    summary:        'Summary',
-    currentState:   'What this project is about',
-    goals:          'Goals',
-    rules:          'Rules',
-    decisions:      'Key Decisions',
-    nextSteps:      'Next Steps',
-    openQuestions:  'Open Questions',
-    importantAssets:'Important Files & Assets',
+    summary: 'Summary',
+    currentState: 'What this project is about',
+    goals: 'Goals',
+    rules: 'Rules',
+    decisions: 'Key Decisions',
+    nextSteps: 'Next Steps',
+    openQuestions: 'Open Questions',
+    importantAssets: 'Important Files & Assets',
   };
   return labels[field] ?? field;
 }
@@ -377,7 +475,13 @@ export function applyUpdate(current: ProjectMemory, update: DetectedUpdate): Pro
     });
   }
 
-  for (const field of ['goals', 'rules', 'nextSteps', 'openQuestions', 'importantAssets'] as const) {
+  for (const field of [
+    'goals',
+    'rules',
+    'nextSteps',
+    'openQuestions',
+    'importantAssets',
+  ] as const) {
     const incoming = update[field];
     if (!incoming || !Array.isArray(incoming)) continue;
 
