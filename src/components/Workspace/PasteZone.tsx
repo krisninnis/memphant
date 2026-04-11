@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { useProjectStore } from '../../store/projectStore';
 import { useActiveProject } from '../../hooks/useActiveProject';
 import { detectUpdate, computeDiff, applyUpdate, countDiffs } from '../../utils/diffEngine';
+import { extractStructuredProjectUpdate } from '../../services/localAiService';
 import DiffPreview from './DiffPreview';
 import type { DetectedUpdate } from '../../utils/diffEngine';
 import type { DiffResult } from '../../types/memphant-types';
@@ -45,36 +46,63 @@ export function PasteZone() {
     }
   };
 
-const handleAnalyse = () => {
-  const trimmedText = pasteText.trim();
+  const handleAnalyse = async () => {
+    const trimmedText = pasteText.trim();
 
-  if (!trimmedText) {
-    return;
-  }
+    if (!trimmedText) {
+      return;
+    }
 
-  if (!activeProject) {
-    showToast('Open a project first', 'error');
-    return;
-  }
+    if (!activeProject) {
+      showToast('Open a project first', 'error');
+      return;
+    }
 
-  const result = detectUpdate(trimmedText);
-  const update = result.update;
+    const result = detectUpdate(trimmedText);
+    let update = result.update;
+    let detectionSource = result.source;
+    let detectionConfidence = result.confidence;
 
-  if (!update) {
-    setDetectedUpdate(null);
-    setDiffs([]);
-    setState('no-update');
-    return;
-  }
+    if (!update || detectionConfidence < 0.6) {
+      const localResult = await extractStructuredProjectUpdate(trimmedText);
 
-  const computedDiffs = computeDiff(activeProject, update);
+      if (localResult.update && localResult.confidence > detectionConfidence) {
+        update = localResult.update;
+        detectionSource = localResult.source;
+        detectionConfidence = localResult.confidence;
+      }
+    }
 
-  setDetectedUpdate(update);
-  setDiffs(computedDiffs);
-  setState('diff');
-};
+    if (!update) {
+      setDetectedUpdate(null);
+      setDiffs([]);
+      setState('no-update');
+      return;
+    }
 
-const handleApply = () => {
+    const computedDiffs = computeDiff(activeProject, update);
+
+    if (computedDiffs.length === 0) {
+      setDetectedUpdate(null);
+      setDiffs([]);
+      setState('no-update');
+      showToast('No new project changes were found in that text.', 'info');
+      return;
+    }
+
+    setDetectedUpdate(update);
+    setDiffs(computedDiffs);
+    setState('diff');
+
+    if (detectionSource === 'smart_local_fallback') {
+      showToast(
+        `Local fallback detected a possible update (${Math.round(detectionConfidence * 100)}% confidence). Review before applying.`,
+        'info',
+      );
+    }
+  };
+
+  const handleApply = () => {
     if (!activeProject || !detectedUpdate) {
       return;
     }
@@ -179,7 +207,7 @@ const handleApply = () => {
                 <button
                   type="button"
                   className="paste-zone-analyse-btn"
-                  onClick={handleAnalyse}
+                  onClick={() => void handleAnalyse()}
                   disabled={!pasteText.trim()}
                 >
                   Check for updates

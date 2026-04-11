@@ -47,14 +47,20 @@ memphant_update
 }
     `;
     const result = detectUpdate(text);
-    expect(result).not.toBeNull();
-    expect(result?.currentState).toBe('Almost done.');
-    expect(result?.nextSteps).toEqual(['Deploy to staging']);
+
+    expect(result.update).not.toBeNull();
+    expect(result.update?.currentState).toBe('Almost done.');
+    expect(result.update?.nextSteps).toEqual(['Deploy to staging']);
+    expect(result.source).toBe('strict_json');
   });
 
-  it('returns null when no update block is present', () => {
+  it('returns no update when no update block is present', () => {
     const text = 'Just a normal AI response with no update.';
-    expect(detectUpdate(text)).toBeNull();
+    const result = detectUpdate(text);
+
+    expect(result.update).toBeNull();
+    expect(result.source).toBe('none');
+    expect(result.confidence).toBe(0);
   });
 
   it('handles an update block with all fields', () => {
@@ -70,18 +76,24 @@ memphant_update
 }
     `;
     const result = detectUpdate(text);
-    expect(result?.summary).toBe('Updated summary');
-    expect(result?.decisions).toHaveLength(1);
-    expect(result?.decisions?.[0].decision).toBe('Use Rust');
-    expect(result?.openQuestions).toContain('Is it done?');
+
+    expect(result.update).not.toBeNull();
+    expect(result.update?.summary).toBe('Updated summary');
+    expect(result.update?.decisions).toHaveLength(1);
+    expect(result.update?.decisions?.[0].decision).toBe('Use Rust');
+    expect(result.update?.openQuestions).toContain('Is it done?');
   });
 
-  it('returns null for malformed JSON in the block', () => {
+  it('returns no update for malformed JSON in the block', () => {
     const text = `
 memphant_update
 { "currentState": "Missing closing brace"
     `;
+
     expect(() => detectUpdate(text)).not.toThrow();
+
+    const result = detectUpdate(text);
+    expect(result.update).toBeNull();
   });
 
   it('ignores empty string items in arrays', () => {
@@ -92,7 +104,9 @@ memphant_update
 }
     `;
     const result = detectUpdate(text);
-    expect(result?.goals).toEqual(['Real goal']);
+
+    expect(result.update).not.toBeNull();
+    expect(result.update?.goals).toEqual(['Real goal']);
   });
 });
 
@@ -104,6 +118,7 @@ describe('computeDiff', () => {
     const update = { currentState: 'Newly updated state.' };
     const diffs = computeDiff(project, update);
     const stateChange = diffs.find((d) => d.field === 'currentState');
+
     expect(stateChange).toBeDefined();
     expect(stateChange?.action).toBe('updated');
   });
@@ -113,6 +128,7 @@ describe('computeDiff', () => {
     const update = { goals: ['Brand new goal'] };
     const diffs = computeDiff(project, update);
     const goalChange = diffs.find((d) => d.field === 'goals');
+
     expect(goalChange).toBeDefined();
     expect(goalChange?.action).toBe('added');
   });
@@ -124,12 +140,14 @@ describe('computeDiff', () => {
     };
     const diffs = computeDiff(project, update);
     const decisionChange = diffs.find((d) => d.field === 'decisions');
+
     expect(decisionChange).toBeDefined();
   });
 
   it('returns no changes when update is empty', () => {
     const project = makeProject();
     const diffs = computeDiff(project, {});
+
     expect(diffs).toHaveLength(0);
   });
 
@@ -138,6 +156,7 @@ describe('computeDiff', () => {
     const update = { currentState: 'Same.' };
     const diffs = computeDiff(project, update);
     const stateChanges = diffs.filter((d) => d.field === 'currentState');
+
     expect(stateChanges).toHaveLength(0);
   });
 
@@ -146,6 +165,7 @@ describe('computeDiff', () => {
     const update = { goals: ['Existing goal'] };
     const diffs = computeDiff(project, update);
     const goalChanges = diffs.filter((d) => d.field === 'goals');
+
     expect(goalChanges).toHaveLength(0);
   });
 });
@@ -157,6 +177,7 @@ describe('countDiffs', () => {
     const project = makeProject({ goals: ['A'] });
     const update = { currentState: 'Changed.', goals: ['B'] };
     const diffs = computeDiff(project, update);
+
     expect(countDiffs(diffs)).toBe(diffs.length);
   });
 
@@ -172,6 +193,7 @@ describe('applyUpdate', () => {
     const project = makeProject();
     const update = { currentState: 'Final state.' };
     const result = applyUpdate(project, update);
+
     expect(result.currentState).toBe('Final state.');
   });
 
@@ -179,6 +201,7 @@ describe('applyUpdate', () => {
     const project = makeProject({ goals: ['Goal A'] });
     const update = { goals: ['Goal B'] };
     const result = applyUpdate(project, update);
+
     expect(result.goals).toContain('Goal A');
     expect(result.goals).toContain('Goal B');
     expect(result.goals.filter((g: string) => g === 'Goal A')).toHaveLength(1);
@@ -188,6 +211,7 @@ describe('applyUpdate', () => {
     const project = makeProject({ nextSteps: ['Step 1'] });
     const update = { nextSteps: ['Step 2'] };
     const result = applyUpdate(project, update);
+
     expect(result.nextSteps).toContain('Step 1');
     expect(result.nextSteps).toContain('Step 2');
   });
@@ -196,7 +220,9 @@ describe('applyUpdate', () => {
     const project = makeProject();
     const originalState = project.currentState;
     const update = { currentState: 'Changed.' };
+
     applyUpdate(project, update);
+
     expect(project.currentState).toBe(originalState);
   });
 
@@ -204,6 +230,7 @@ describe('applyUpdate', () => {
     const project = makeProject({ changelog: [] });
     const update = { currentState: 'Updated.' };
     const result = applyUpdate(project, update);
+
     expect(result.changelog.length).toBeGreaterThan(0);
   });
 
@@ -211,6 +238,7 @@ describe('applyUpdate', () => {
     const project = makeProject();
     const update = { currentState: 'New state.' };
     const result = applyUpdate(project, update);
+
     expect(result.name).toBe(project.name);
     expect(result.summary).toBe(project.summary);
   });

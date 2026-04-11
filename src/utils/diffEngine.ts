@@ -108,30 +108,57 @@ function parseCandidateJson(candidate: string): DetectedUpdate | null {
     return null;
   }
 }
-// 🧠 Natural language fallback parser
 function parseNaturalLanguage(text: string): DetectedUpdate | null {
   const update: DetectedUpdate = {};
-  const lines = text
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean);
+  const trimmed = text.trim();
 
-  // Summary: only if the first line looks descriptive, not like an instruction
-  if (lines.length > 0) {
-  const firstLine = lines[0];
-
-  // 🚫 NEVER treat decisions or actions as summary
-  if (
-    !/(add|should|need to|we should|fix|bug|decided|we decided|we chose|question)/i.test(
-      firstLine,
-    )
-  ) {
-    update.summary = firstLine;
+  if (!trimmed) {
+    return null;
   }
-}
+
+  const lowered = trimmed.toLowerCase();
+
+  // Never treat raw memphant marker text or obvious malformed update attempts
+  // as a natural-language project update.
+  if (
+    lowered === 'memphant_update' ||
+    lowered.startsWith('memphant_update\n') ||
+    lowered.startsWith('memphant_update\r\n') ||
+    /^memphant_update\s*\{?/i.test(trimmed)
+  ) {
+    return null;
+  }
+
+  const hasStructuredLanguage =
+    /(summary:|current state:|current status:|goals:|rules:|decisions?:|next steps?:|open questions?:|important assets?:)/i.test(
+      trimmed,
+    ) ||
+    /(?:we decided|decision:|we chose|currently|right now|the app is|open question:|question:)/i.test(
+      trimmed,
+    );
+
+  // If the text does not look like structured project-update language,
+  // do not infer anything.
+  if (!hasStructuredLanguage) {
+    return null;
+  }
+
+  // Summary: only from explicit labels, not arbitrary first lines
+  const summaryMatch = trimmed.match(/(?:^|\n)\s*(?:summary|project summary)\s*:\s*(.+)/i);
+  if (summaryMatch?.[1]?.trim()) {
+    update.summary = summaryMatch[1].trim().replace(/\.$/, '');
+  }
+
+  // Current state
+  const stateMatch = trimmed.match(
+    /(?:^|\n)\s*(?:current state|current status|what this project is about)\s*:\s*(.+)/i,
+  );
+  if (stateMatch?.[1]?.trim()) {
+    update.currentState = stateMatch[1].trim().replace(/\.$/, '');
+  }
 
   // Goals
-  const goalMatches = text.match(/(?:add|should add|we should|need to)\s+([^.]+)/gi);
+  const goalMatches = trimmed.match(/(?:add|should add|we should|need to)\s+([^.]+)/gi);
   if (goalMatches) {
     const goals = goalMatches
       .map((goal) =>
@@ -147,14 +174,8 @@ function parseNaturalLanguage(text: string): DetectedUpdate | null {
     }
   }
 
-  // Current state
-  const stateMatch = text.match(/(?:currently|now|we are|the app is)\s+([^.]+)/i);
-  if (stateMatch) {
-    update.currentState = stateMatch[1].trim();
-  }
-
   // Decisions
-  const decisionMatches = text.match(/(?:we decided|decision:|we chose)\s+([^.]+)/gi);
+  const decisionMatches = trimmed.match(/(?:we decided|decision:|we chose)\s+([^.]+)/gi);
   if (decisionMatches) {
     const decisions = decisionMatches
       .map((decision) =>
@@ -169,11 +190,11 @@ function parseNaturalLanguage(text: string): DetectedUpdate | null {
   }
 
   // Open questions
-  const questionMatches = text.match(/(?:question:|unclear|not sure)\s+([^.]+)/gi);
+  const questionMatches = trimmed.match(/(?:question:|open question:|unclear|not sure)\s+([^.]+)/gi);
   if (questionMatches) {
     const openQuestions = questionMatches
       .map((question) =>
-        question.replace(/(?:question:|unclear|not sure)/i, '').trim(),
+        question.replace(/(?:question:|open question:|unclear|not sure)/i, '').trim(),
       )
       .filter(Boolean);
 
@@ -189,6 +210,7 @@ export type DetectionSource =
   | 'code_block'
   | 'bare_json'
   | 'natural_language'
+  | 'smart_local_fallback'
   | 'none';
 
 export interface DetectionResult {
