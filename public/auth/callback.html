@@ -166,7 +166,7 @@
           const SUPABASE_ANON   = document.querySelector('meta[name="supa-anon"]')?.content
                                   || 'YOUR_ANON_KEY';
 
-          const supabase = supabase_js.createClient(SUPABASE_URL, SUPABASE_ANON, {
+          const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {
             auth: { persistSession: true, autoRefreshToken: true },
           });
 
@@ -178,9 +178,7 @@
 
           if (data?.session) {
             showSuccess('✅ You\'re signed in!', `
-              <strong>Desktop app users:</strong> switch back to Memephant and tap the
-              <em>"Already signed in via browser? Click to refresh →"</em> link on the
-              Cloud Backup page. Your account will connect instantly.<br><br>
+              <strong>Desktop app users:</strong> Coming soon.<br><br>
               <strong>PWA / web users:</strong> you're all set — your session is saved.
               You can close this tab.
             `);
@@ -195,9 +193,7 @@
               if (exchErr) throw exchErr;
               if (exchanged?.session) {
                 showSuccess('✅ You\'re signed in!', `
-                  <strong>Desktop app users:</strong> switch back to Memephant and tap the
-                  <em>"Already signed in via browser? Click to refresh →"</em> link.
-                  Your account will connect instantly.<br><br>
+                  <strong>Desktop app users:</strong> Coming soon.<br><br>
                   <strong>PWA / web users:</strong> session saved — you can close this tab.
                 `);
               } else {
@@ -209,7 +205,7 @@
               const token = hash.get('access_token');
               if (token) {
                 showSuccess('✅ You\'re signed in!', `
-                  Switch back to Memephant and tap <em>"Click to refresh →"</em> to connect your account.
+                  <strong>Desktop app users:</strong> Coming soon.
                 `);
               } else {
                 showError('⚠️ No session received. Please go back and try again.');
