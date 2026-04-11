@@ -5,22 +5,36 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Memephant — Remember your projects so your AIs don't have to</title>
   <meta name="description" content="Memephant stores your project context and exports it — shaped correctly for ChatGPT, Claude, Grok, Perplexity, and Gemini — so every AI session picks up right where you left off." />
+  <meta name="keywords" content="AI context management, ChatGPT memory, Claude projects, AI productivity, project context, AI workflow, prompt management, AI assistant tool" />
+  <meta name="author" content="Kris Ninnis" />
+  <meta name="theme-color" content="#d97706" />
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="/memphant-icon.svg" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/icons/icon-16.png" />
+  <link rel="apple-touch-icon" sizes="192x192" href="/icons/icon-192.png" />
 
   <!-- Canonical -->
-  <link rel="canonical" href="https://memphant.com/" />
+  <link rel="canonical" href="https://memephant.com/" />
 
   <!-- Open Graph -->
   <meta property="og:type" content="website" />
-  <meta property="og:url" content="https://memphant.com/" />
+  <meta property="og:url" content="https://memephant.com/" />
+  <meta property="og:site_name" content="Memephant" />
   <meta property="og:title" content="Memephant — Remember your projects so your AIs don't have to" />
   <meta property="og:description" content="Store your project context once. Export it to any AI in one click. Never explain yourself twice." />
-  <meta property="og:image" content="https://memphant.com/og-image.png" />
+  <meta property="og:image" content="https://memephant.com/icons/icon-512.png" />
+  <meta property="og:image:width" content="512" />
+  <meta property="og:image:height" content="512" />
+  <meta property="og:locale" content="en_US" />
 
   <!-- Twitter Card -->
-  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:site" content="@memephant" />
   <meta name="twitter:title" content="Memephant — Remember everything. Explain nothing." />
   <meta name="twitter:description" content="Store your project context once. Export it to any AI in one click. Never explain yourself twice." />
-  <meta name="twitter:image" content="https://memphant.com/og-image.png" />
+  <meta name="twitter:image" content="https://memephant.com/icons/icon-512.png" />
 
   <!-- JSON-LD -->
   <script type="application/ld+json">
@@ -29,8 +43,9 @@
     "@type": "SoftwareApplication",
     "name": "Memephant",
     "applicationCategory": "ProductivityApplication",
-    "operatingSystem": "Windows, macOS, Linux",
-    "description": "Local-first desktop app that stores your project context and exports it for ChatGPT, Claude, Grok, Perplexity, and Gemini.",
+    "operatingSystem": "Windows, macOS, Linux, Web",
+    "description": "Local-first desktop app that stores your project context and exports it — shaped perfectly for ChatGPT, Claude, Grok, Perplexity, and Gemini — so every AI session picks up right where you left off.",
+    "screenshot": "https://memephant.com/icons/icon-512.png",
     "offers": [
       {
         "@type": "Offer",
@@ -46,12 +61,90 @@
         "billingIncrement": "P1M"
       }
     ],
-    "url": "https://memphant.com/",
-    "downloadUrl": "https://github.com/krisninnis/memphant/releases/latest"
+    "url": "https://memephant.com/",
+    "downloadUrl": "https://github.com/krisninnis/memphant/releases/latest",
+    "sameAs": [
+      "https://github.com/krisninnis/memphant"
+    ]
   }
   </script>
 
   <style>
+    /* ── Soft-launch banner ───────────────────────────────────── */
+    #launch-banner {
+      background: #1a1a2e;
+      border-bottom: 1px solid #2a2a50;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      font-size: 13px;
+      color: #b0b0d0;
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+    }
+    #launch-banner strong { color: #d97706; }
+    #launch-banner a {
+      color: #7aaaee;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+      white-space: nowrap;
+    }
+    #launch-banner a:hover { color: #aaccff; }
+    .banner-sep { color: #3a3a5a; }
+    #banner-close {
+      background: none;
+      border: none;
+      color: #555;
+      font-size: 18px;
+      line-height: 1;
+      cursor: pointer;
+      padding: 0 4px;
+      margin-left: 8px;
+      transition: color 0.15s;
+      flex-shrink: 0;
+    }
+    #banner-close:hover { color: #aaa; }
+
+    /* ── Feedback section ─────────────────────────────────────── */
+    .feedback-section { text-align: center; }
+    .feedback-grid {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 28px;
+    }
+    .feedback-card {
+      background: #161b27;
+      border: 1px solid #1e2436;
+      border-radius: 12px;
+      padding: 20px 24px;
+      min-width: 180px;
+      text-align: center;
+      text-decoration: none;
+      color: #ccc;
+      transition: border-color 0.15s, transform 0.15s;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .feedback-card:hover {
+      border-color: #d97706;
+      transform: translateY(-2px);
+      color: #fff;
+    }
+    .feedback-card .fc-icon { font-size: 24px; line-height: 1; }
+    .feedback-card .fc-label { font-size: 13px; font-weight: 600; }
+    .feedback-card .fc-desc { font-size: 12px; color: #666; line-height: 1.4; }
+    .feedback-note {
+      margin-top: 20px;
+      font-size: 12px;
+      color: #555;
+    }
+
     /* ── Reset & Base ─────────────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -776,6 +869,16 @@
 </head>
 <body>
 
+<!-- ── Soft-launch banner ────────────────────────────────────────── -->
+<div id="launch-banner">
+  <span>🧪 <strong>Early Access</strong> — Memephant is actively being built. Things may break.</span>
+  <span class="banner-sep">·</span>
+  <a href="https://github.com/krisninnis/memphant/issues/new?labels=bug&template=bug_report.md" target="_blank" rel="noopener">Report a bug</a>
+  <span class="banner-sep">·</span>
+  <a href="#feedback">Share feedback</a>
+  <button id="banner-close" aria-label="Dismiss banner" onclick="dismissBanner()">×</button>
+</div>
+
 <!-- ── Nav ──────────────────────────────────────────────────────── -->
 <nav>
   <div class="nav-inner">
@@ -788,6 +891,7 @@
       <li><a href="#features">Features</a></li>
       <li><a href="#pricing">Pricing</a></li>
       <li><a href="#faq">FAQ</a></li>
+      <li><a href="#feedback">Feedback</a></li>
       <li><a class="btn-nav" href="https://github.com/krisninnis/memphant/releases/latest">Download free →</a></li>
     </ul>
   </div>
@@ -796,11 +900,11 @@
 <!-- ── Hero ─────────────────────────────────────────────────────── -->
 <section class="hero">
   <div class="container">
-    <div class="hero-badge">✦ v0.1.0 — now available</div>
+    <div class="hero-badge">🧪 Early Access — help us shape it</div>
     <h1>Remember your projects so your <span>AIs don't have to</span></h1>
     <p class="hero-sub">
-      Store your project context once. Copy it into any AI in one click.
-      Never explain yourself twice.
+      Switch between ChatGPT, Claude, Grok, Perplexity, and Gemini without losing a single thought.
+      Store your context once — copy it to any AI in one click.
     </p>
     <div class="hero-cta">
       <a class="btn btn-primary" href="https://github.com/krisninnis/memphant/releases/latest">
@@ -1120,6 +1224,42 @@
   </div>
 </section>
 
+<!-- ── Feedback / Early Access ───────────────────────────────────── -->
+<section class="section" id="feedback">
+  <div class="container feedback-section">
+    <div class="section-eyebrow">Early Access</div>
+    <h2 class="section-heading">Got feedback? We want it.</h2>
+    <p class="section-sub" style="margin: 0 auto;">
+      Memephant is being actively shaped. If something's broken, confusing, or missing —
+      tell us. Every piece of feedback goes directly into the next release.
+    </p>
+
+    <div class="feedback-grid">
+      <a class="feedback-card" href="https://github.com/krisninnis/memphant/issues/new?labels=bug&template=bug_report.md" target="_blank" rel="noopener">
+        <span class="fc-icon">🐛</span>
+        <span class="fc-label">Report a bug</span>
+        <span class="fc-desc">Something's broken or not working right</span>
+      </a>
+      <a class="feedback-card" href="https://github.com/krisninnis/memphant/issues/new?labels=feature-request" target="_blank" rel="noopener">
+        <span class="fc-icon">💡</span>
+        <span class="fc-label">Suggest a feature</span>
+        <span class="fc-desc">An idea that would make this better</span>
+      </a>
+      <a class="feedback-card" href="https://github.com/krisninnis/memphant/discussions" target="_blank" rel="noopener">
+        <span class="fc-icon">💬</span>
+        <span class="fc-label">Join the discussion</span>
+        <span class="fc-desc">Ask questions and share what you're building</span>
+      </a>
+      <a class="feedback-card" href="mailto:hello@memephant.com">
+        <span class="fc-icon">✉️</span>
+        <span class="fc-label">Email us directly</span>
+        <span class="fc-desc">hello@memephant.com — we read every one</span>
+      </a>
+    </div>
+    <p class="feedback-note">No login needed for bug reports. GitHub issues are the fastest way to get fixes shipped.</p>
+  </div>
+</section>
+
 <!-- ── Footer ────────────────────────────────────────────────────── -->
 <footer>
   <div class="container">
@@ -1142,6 +1282,23 @@
 </footer>
 
 <script>
+  /* Soft-launch banner dismiss */
+  function dismissBanner() {
+    var banner = document.getElementById('launch-banner');
+    if (banner) {
+      banner.style.display = 'none';
+      try { localStorage.setItem('mph_banner_dismissed', '1'); } catch (_) {}
+    }
+  }
+  (function () {
+    try {
+      if (localStorage.getItem('mph_banner_dismissed') === '1') {
+        var b = document.getElementById('launch-banner');
+        if (b) b.style.display = 'none';
+      }
+    } catch (_) {}
+  })();
+
   /* FAQ accordion */
   function toggleFaq(btn) {
     const item = btn.closest('.faq-item');

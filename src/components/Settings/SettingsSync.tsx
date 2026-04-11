@@ -910,4 +910,3 @@ const sub = await fetchSubscription(cloudUser.id);
     </section>
   );
 }
-
