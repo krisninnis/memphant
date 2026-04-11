@@ -347,34 +347,39 @@ export function Sidebar({ onNavigate }: SidebarProps) {
         ))}
       </div>
 
-      <div className="sidebar-account-dock">
-        {!cloudUser ? (
-          <div className="sidebar-auth-card">
-            <div className="sidebar-auth-card__copy">
-              <div className="sidebar-auth-card__title">Back up and sync</div>
-              <div className="sidebar-auth-card__text">
-                Create an account to access your projects across devices.
-              </div>
-            </div>
+     <div className="sidebar-account-dock">
+  {!cloudUser ? (
+    <div className="sidebar-auth-card">
+      <div className="sidebar-auth-content">
+        <div className="sidebar-auth-icon">☁️</div>
 
-            <div className="sidebar-auth-card__actions">
-              <button
-                type="button"
-                className="sidebar-auth-btn sidebar-auth-btn--primary"
-                onClick={openCloudBackup}
-              >
-                Create account
-              </button>
-              <button
-                type="button"
-                className="sidebar-auth-btn sidebar-auth-btn--secondary"
-                onClick={openCloudBackup}
-              >
-                Sign in
-              </button>
-            </div>
-          </div>
-        ) : (
+        <div className="sidebar-auth-text">
+          <p className="sidebar-auth-title">Back up & sync</p>
+          <p className="sidebar-auth-desc">
+            Access your projects on any device and never lose your context.
+          </p>
+        </div>
+
+        <div className="sidebar-auth-actions">
+          <button
+            type="button"
+            className="sidebar-auth-btn sidebar-auth-btn--primary"
+            onClick={openCloudBackup}
+          >
+            Create account
+          </button>
+
+          <button
+            type="button"
+            className="sidebar-auth-btn sidebar-auth-btn--secondary"
+            onClick={openCloudBackup}
+          >
+            Sign in
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : (
           <button
             type="button"
             className="sidebar-account-card"

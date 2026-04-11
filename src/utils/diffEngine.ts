@@ -184,38 +184,61 @@ function parseNaturalLanguage(text: string): DetectedUpdate | null {
 
   return Object.keys(update).length > 0 ? update : null;
 }
+export type DetectionSource =
+  | 'strict_json'
+  | 'code_block'
+  | 'bare_json'
+  | 'natural_language'
+  | 'none';
+
+export interface DetectionResult {
+  update: DetectedUpdate | null;
+  source: DetectionSource;
+  confidence: number;
+}
+
 /**
  * Scan pasted text for a project update block.
- * Tries three strategies in order of reliability.
+ * Tries several strategies in order of reliability and returns metadata.
  */
-export function detectUpdate(text: string): DetectedUpdate | null {
+export function detectUpdate(text: string): DetectionResult {
+  // 1. memphant_update block (BEST)
   const markerMatch = text.match(/memphant_update\s*([\s\S]*?\{[\s\S]*\})/i);
   if (markerMatch) {
     const parsed = parseCandidateJson(markerMatch[1].trim());
-    if (parsed) return parsed;
+    if (parsed) {
+      return { update: parsed, source: 'strict_json', confidence: 1.0 };
+    }
   }
 
+  // 2. JSON code block
   const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
   if (codeBlockMatch) {
     const parsed = parseCandidateJson(codeBlockMatch[1].trim());
-    if (parsed) return parsed;
+    if (parsed) {
+      return { update: parsed, source: 'code_block', confidence: 0.9 };
+    }
   }
 
+  // 3. Bare JSON
   const bareJsonMatch = text.match(
     /\{[\s\S]*"(?:summary|goals|decisions|currentState|nextSteps|openQuestions|importantAssets)"[\s\S]*\}/,
   );
   if (bareJsonMatch) {
     const parsed = parseCandidateJson(bareJsonMatch[0].trim());
-    if (parsed) return parsed;
+    if (parsed) {
+      return { update: parsed, source: 'bare_json', confidence: 0.75 };
+    }
   }
 
-  // 🧠 NEW: Natural language fallback
-const natural = parseNaturalLanguage(text);
-if (natural) return natural;
+  // 4. Natural language fallback
+  const natural = parseNaturalLanguage(text);
+  if (natural) {
+    return { update: natural, source: 'natural_language', confidence: 0.4 };
+  }
 
-return null;
+  return { update: null, source: 'none', confidence: 0 };
 }
-
 function hasProjectFields(obj: unknown): obj is DetectedUpdate {
   if (typeof obj !== 'object' || obj === null) return false;
   const o = obj as Record<string, unknown>;

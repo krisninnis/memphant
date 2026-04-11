@@ -31,7 +31,19 @@ select {
   background: #0f172a;
   overflow: hidden;
 }
+.workspace {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
 
+.workspace-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
 .app-shell--loading {
   place-items: center;
 }
@@ -1488,9 +1500,10 @@ select {
     display: none;
   }
 
-  .workspace {
-    min-width: 0;
-  }
+ .workspace {
+  min-width: 0;
+  min-height: 0;
+}
 
   .workspace-scroll {
     padding: 16px;
@@ -2144,4 +2157,184 @@ select {
   font-size: 12px;
   cursor: pointer;
   text-align: left;
+}
+/* ── Sidebar account dock ─────────────────────────────────────────────────── */
+
+.sidebar-account-dock {
+  margin-top: auto;
+  padding-top: 8px;
+}
+
+/* Signed-out card */
+.sidebar-auth-card {
+  width: 100%;
+}
+
+.sidebar-auth-content {
+  background: linear-gradient(180deg, #0d1a2b 0%, #0a1422 100%);
+  border: 1px solid #1e3a5f;
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.22);
+}
+
+.sidebar-auth-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.sidebar-auth-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sidebar-auth-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #d0e8ff;
+}
+
+.sidebar-auth-desc {
+  margin: 0;
+  font-size: 12px;
+  color: #7aaacc;
+  line-height: 1.45;
+}
+
+.sidebar-auth-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.sidebar-auth-btn {
+  flex: 1;
+  min-height: 36px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    transform 0.1s ease;
+}
+
+.sidebar-auth-btn:active {
+  transform: scale(0.98);
+}
+
+.sidebar-auth-btn--primary {
+  background: #d97706;
+  border: 1px solid #d97706;
+  color: #fff;
+}
+
+.sidebar-auth-btn--primary:hover {
+  background: #b45309;
+  border-color: #b45309;
+}
+
+.sidebar-auth-btn--secondary {
+  background: transparent;
+  border: 1px solid #2a4a6a;
+  color: #7eb8f7;
+}
+
+.sidebar-auth-btn--secondary:hover {
+  border-color: #7eb8f7;
+  color: #d0e8ff;
+  background: rgba(126, 184, 247, 0.06);
+}
+
+/* Signed-in card */
+.sidebar-account-card {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: linear-gradient(180deg, #0d1a2b 0%, #0a1422 100%);
+  border: 1px solid #1e3a5f;
+  border-radius: 12px;
+  padding: 12px 14px;
+  color: #e8edf7;
+  cursor: pointer;
+  text-align: left;
+  transition:
+    border-color 0.18s ease,
+    background 0.18s ease,
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.sidebar-account-card:hover {
+  border-color: #2f5c8d;
+  background: linear-gradient(180deg, #112038 0%, #0c1829 100%);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
+  transform: translateY(-1px);
+}
+
+.sidebar-account-card__avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #2a4a6a 0%, #1f3550 100%);
+  border: 1px solid #3e6288;
+  color: #d8ebff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.sidebar-account-card__meta {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sidebar-account-card__name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #f4f8ff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-account-card__subline {
+  font-size: 11px;
+  color: #7aaacc;
+}
+
+.sidebar-account-card__chevron {
+  color: #5d7fa3;
+  font-size: 20px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+/* Mobile drawer */
+@media (max-width: 900px) {
+  .sidebar-auth-actions {
+    flex-direction: row;
+  }
+
+  .sidebar-auth-btn {
+    min-height: 40px;
+  }
+
+  .sidebar-account-dock {
+    padding-bottom: 4px;
+  }
 }

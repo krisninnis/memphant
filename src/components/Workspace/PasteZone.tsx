@@ -45,35 +45,36 @@ export function PasteZone() {
     }
   };
 
-  const handleAnalyse = () => {
-    const trimmedText = pasteText.trim();
+const handleAnalyse = () => {
+  const trimmedText = pasteText.trim();
 
-    if (!trimmedText) {
-      return;
-    }
+  if (!trimmedText) {
+    return;
+  }
 
-    if (!activeProject) {
-      showToast('Open a project first', 'error');
-      return;
-    }
+  if (!activeProject) {
+    showToast('Open a project first', 'error');
+    return;
+  }
 
-    const update = detectUpdate(trimmedText);
+  const result = detectUpdate(trimmedText);
+  const update = result.update;
 
-    if (!update) {
-      setDetectedUpdate(null);
-      setDiffs([]);
-      setState('no-update');
-      return;
-    }
+  if (!update) {
+    setDetectedUpdate(null);
+    setDiffs([]);
+    setState('no-update');
+    return;
+  }
 
-    const computedDiffs = computeDiff(activeProject, update);
+  const computedDiffs = computeDiff(activeProject, update);
 
-    setDetectedUpdate(update);
-    setDiffs(computedDiffs);
-    setState('diff');
-  };
+  setDetectedUpdate(update);
+  setDiffs(computedDiffs);
+  setState('diff');
+};
 
-  const handleApply = () => {
+const handleApply = () => {
     if (!activeProject || !detectedUpdate) {
       return;
     }
