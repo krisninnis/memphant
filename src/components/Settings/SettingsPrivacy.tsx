@@ -118,19 +118,44 @@ export function SettingsPrivacy() {
       </div>
 
       <div className="settings-group">
-        <div className="settings-group-title">Local AI (Optional)</div>
+        <div className="settings-group-title">Local AI (Private Mode)</div>
 
         <div className="setting-row">
           <div className="setting-info">
             <div className="setting-label">Use local Ollama model</div>
             <div className="setting-description">
-              Optional. If enabled and available, Memephant will try Ollama to extract structured updates, then fall back safely.
+              <div>Run AI locally on your device for maximum privacy.</div>
+              <div>When enabled, Memephant will use a local model (via Ollama) to detect project updates.</div>
+              <div>Your data never leaves your machine.</div>
+              <div>If unavailable, Memephant safely falls back to built-in detection.</div>
             </div>
           </div>
           <Toggle
             value={localAi.enabled}
             onChange={(v) => updateLocalAi({ enabled: v }, { toast: true })}
           />
+        </div>
+
+        <div className="setting-row">
+          <div className="setting-info">
+            <div className="setting-label">Benefits</div>
+            <div className="setting-description">
+              <div>- Better detection of messy AI responses</div>
+              <div>- Works even when offline</div>
+              <div>- Keeps your project data private</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="setting-row">
+          <div className="setting-info">
+            <div className="setting-label">Warnings</div>
+            <div className="setting-description">
+              <div>- Requires Ollama to be installed and running locally</div>
+              <div>- Uses your system resources (CPU/RAM)</div>
+              <div>- May feel slower on lower-end devices</div>
+            </div>
+          </div>
         </div>
 
         <div className="setting-row">

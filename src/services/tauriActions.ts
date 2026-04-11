@@ -25,9 +25,30 @@ function isTauri(): boolean {
 
 const LS_PREFIX = 'mph_project:';
 
+function canonicalProjectStorageKey(projectId: string): string {
+  return LS_PREFIX + projectId;
+}
+
+function canonicalTauriFileStem(projectId: string): string {
+  const trimmed = projectId.trim();
+  const safe = trimmed
+    .replace(/\s+/g, '_')
+    .replace(/[^A-Za-z0-9_\-]/g, '_')
+    .slice(0, 100);
+  return safe || 'project';
+}
+
+function canonicalTauriFileName(projectId: string): string {
+  return `${canonicalTauriFileStem(projectId)}.json`;
+}
+
+function canonicalBrowserFileName(projectId: string): string {
+  return `${projectId}.json`;
+}
+
 const browserStore = {
-  save(projectName: string, data: string): void {
-    const key = LS_PREFIX + projectName.replace(/\s+/g, '_');
+  save(projectId: string, data: string): void {
+    const key = canonicalProjectStorageKey(projectId);
     localStorage.setItem(key, data);
   },
   list(): string[] {
@@ -40,6 +61,10 @@ const browserStore = {
     const data = localStorage.getItem(key);
     if (!data) throw new Error(`Project not found: ${fileName}`);
     return data;
+  },
+  exists(fileName: string): boolean {
+    const key = LS_PREFIX + fileName.replace(/\.json$/, '');
+    return localStorage.getItem(key) !== null;
   },
   delete(fileName: string): void {
     const key = LS_PREFIX + fileName.replace(/\.json$/, '');
@@ -119,6 +144,7 @@ export function normalizeOldProject(raw: Record<string, any>): ProjectMemory {
             {
               lastExportHash: state?.lastExportHash || state?.lastSentSnapshotId,
               lastExportedAt: state?.lastExportedAt || state?.lastReplyAt,
+              lastSeenAt: state?.lastSeenAt,
               lastReplyAt: state?.lastReplyAt,
               lastSessionNote: state?.lastSessionNote,
               exportCount: state?.exportCount,
@@ -165,6 +191,7 @@ export function toOldFormat(project: ProjectMemory): Record<string, any> {
               lastSentSnapshotId: state?.lastExportHash || '',
               lastExportedAt: state?.lastExportedAt,
               lastExportHash: state?.lastExportHash,
+              lastSeenAt: state?.lastSeenAt,
               lastReplyAt: state?.lastReplyAt,
               lastSessionNote: state?.lastSessionNote,
               exportCount: state?.exportCount,
@@ -247,12 +274,8 @@ function formatDetectedStack(meta?: ScanMeta): string {
 export async function saveToDisk(project: ProjectMemory): Promise<void> {
   const data = JSON.stringify(toOldFormat(project), null, 2);
 
-  const safeName = project.name
-    .replace(/\s+/g, '_')
-    .replace(/[^A-Za-z0-9_\-]/g, '')
-    .slice(0, 100);
-
-  const fileName = `${safeName}.json`;
+  const stem = canonicalTauriFileStem(project.id);
+  const fileName = canonicalTauriFileName(project.id);
 
   if (isTauri()) {
     try {
@@ -262,11 +285,11 @@ export async function saveToDisk(project: ProjectMemory): Promise<void> {
     }
 
     await tauriInvoke('save_project_file', {
-      projectName: safeName,
+      projectName: stem,
       projectData: data,
     });
   } else {
-    browserStore.save(safeName, data);
+    browserStore.save(project.id, data);
   }
 
   setTimeout(() => {
@@ -274,23 +297,93 @@ export async function saveToDisk(project: ProjectMemory): Promise<void> {
   }, 50);
 }
 
+function projectUpdatedAt(project: ProjectMemory): string {
+  if (!project.changelog?.length) return '1970-01-01T00:00:00.000Z';
+  const sorted = project.changelog.map((e) => e.timestamp).sort();
+  return sorted[sorted.length - 1] ?? '1970-01-01T00:00:00.000Z';
+}
+
 export async function loadAllFromDisk(): Promise<ProjectMemory[]> {
   const fileNames = isTauri()
     ? await tauriInvoke<string[]>('load_projects')
     : browserStore.list();
 
-  const loaded: ProjectMemory[] = [];
+  const loadedById = new Map<
+    string,
+    { project: ProjectMemory; updatedAt: string; fileName: string; canonical: boolean }
+  >();
+
   for (const fileName of fileNames) {
     try {
       const content = isTauri()
         ? await tauriInvoke<string>('load_project_file', { fileName })
         : browserStore.load(fileName);
-      loaded.push(normalizeOldProject(JSON.parse(content)));
+      const project = normalizeOldProject(JSON.parse(content));
+
+      if (isTauri()) {
+        const canonical = canonicalTauriFileName(project.id);
+        if (fileName !== canonical) {
+          let canonicalExists = false;
+          try {
+            await tauriInvoke<string>('load_project_file', { fileName: canonical });
+            canonicalExists = true;
+          } catch {
+            canonicalExists = false;
+          }
+
+          if (canonicalExists) {
+            try {
+              await tauriInvoke('delete_project_file', { fileName });
+            } catch {
+              // Non-fatal: keep legacy file if we can't delete it.
+            }
+          } else {
+            try {
+              await tauriInvoke('rename_project_file', {
+                fromFileName: fileName,
+                toFileName: canonical,
+              });
+            } catch {
+              // Non-fatal: keep legacy file if rename fails.
+            }
+          }
+        }
+      } else {
+        const canonical = canonicalBrowserFileName(project.id);
+        if (fileName !== canonical) {
+          if (browserStore.exists(canonical)) {
+            browserStore.delete(fileName);
+          } else {
+            browserStore.save(project.id, content);
+            browserStore.delete(fileName);
+          }
+        }
+      }
+
+      const updatedAt = projectUpdatedAt(project);
+      const canonical =
+        (isTauri() && fileName === canonicalTauriFileName(project.id)) ||
+        (!isTauri() && fileName === canonicalBrowserFileName(project.id));
+
+      const existing = loadedById.get(project.id);
+      if (!existing) {
+        loadedById.set(project.id, { project, updatedAt, fileName, canonical });
+        continue;
+      }
+
+      const existingWins =
+        existing.updatedAt > updatedAt ||
+        (existing.updatedAt === updatedAt && existing.canonical && !canonical);
+
+      if (!existingWins) {
+        loadedById.set(project.id, { project, updatedAt, fileName, canonical });
+      }
     } catch (err) {
       console.warn(`Failed to load ${fileName}:`, err);
     }
   }
-  return loaded;
+
+  return Array.from(loadedById.values()).map((v) => v.project);
 }
 
 // ─── Actions ────────────────────────────────────────────────────────────────
@@ -591,12 +684,9 @@ export async function deleteProject(id: string): Promise<void> {
   const project = projects.find((p) => p.id === id);
   if (!project) return;
 
-  const safeName = project.name
-    .replace(/\s+/g, '_')
-    .replace(/[^A-Za-z0-9_\-]/g, '')
-    .slice(0, 100);
-
-  const fileName = `${safeName}.json`;
+  const fileName = isTauri()
+    ? canonicalTauriFileName(project.id)
+    : canonicalBrowserFileName(project.id);
 
   try {
     if (isTauri()) {
@@ -647,19 +737,24 @@ export async function copyExportToClipboard(
   // Record the export timestamp and hash on the active project
   const project = projects.find((p) => p.id === activeProjectId);
   if (project) {
+    const now = new Date().toISOString();
     const hash = hashProjectState(project);
-    updateProject(project.id, {
+
+    const updatedProject: ProjectMemory = {
+      ...project,
       platformState: {
         ...project.platformState,
         [platform]: {
           ...project.platformState?.[platform],
-          lastExportedAt: new Date().toISOString(),
+          lastExportedAt: now,
           lastExportHash: hash,
           exportCount: (project.platformState?.[platform]?.exportCount ?? 0) + 1,
         },
       },
-    });
-    void saveToDisk({ ...project, platformState: { ...project.platformState, [platform]: { ...project.platformState?.[platform], lastExportedAt: new Date().toISOString(), lastExportHash: hash } } });
+    };
+
+    updateProject(project.id, updatedProject);
+    void saveToDisk(updatedProject);
   }
 
   showToast(`Copied for ${platform} — paste into your AI to get started`);

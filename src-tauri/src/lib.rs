@@ -740,6 +740,43 @@ async fn delete_project_file(app: tauri::AppHandle, file_name: String) -> Result
 }
 
 #[tauri::command]
+async fn rename_project_file(
+    app: tauri::AppHandle,
+    from_file_name: String,
+    to_file_name: String,
+) -> Result<(), String> {
+    if from_file_name == to_file_name {
+        return Ok(());
+    }
+
+    // Guard against path traversal or subdirectories.
+    for name in [&from_file_name, &to_file_name] {
+        if name.contains("..") || name.contains('/') || name.contains('\\') {
+            return Err("Invalid file name".to_string());
+        }
+        if !name.ends_with(".json") {
+            return Err("Invalid file extension".to_string());
+        }
+    }
+
+    let dir = projects_dir(&app);
+    let from = dir.join(&from_file_name);
+    let to = dir.join(&to_file_name);
+
+    if !from.exists() {
+        return Ok(());
+    }
+
+    // Do not overwrite an existing canonical file.
+    if to.exists() {
+        return Ok(());
+    }
+
+    fs::rename(&from, &to).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
 async fn get_projects_path(app: tauri::AppHandle) -> Result<String, String> {
     Ok(projects_dir(&app).to_string_lossy().to_string())
 }
@@ -804,6 +841,7 @@ pub fn run() {
             load_projects,
             load_project_file,
             delete_project_file,
+            rename_project_file,
             get_projects_path,
             backup_project_file,
             write_text_file,

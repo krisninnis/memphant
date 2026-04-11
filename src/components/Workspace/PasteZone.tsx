@@ -1,8 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useProjectStore } from '../../store/projectStore';
 import { useActiveProject } from '../../hooks/useActiveProject';
-import { detectUpdate, computeDiff, applyUpdate, countDiffs } from '../../utils/diffEngine';
+import {
+  detectUpdate,
+  computeDiff,
+  applyUpdate,
+  countDiffs,
+  fieldLabel,
+} from '../../utils/diffEngine';
 import { extractStructuredProjectUpdate } from '../../services/localAiService';
+import { getChangesSince } from '../../utils/getChangesSince';
 import DiffPreview from './DiffPreview';
 import type { DetectedUpdate } from '../../utils/diffEngine';
 import type { DiffResult } from '../../types/memphant-types';
@@ -39,6 +46,14 @@ export function PasteZone() {
   const updateProject = useProjectStore((s) => s.updateProject);
   const setPreAiBackup = useProjectStore((s) => s.setPreAiBackup);
   const showToast = useProjectStore((s) => s.showToast);
+  const targetPlatform = useProjectStore((s) => s.targetPlatform);
+
+  const lastSeenAt =
+  activeProject?.platformState?.[targetPlatform]?.lastSeenAt;
+
+const recentChanges = activeProject
+  ? getChangesSince(activeProject, lastSeenAt)
+  : [];
 
   useEffect(() => {
     pasteTextRef.current = pasteText;
@@ -325,16 +340,33 @@ export function PasteZone() {
     setState('typing');
   };
 
-  return (
-    <div className="paste-zone-wrapper" data-tour="paste">
-      {state === 'diff' ? (
-        <DiffPreview
-          diffs={diffs}
-          detectionMeta={detectionMeta}
-          onApply={handleApply}
-          onDiscard={handleDiscard}
-        />
-      ) : (
+ return (
+  <div className="paste-zone-wrapper" data-tour="paste">
+    {recentChanges.length > 0 && (
+  <div className="changes-since-box">
+    <h4>🧠 Changes since last time</h4>
+
+    <ul>
+      {recentChanges.map((change, i) => (
+        <li key={i}>
+          {change.action === 'added' && '+ '}
+          {change.action === 'updated' && '~ '}
+          {change.action === 'removed' && '- '}
+          {fieldLabel(change.field)}
+        </li>
+      ))}
+    </ul>
+  </div>
+)}
+
+    {state === 'diff' ? (
+      <DiffPreview
+        diffs={diffs}
+        detectionMeta={detectionMeta}
+        onApply={handleApply}
+        onDiscard={handleDiscard}
+      />
+    ) : (
         <div
           className={`paste-zone ${state === 'typing' ? 'has-content' : ''} ${
             isDragOver ? 'drag-over' : ''
@@ -350,8 +382,11 @@ export function PasteZone() {
           {state === 'idle' ? (
             <>
               <div className="paste-zone-icon">📋</div>
-              <div className="paste-zone-text">Paste AI response here</div>
-              <div className="paste-zone-hint">We&apos;ll automatically detect any project updates</div>
+              <div className="paste-zone-text">Paste an AI response here</div>
+              <div className="paste-zone-hint">ChatGPT, Claude, Grok, Gemini, or any AI output works</div>
+              <div className="paste-zone-hint">
+                We&apos;ll detect project updates automatically and show what will change before anything is applied
+              </div>
             </>
           ) : (
             <>

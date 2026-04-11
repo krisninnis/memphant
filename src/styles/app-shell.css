@@ -2346,7 +2346,18 @@ select {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.changes-since-box {
+  background: rgba(0, 255, 150, 0.08);
+  border: 1px solid rgba(0, 255, 150, 0.3);
+  padding: 12px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
 
+.changes-since-box h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
 .sidebar-account-card__subline {
   font-size: 11px;
   color: #7aaacc;

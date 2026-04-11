@@ -26,6 +26,7 @@ export interface LinkedFolder {
 export interface PlatformState {
   lastExportedAt?: string;
   lastExportHash?: string;
+  lastSeenAt?: string;
   lastReplyAt?: string;
   exportCount?: number;
   lastSessionNote?: string;

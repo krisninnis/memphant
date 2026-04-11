@@ -3,6 +3,7 @@ import { useProjectStore } from '../../store/projectStore';
 import { useActiveProject, useEnabledPlatforms } from '../../hooks/useActiveProject';
 import { copyExportToClipboard } from '../../services/tauriActions';
 import { formatForPlatform, setScannerLevel } from '../../utils/exportFormatters';
+import { getChangesSince } from '../../utils/getChangesSince';
 import { scoreExport } from '../../utils/exportQuality';
 import { PLATFORM_CONFIG } from '../../utils/platformConfig';
 import type { Platform } from '../../types/memphant-types';
@@ -26,6 +27,7 @@ export function ExportButtons() {
   const setTargetPlatform = useProjectStore((s) => s.setTargetPlatform);
   const currentTask = useProjectStore((s) => s.currentTask);
   const showToast = useProjectStore((s) => s.showToast);
+  const updateProject = useProjectStore((s) => s.updateProject);
   const defaultExportMode = useProjectStore((s) => s.settings.projects.defaultExportMode);
   const secretsScannerLevel = useProjectStore((s) => s.settings.privacy.secretsScannerLevel);
   const subscriptionTier = useProjectStore((s) => s.subscriptionTier);
@@ -36,6 +38,14 @@ export function ExportButtons() {
 
   const activeProject = useActiveProject();
   const enabledPlatforms = useEnabledPlatforms();
+
+  const selectedProject = activeProject;
+  const lastSeenAt =
+    selectedProject?.platformState?.[targetPlatform]?.lastSeenAt;
+  const recentChanges = selectedProject
+    ? getChangesSince(selectedProject, lastSeenAt)
+    : [];
+  void recentChanges;
 
   const visiblePlatforms = enabledPlatforms.slice(0, 5);
   const targetConfig = PLATFORM_CONFIG[targetPlatform];
@@ -68,6 +78,22 @@ export function ExportButtons() {
 
     await copyExportToClipboard(exportText, targetPlatform);
 
+    const now = new Date().toISOString();
+
+   const updatedProject = {
+  ...activeProject,
+  platformState: {
+    ...(activeProject.platformState ?? {}),
+    [targetPlatform]: {
+      ...(activeProject.platformState?.[targetPlatform] || {}),
+      lastSeenAt: now,
+      lastExportedAt: now,
+    },
+  },
+};
+
+    updateProject(activeProject.id, updatedProject);
+
     setCopied(true);
     setTimeout(() => setCopied(false), 1800);
   }, [
@@ -75,6 +101,7 @@ export function ExportButtons() {
     currentTask,
     effectiveExportMode,
     secretsScannerLevel,
+    updateProject,
     showToast,
     targetPlatform,
   ]);
