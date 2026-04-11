@@ -31,6 +31,12 @@ export interface PlatformState {
   lastSessionNote?: string;
 }
 
+export interface GitHubScanInfo {
+  scannedAt: string;        // ISO timestamp
+  repoUrl: string;
+  keyFilesFound: string[];  // files successfully fetched during scan
+}
+
 export interface ProjectMemory {
   schema_version: number;
   id: string;
@@ -44,7 +50,9 @@ export interface ProjectMemory {
   openQuestions: string[];
   importantAssets: string[];
   aiInstructions?: string;
-  githubRepo?: string;       // Optional public GitHub repo URL — included in AI exports
+  githubRepo?: string;          // Optional public GitHub repo URL — included in AI exports
+  detectedStack?: string[];     // Tech stack extracted from repo scan (e.g. ["React", "TypeScript"])
+  scanInfo?: GitHubScanInfo;    // Metadata from the last successful GitHub scan
   linkedFolder?: LinkedFolder;
   changelog: ChangelogEntry[];
   platformState: Partial<Record<Platform, PlatformState>>;

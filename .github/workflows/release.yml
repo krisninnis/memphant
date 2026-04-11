@@ -65,17 +65,23 @@ jobs:
           # APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: 'Project Brain ${{ github.ref_name }}'
+          releaseName: 'Memephant ${{ github.ref_name }}'
           releaseBody: |
-            ## What changed
-            See the repository history for details.
+            ## What's new in ${{ github.ref_name }}
 
-            ## Install
-            - **Windows:** Download the `.msi` or `.exe` installer below
-            - **macOS:** Download the `.dmg`
-            - **Linux:** Download the `.AppImage` or `.deb` package
+            <!-- Fill in the changelog before publishing this draft -->
 
-            > Your project data is stored locally. This update does not affect your existing projects.
-          releaseDraft: true
+            ## How to install
+            - **Windows** — download the `.msi` installer below and run it
+            - **macOS** — download the `.dmg`, open it, drag Memephant to Applications
+            - **Linux** — download the `.AppImage` (run as-is) or `.deb` (install with dpkg)
+
+            ## Updating from an older version
+            The app will offer to update automatically via Settings → About → Check for updates.
+            Your existing projects are stored locally and will not be affected by this update.
+
+            ## Having issues?
+            Open a bug report at https://github.com/krisninnis/memphant/issues
+          releaseDraft: false
           prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') || contains(github.ref_name, 'rc') }}
           args: --target ${{ matrix.target }}

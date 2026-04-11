@@ -1,15 +1,24 @@
 /**
  * Auto-updater service — wraps tauri-plugin-updater.
  * Only runs inside the Tauri desktop app; no-ops in browser.
+ *
+ * Flow (mirrors iOS/Android):
+ *  1. checkForUpdate()  → returns UpdateInfo if a newer version is on GitHub, else null
+ *  2. downloadAndInstall(onProgress)  → downloads, shows 0–100%, installs silently
+ *  3. After install: caller sets 'ready' state and shows "Restart to finish" prompt
+ *  4. relaunch()  → closes and reopens the app with the new binary
  */
 
 function isTauri(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 }
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
 export interface UpdateInfo {
   version: string;
-  body: string | null;
+  body: string | null;  // release notes from GitHub
+  date: string | null;  // ISO publish date
 }
 
 export type UpdateStatus =
@@ -18,38 +27,56 @@ export type UpdateStatus =
   | { type: 'available'; info: UpdateInfo }
   | { type: 'up-to-date' }
   | { type: 'downloading'; percent: number }
-  | { type: 'ready' }
+  | { type: 'ready' }            // downloaded + installed, waiting for restart
   | { type: 'error'; message: string };
 
+// ─── Version helpers ──────────────────────────────────────────────────────────
+
 /**
- * Check for an available update.
- * Returns update info if one exists, or null if already up to date.
+ * Returns the version string from tauri.conf.json (e.g. "0.2.0").
+ * Falls back to "—" if running in browser.
+ */
+export async function getInstalledVersion(): Promise<string> {
+  if (!isTauri()) return '—';
+  try {
+    // @tauri-apps/api/app is part of @tauri-apps/api core — always available
+    const { getVersion } = await import(/* @vite-ignore */ '@tauri-apps/api/app' as any);
+    return (await getVersion()) as string;
+  } catch {
+    return '—';
+  }
+}
+
+// ─── Update check ─────────────────────────────────────────────────────────────
+
+/**
+ * Check GitHub releases for a newer version.
+ * Returns UpdateInfo if one is available, null if already up to date.
+ * Throws on network / config errors.
  */
 export async function checkForUpdate(): Promise<UpdateInfo | null> {
   if (!isTauri()) return null;
 
-  try {
-    // /* @vite-ignore */ stops Vite's static import analysis on this path.
-    // The package must be installed: npm install @tauri-apps/plugin-updater
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const updaterModule = await import(/* @vite-ignore */ '@tauri-apps/plugin-updater' as any);
-    const update = await updaterModule.check();
-    if (!update?.available) return null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const updaterModule = await import(/* @vite-ignore */ '@tauri-apps/plugin-updater' as any);
+  const update = await updaterModule.check();
 
-    return {
-      version: update.version as string,
-      body: (update.body as string | undefined) ?? null,
-    };
-  } catch (err) {
-    console.warn('[Updater] Check failed:', err);
-    return null;
-  }
+  if (!update?.available) return null;
+
+  return {
+    version: (update.version as string) ?? 'unknown',
+    body: (update.body as string | null | undefined) ?? null,
+    date: (update.date as string | null | undefined) ?? null,
+  };
 }
 
+// ─── Download + install ───────────────────────────────────────────────────────
+
 /**
- * Download and install an available update.
- * Calls onProgress with 0–100 during download.
- * App will restart automatically after install.
+ * Download and silently install the available update.
+ * Calls onProgress with 0–100 so the UI can show a progress bar.
+ * Does NOT restart automatically — caller should show a "Restart" prompt
+ * and call relaunch() when the user is ready.
  */
 export async function downloadAndInstall(
   onProgress?: (percent: number) => void,
@@ -66,13 +93,38 @@ export async function downloadAndInstall(
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await update.downloadAndInstall((event: any) => {
-    if (event.event === 'Started') {
-      total = event.data.contentLength ?? 0;
-    } else if (event.event === 'Progress') {
-      downloaded += event.data.chunkLength;
-      if (total > 0 && onProgress) {
-        onProgress(Math.round((downloaded / total) * 100));
-      }
+    switch (event.event) {
+      case 'Started':
+        total = event.data.contentLength ?? 0;
+        onProgress?.(0);
+        break;
+      case 'Progress':
+        downloaded += event.data.chunkLength ?? 0;
+        if (total > 0 && onProgress) {
+          onProgress(Math.min(99, Math.round((downloaded / total) * 100)));
+        }
+        break;
+      case 'Finished':
+        onProgress?.(100);
+        break;
     }
   });
+}
+
+// ─── Relaunch ─────────────────────────────────────────────────────────────────
+
+/**
+ * Close and reopen the app so the newly installed version takes effect.
+ * Equivalent to pressing "Restart Now" on an iOS or Android update prompt.
+ */
+export async function relaunch(): Promise<void> {
+  if (!isTauri()) return;
+  try {
+    // @tauri-apps/plugin-process provides relaunch()
+    const processModule = await import(/* @vite-ignore */ '@tauri-apps/plugin-process' as any);
+    await processModule.relaunch();
+  } catch {
+    // Plugin might not be registered — fall back to a hard reload
+    window.location.reload();
+  }
 }

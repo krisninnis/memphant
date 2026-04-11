@@ -93,6 +93,9 @@ function formatForClaude(project: ProjectMemory, task?: string): string {
     lines.push(`  <github_repo>${project.githubRepo}</github_repo>`);
     lines.push(`  <!-- The GitHub repo above is public — you can browse the code directly -->`);
   }
+  if (project.detectedStack && project.detectedStack.length > 0) {
+    lines.push(`  <tech_stack>${sanitize(project.detectedStack.join(', '))}</tech_stack>`);
+  }
   lines.push(`  <summary>${sanitize(project.summary || '(no summary yet)')}</summary>`);
   lines.push(`  <current_state>${sanitize(project.currentState || '(not set)')}</current_state>`);
 
@@ -150,6 +153,10 @@ function formatForChatGPT(project: ProjectMemory, task?: string): string {
   if (project.githubRepo) {
     lines.push(`**GitHub Repo:** ${project.githubRepo}`);
     lines.push(`*(Public repo — you can browse the code directly at the link above)*`);
+    lines.push('');
+  }
+  if (project.detectedStack && project.detectedStack.length > 0) {
+    lines.push(`**Tech Stack:** ${sanitize(project.detectedStack.join(' · '))}`);
     lines.push('');
   }
   lines.push(`Here's where we are with this project:`);
@@ -212,6 +219,9 @@ function formatForGrok(project: ProjectMemory, task?: string): string {
 
   lines.push(`PROJECT: ${sanitize(project.name)}`);
   if (project.githubRepo) lines.push(`REPO: ${project.githubRepo}`);
+  if (project.detectedStack && project.detectedStack.length > 0) {
+    lines.push(`STACK: ${sanitize(project.detectedStack.join(', '))}`);
+  }
   lines.push(`STATUS: ${sanitize(project.currentState || 'not set')}`);
   if (task && task.trim()) lines.push(`TASK: ${sanitize(task)}`);
   lines.push(`GOALS: ${sanitizeList(project.goals).join(', ') || 'none'}`);
@@ -252,6 +262,10 @@ function formatForPerplexity(project: ProjectMemory, task?: string): string {
   lines.push('');
   if (project.githubRepo) {
     lines.push(`The code lives at: ${project.githubRepo}`);
+    lines.push('');
+  }
+  if (project.detectedStack && project.detectedStack.length > 0) {
+    lines.push(`Tech stack: ${sanitize(project.detectedStack.join(', '))}`);
     lines.push('');
   }
   lines.push(sanitize(project.summary || '(no summary yet)'));
@@ -296,6 +310,10 @@ function formatForGemini(project: ProjectMemory, task?: string): string {
   lines.push('');
   if (project.githubRepo) {
     lines.push(`**GitHub:** ${project.githubRepo}`);
+    lines.push('');
+  }
+  if (project.detectedStack && project.detectedStack.length > 0) {
+    lines.push(`**Tech Stack:** ${sanitize(project.detectedStack.join(' · '))}`);
     lines.push('');
   }
   lines.push(sanitize(project.summary || '(no summary yet)'));

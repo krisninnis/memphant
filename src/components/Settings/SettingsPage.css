@@ -767,3 +767,107 @@
   color: #8aaabb;
   line-height: 1.5;
 }
+
+/* ── SettingsAbout — update UI ──────────────────────────────────────────── */
+
+.about-update-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 0 12px;
+}
+
+.about-update-progress__track {
+  flex: 1;
+  height: 6px;
+  background: #1e2a3a;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.about-update-progress__fill {
+  height: 100%;
+  background: linear-gradient(90deg, #3b82f6, #60a5fa);
+  border-radius: 6px;
+  transition: width 0.3s ease;
+}
+
+.about-update-progress__label {
+  font-size: 11px;
+  color: #60a5fa;
+  font-weight: 600;
+  min-width: 32px;
+  text-align: right;
+}
+
+.about-release-notes {
+  margin: 0 0 14px;
+  background: #0d1520;
+  border: 1px solid #1e3a55;
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+
+.about-release-notes__title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #3a6a9a;
+  margin-bottom: 8px;
+}
+
+.about-release-notes__body {
+  font-size: 12px;
+  color: #7a9ab8;
+  line-height: 1.6;
+  white-space: pre-line;
+}
+
+.about-update-ready {
+  margin: 0 0 14px;
+  padding: 10px 14px;
+  background: rgba(52, 211, 153, 0.06);
+  border: 1px solid rgba(52, 211, 153, 0.18);
+  border-radius: 8px;
+  font-size: 12px;
+  color: #6abf9a;
+  line-height: 1.6;
+}
+
+.about-update-error {
+  margin: 0 0 14px;
+  padding: 10px 14px;
+  background: rgba(239, 68, 68, 0.06);
+  border: 1px solid rgba(239, 68, 68, 0.18);
+  border-radius: 8px;
+  font-size: 12px;
+  color: #f87171;
+  line-height: 1.6;
+}
+
+.about-update-error-retry {
+  background: none;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: 5px;
+  color: #f87171;
+  font-size: 11px;
+  padding: 2px 10px;
+  margin-left: 6px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.about-update-error-retry:hover { border-color: #f87171; }
+
+.about-privacy-body {
+  background: #0d0d0d;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  margin: 0 0 0.75rem;
+  font-size: 0.82rem;
+  line-height: 1.7;
+  color: #b0b0b0;
+  white-space: pre-line;
+}

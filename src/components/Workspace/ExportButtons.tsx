@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { useProjectStore } from '../../store/projectStore';
 import { useActiveProject, useEnabledPlatforms } from '../../hooks/useActiveProject';
 import { copyExportToClipboard } from '../../services/tauriActions';
@@ -21,6 +21,7 @@ function formatSyncAge(isoString: string): string {
 }
 
 export function ExportButtons() {
+  const [copied, setCopied] = useState(false);
   const targetPlatform = useProjectStore((s) => s.targetPlatform);
   const setTargetPlatform = useProjectStore((s) => s.setTargetPlatform);
   const currentTask = useProjectStore((s) => s.currentTask);
@@ -66,6 +67,9 @@ export function ExportButtons() {
     );
 
     await copyExportToClipboard(exportText, targetPlatform);
+
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
   }, [
     activeProject,
     currentTask,
@@ -124,7 +128,7 @@ export function ExportButtons() {
       {/* Single prominent copy button for the active platform */}
       <button
         type="button"
-        className="export-copy-btn"
+        className={`export-copy-btn${copied ? ' export-copy-btn--copied' : ''}`}
         style={{ '--pill-color': targetConfig.color } as React.CSSProperties}
         onClick={() => void handleCopy()}
         disabled={!activeProject}
@@ -134,11 +138,20 @@ export function ExportButtons() {
             : `Copy project context for ${targetConfig.name}`
         }
       >
-        <span className="export-copy-btn__icon">{targetConfig.icon}</span>
-        <span className="export-copy-btn__text">
-          Copy for {targetConfig.name}
-          {syncLabel && <span className="export-copy-btn__age">{syncLabel}</span>}
-        </span>
+        {copied ? (
+          <>
+            <span className="export-copy-btn__icon">✓</span>
+            <span className="export-copy-btn__text">Copied — paste into {targetConfig.name}!</span>
+          </>
+        ) : (
+          <>
+            <span className="export-copy-btn__icon">{targetConfig.icon}</span>
+            <span className="export-copy-btn__text">
+              Copy for {targetConfig.name}
+              {syncLabel && <span className="export-copy-btn__age">{syncLabel}</span>}
+            </span>
+          </>
+        )}
       </button>
     </div>
   );

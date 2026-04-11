@@ -55,9 +55,22 @@ async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Prom
 }
 
 async function openFolderDialog(): Promise<string | null> {
-  const { open } = await import('@tauri-apps/plugin-dialog');
-  const selected = await open({ directory: true, multiple: false });
-  return typeof selected === 'string' ? selected : null;
+  if (!isTauri()) {
+    console.warn('Not running in Tauri');
+    return null;
+  }
+
+  try {
+    const { open } = await import('@tauri-apps/plugin-dialog');
+    const selected = await open({ directory: true, multiple: false });
+
+    console.log('Selected folder:', selected);
+
+    return typeof selected === 'string' ? selected : null;
+  } catch (err) {
+    console.error('Dialog failed:', err);
+    return null;
+  }
 }
 
 // ─── Old ↔ New format conversion ────────────────────────────────────────────
@@ -233,24 +246,32 @@ function formatDetectedStack(meta?: ScanMeta): string {
 
 export async function saveToDisk(project: ProjectMemory): Promise<void> {
   const data = JSON.stringify(toOldFormat(project), null, 2);
+
+  const safeName = project.name
+    .replace(/\s+/g, '_')
+    .replace(/[^A-Za-z0-9_\-]/g, '')
+    .slice(0, 100);
+
+  const fileName = `${safeName}.json`;
+
   if (isTauri()) {
-    const stem = project.name.replace(/\s+/g, '_').replace(/[^A-Za-z0-9_\-]/g, '').slice(0, 100);
-    const fileName = `${stem}.json`;
     try {
       await tauriInvoke('backup_project_file', { fileName });
     } catch (err) {
       console.warn('[Memphant] Backup failed:', err);
     }
+
     await tauriInvoke('save_project_file', {
-      projectName: project.name,
+      projectName: safeName,
       projectData: data,
     });
   } else {
-    browserStore.save(project.name, data);
+    browserStore.save(safeName, data);
   }
 
-  // Fire-and-forget cloud push (no-op when not logged in)
-  void pushProject(project);
+  setTimeout(() => {
+    void pushProject(project);
+  }, 50);
 }
 
 export async function loadAllFromDisk(): Promise<ProjectMemory[]> {
@@ -570,7 +591,12 @@ export async function deleteProject(id: string): Promise<void> {
   const project = projects.find((p) => p.id === id);
   if (!project) return;
 
-  const fileName = `${project.name.replace(/ /g, '_')}.json`;
+  const safeName = project.name
+    .replace(/\s+/g, '_')
+    .replace(/[^A-Za-z0-9_\-]/g, '')
+    .slice(0, 100);
+
+  const fileName = `${safeName}.json`;
 
   try {
     if (isTauri()) {
@@ -578,9 +604,10 @@ export async function deleteProject(id: string): Promise<void> {
     } else {
       browserStore.delete(fileName);
     }
+
     store().removeProject(id);
     store().showToast(`"${project.name}" was removed.`);
-    // Remove from cloud too (no-op when not logged in)
+
     void deleteCloudProject(id);
   } catch (err) {
     console.error('Delete failed:', err);

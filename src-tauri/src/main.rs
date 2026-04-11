@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    memphant_desktop_lib::run()
+    memephant_desktop_lib::run()
 }
