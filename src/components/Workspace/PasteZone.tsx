@@ -9,6 +9,9 @@ import type { DiffResult } from '../../types/memphant-types';
 
 type PasteState = 'idle' | 'typing' | 'diff' | 'no-update';
 
+const LOCAL_AI_MIN_CONFIDENCE = 0.45;
+const LOCAL_AI_HIGH_CONFIDENCE = 0.75;
+
 export function PasteZone() {
   const [pasteText, setPasteText] = useState('');
   const [state, setState] = useState<PasteState>('idle');
@@ -63,10 +66,14 @@ export function PasteZone() {
     let detectionSource = result.source;
     let detectionConfidence = result.confidence;
 
-    if (!update || detectionConfidence < 0.6) {
+    if (!update || detectionConfidence < LOCAL_AI_HIGH_CONFIDENCE) {
       const localResult = await extractStructuredProjectUpdate(trimmedText);
 
-      if (localResult.update && localResult.confidence > detectionConfidence) {
+      if (
+        localResult.update &&
+        localResult.confidence >= LOCAL_AI_MIN_CONFIDENCE &&
+        localResult.confidence > detectionConfidence
+      ) {
         update = localResult.update;
         detectionSource = localResult.source;
         detectionConfidence = localResult.confidence;
@@ -95,10 +102,19 @@ export function PasteZone() {
     setState('diff');
 
     if (detectionSource === 'smart_local_fallback') {
-      showToast(
-        `Local fallback detected a possible update (${Math.round(detectionConfidence * 100)}% confidence). Review before applying.`,
-        'info',
-      );
+      const percent = Math.round(detectionConfidence * 100);
+
+      if (detectionConfidence >= LOCAL_AI_HIGH_CONFIDENCE) {
+        showToast(
+          `Possible update detected locally (${percent}% confidence). Review before applying.`,
+          'info',
+        );
+      } else {
+        showToast(
+          `Low-confidence local update detected (${percent}%). Review carefully before applying.`,
+          'info',
+        );
+      }
     }
   };
 
