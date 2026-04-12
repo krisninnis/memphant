@@ -4,6 +4,10 @@ import { loadAllFromDisk, saveToDisk } from '../services/tauriActions';
 import { pullAndMerge, fetchSubscription, drainQueue } from '../services/cloudSync';
 import { supabase, cloudAvailable } from '../services/supabaseClient';
 
+function isTauri(): boolean {
+  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+}
+
 export function useTauriSync() {
   const setProjects = useProjectStore((s) => s.setProjects);
   const projects = useProjectStore((s) => s.projects);
@@ -11,8 +15,33 @@ export function useTauriSync() {
   const setActiveProject = useProjectStore((s) => s.setActiveProject);
   const setLoading = useProjectStore((s) => s.setLoading);
   const showToast = useProjectStore((s) => s.showToast);
+  const general = useProjectStore((s) => s.settings.general);
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const desktopPrefsSyncedRef = useRef(false);
+
+  useEffect(() => {
+    if (desktopPrefsSyncedRef.current) return;
+    if (!isTauri()) return;
+
+    desktopPrefsSyncedRef.current = true;
+
+    void (async () => {
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        await invoke(general.runOnStartup ? 'enable_autostart' : 'disable_autostart');
+      } catch (err) {
+        console.warn('[Memphant] Autostart sync failed:', err);
+      }
+
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        await invoke('toggle_tray_mode', { enabled: general.systemTray });
+      } catch (err) {
+        console.warn('[Memphant] Tray-mode sync failed:', err);
+      }
+    })();
+  }, [general.runOnStartup, general.systemTray]);
 
   useEffect(() => {
     let unsubscribeAuth: (() => void) | null = null;

@@ -7,6 +7,50 @@ export type SyncStatus = 'idle' | 'syncing' | 'error';
 export type SubscriptionTier = 'free' | 'pro' | 'team';
 export type SubscriptionStatus = 'none' | 'active' | 'trialing' | 'past_due' | 'canceled';
 
+const SETTINGS_STORAGE_KEY = 'mph_settings_v1';
+
+function mergeSettings(raw: unknown): AppSettings {
+  const candidate = (raw && typeof raw === 'object' ? (raw as Record<string, any>) : null) ?? {};
+
+  return {
+    ...DEFAULT_SETTINGS,
+    ...candidate,
+    general: { ...DEFAULT_SETTINGS.general, ...(candidate.general ?? {}) },
+    privacy: { ...DEFAULT_SETTINGS.privacy, ...(candidate.privacy ?? {}) },
+    localAi: { ...DEFAULT_SETTINGS.localAi, ...(candidate.localAi ?? {}) },
+    projects: { ...DEFAULT_SETTINGS.projects, ...(candidate.projects ?? {}) },
+    platforms: {
+      enabled: {
+        ...DEFAULT_SETTINGS.platforms.enabled,
+        ...((candidate.platforms ?? {})?.enabled ?? {}),
+      },
+    },
+  };
+}
+
+function loadSettingsFromStorage(): AppSettings {
+  if (typeof window === 'undefined') return DEFAULT_SETTINGS;
+
+  try {
+    const raw = window.localStorage.getItem(SETTINGS_STORAGE_KEY);
+    if (!raw) return DEFAULT_SETTINGS;
+    return mergeSettings(JSON.parse(raw));
+  } catch (err) {
+    console.warn('[Memphant] Failed to load settings:', err);
+    return DEFAULT_SETTINGS;
+  }
+}
+
+function persistSettingsToStorage(settings: AppSettings): void {
+  if (typeof window === 'undefined') return;
+
+  try {
+    window.localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+  } catch (err) {
+    console.warn('[Memphant] Failed to persist settings:', err);
+  }
+}
+
 interface ProjectStore {
   // State
   projects: ProjectMemory[];
@@ -91,7 +135,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   isLoading: false,
   toastMessage: null,
   toastType: 'success',
-  settings: DEFAULT_SETTINGS,
+  settings: loadSettingsFromStorage(),
   currentView: 'projects',
   preAiBackup: null,
 
@@ -126,9 +170,11 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   clearToast: () => set({ toastMessage: null }),
   setCurrentView: (view) => set({ currentView: view }),
   updateSettings: (updates) =>
-    set((state) => ({
-      settings: { ...state.settings, ...updates },
-    })),
+    set((state) => {
+      const next = mergeSettings({ ...state.settings, ...updates });
+      persistSettingsToStorage(next);
+      return { settings: next };
+    }),
 
   // Rollback
   setPreAiBackup: (project) => set({ preAiBackup: project }),

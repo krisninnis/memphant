@@ -2,6 +2,15 @@ import { useProjectStore } from '../../store/projectStore';
 import Toggle from '../Shared/Toggle';
 import '../Shared/Toggle.css';
 
+function isTauri(): boolean {
+  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+}
+
+async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+  const { invoke } = await import('@tauri-apps/api/core');
+  return invoke<T>(cmd, args);
+}
+
 export function SettingsGeneral() {
   const settings = useProjectStore((s) => s.settings);
   const updateSettings = useProjectStore((s) => s.updateSettings);
@@ -9,6 +18,7 @@ export function SettingsGeneral() {
   const setTourActive = useProjectStore((s) => s.setTourActive);
 
   const g = settings.general;
+  const desktop = isTauri();
 
   const update = (updates: Partial<typeof g>) => {
     updateSettings({ general: { ...g, ...updates } });
@@ -81,17 +91,63 @@ export function SettingsGeneral() {
         <div className="setting-row">
           <div className="setting-info">
             <div className="setting-label">Run on startup</div>
-            <div className="setting-description">Start Memephant when you log in — coming in next release</div>
+            <div className="setting-description">Start Memephant when you log in</div>
           </div>
-          <span className="setting-badge">Coming soon</span>
+          <Toggle
+            value={g.runOnStartup}
+            disabled={!desktop}
+            onChange={(v) => {
+              if (!desktop) {
+                showToast('Run on startup is available in the desktop app', 'info');
+                return;
+              }
+
+              const prev = g.runOnStartup;
+              update({ runOnStartup: v });
+
+              void (async () => {
+                try {
+                  await tauriInvoke(v ? 'enable_autostart' : 'disable_autostart');
+                  showToast(v ? 'Startup enabled' : 'Startup disabled');
+                } catch (err) {
+                  console.error('Autostart toggle failed:', err);
+                  update({ runOnStartup: prev });
+                  showToast('Could not update startup setting', 'error');
+                }
+              })();
+            }}
+          />
         </div>
 
         <div className="setting-row">
           <div className="setting-info">
             <div className="setting-label">System tray</div>
-            <div className="setting-description">Keep running in the background when you close — coming in next release</div>
+            <div className="setting-description">Hide the window instead of quitting when you close it</div>
           </div>
-          <span className="setting-badge">Coming soon</span>
+          <Toggle
+            value={g.systemTray}
+            disabled={!desktop}
+            onChange={(v) => {
+              if (!desktop) {
+                showToast('System tray mode is available in the desktop app', 'info');
+                return;
+              }
+
+              const prev = g.systemTray;
+              update({ systemTray: v });
+
+              void (async () => {
+                try {
+                  await tauriInvoke('toggle_tray_mode', { enabled: v });
+                  showToast(v ? 'Tray mode enabled' : 'Tray mode disabled');
+                } catch (err) {
+                  console.error('Tray toggle failed:', err);
+                  update({ systemTray: prev });
+                  showToast('Could not update tray mode', 'error');
+                }
+              })();
+            }}
+          />
         </div>
       </div>
 

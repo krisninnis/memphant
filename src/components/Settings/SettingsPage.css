@@ -140,6 +140,27 @@
   line-height: 1.4;
 }
 
+.setting-desc-stack {
+  display: grid;
+  gap: 6px;
+}
+
+.setting-desc-bullets {
+  display: grid;
+  gap: 2px;
+}
+
+.setting-desc-muted {
+  opacity: 0.95;
+}
+
+.setting-mono-small {
+  margin-top: 6px;
+  font-family: monospace;
+  font-size: 0.78rem;
+  opacity: 0.95;
+}
+
 .setting-select {
   background: #1a1a2e;
   border: 1px solid #2a2a3e;

@@ -1,7 +1,16 @@
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+use tauri::menu::{Menu, MenuItem};
 use tauri::Manager;
+use tauri::tray::TrayIconBuilder;
+use tauri_plugin_autostart::ManagerExt;
+
+#[derive(Default)]
+struct TrayModeState {
+    enabled: Mutex<bool>,
+}
 
 fn is_ignored_path(path: &str) -> bool {
     let normalized = path.replace("\\", "/").to_lowercase();
@@ -782,6 +791,33 @@ async fn get_projects_path(app: tauri::AppHandle) -> Result<String, String> {
 }
 
 #[tauri::command]
+async fn enable_autostart(app: tauri::AppHandle) -> Result<(), String> {
+    app.autolaunch().enable().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn disable_autostart(app: tauri::AppHandle) -> Result<(), String> {
+    app.autolaunch().disable().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn toggle_tray_mode(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, TrayModeState>,
+    enabled: bool,
+) -> Result<(), String> {
+    if let Ok(mut guard) = state.enabled.lock() {
+        *guard = enabled;
+    }
+
+    if let Some(tray) = app.tray_by_id("memephant_tray") {
+        tray.set_visible(enabled).map_err(|e| e.to_string())?;
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
 async fn write_text_file(file_path: String, content: String) -> Result<(), String> {
     let path = PathBuf::from(&file_path);
     if let Some(parent) = path.parent() {
@@ -825,15 +861,74 @@ async fn backup_project_file(app: tauri::AppHandle, file_name: String) -> Result
     Ok(())
 }
 
+fn setup_tray(app: &tauri::AppHandle) -> Result<(), tauri::Error> {
+    let open = MenuItem::with_id(app, "open", "Open Memephant", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&open, &quit])?;
+
+    let mut builder = TrayIconBuilder::with_id("memephant_tray").menu(&menu);
+    if let Some(icon) = app.default_window_icon().cloned() {
+        builder = builder.icon(icon);
+    }
+
+    builder
+        .on_menu_event(|app, event| {
+            match event.id().as_ref() {
+                "open" => {
+                    if let Some(window) = app.get_webview_window("main") {
+                        let _ = window.show();
+                        let _ = window.set_focus();
+                    }
+                }
+                "quit" => {
+                    app.exit(0);
+                }
+                _ => {}
+            }
+        })
+        .build(app)?;
+
+    if let Some(tray) = app.tray_by_id("memephant_tray") {
+        let _ = tray.set_visible(false);
+    }
+
+    Ok(())
+}
+
 // \u2500\u2500\u2500 App entry point \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(TrayModeState::default())
+        .setup(|app| {
+            setup_tray(app.handle())?;
+            Ok(())
+        })
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                let enabled = window
+                    .app_handle()
+                    .state::<TrayModeState>()
+                    .enabled
+                    .lock()
+                    .map(|guard| *guard)
+                    .unwrap_or(false);
+
+                if enabled {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             scan_project_folder,
             rescan_linked_folder,
@@ -845,6 +940,9 @@ pub fn run() {
             get_projects_path,
             backup_project_file,
             write_text_file,
+            enable_autostart,
+            disable_autostart,
+            toggle_tray_mode,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

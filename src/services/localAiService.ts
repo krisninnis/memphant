@@ -255,7 +255,55 @@ async function pingOllama(endpoint: string): Promise<boolean> {
 }
 
 export async function checkOllamaAvailability(endpoint: string): Promise<boolean> {
-  return pingOllama(endpoint);
+  const normalized = normalizeEndpoint(endpoint);
+
+  try {
+    console.log('[Ollama] Checking endpoint:', normalized);
+
+    const res = await fetch(`${normalized}/api/tags`, { method: 'GET' });
+
+    console.log('[Ollama] Response status:', res.status);
+
+    return res.ok;
+  } catch (err) {
+    console.error('[Ollama] Connection failed:', err);
+    return false;
+  }
+}
+
+export async function checkModelExists(endpoint: string, model: string): Promise<boolean> {
+  const normalized = normalizeEndpoint(endpoint);
+  const target = model.trim();
+  if (!normalized || !target) return false;
+
+  try {
+    type TagsResponse = { models?: Array<{ name?: string }> };
+    const res = await fetch(`${normalized}/api/tags`, { method: 'GET' });
+    if (!res.ok) return false;
+
+    const data = (await res.json()) as TagsResponse;
+    const models = data.models ?? [];
+    const targetLower = target.toLowerCase();
+    const targetHasTag = target.includes(':');
+
+    for (const m of models) {
+      const name = (m?.name ?? '').trim();
+      if (!name) continue;
+      const lower = name.toLowerCase();
+      if (lower === targetLower) return true;
+
+      // If user entered "llama3.1" match "llama3.1:8b" etc.
+      if (!targetHasTag) {
+        const baseName = lower.split(':')[0] ?? '';
+        if (baseName === targetLower) return true;
+      }
+    }
+
+    return false;
+  } catch (err) {
+    console.error('[Ollama] Model tag check failed:', err);
+    return false;
+  }
 }
 
 function buildOllamaPrompt(text: string): { system: string; prompt: string } {

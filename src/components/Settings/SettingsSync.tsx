@@ -135,6 +135,8 @@ function DeleteAccountSection({
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function SettingsSync() {
+  const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+
   const cloudUser = useProjectStore((s) => s.cloudUser);
   const syncStatus = useProjectStore((s) => s.syncStatus);
   const lastSyncedAt = useProjectStore((s) => s.lastSyncedAt);
@@ -346,14 +348,7 @@ const sub = await fetchSubscription(cloudUser.id);
               Unlimited projects, priority support, and early access to new features.
             </p>
             <div className="sync-upgrade-actions">
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={() => handleUpgrade('pro')}
-                disabled={busy}
-              >
-                Upgrade to Pro — $8/mo
-              </button>
+            
 
               <button
                 type="button"
@@ -710,6 +705,10 @@ const sub = await fetchSubscription(cloudUser.id);
     setFormError('');
 
     try {
+      if (isTauri && provider === 'google') {
+        throw new Error('Coming soon.');
+      }
+
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
@@ -722,7 +721,6 @@ const sub = await fetchSubscription(cloudUser.id);
       if (!data.url) throw new Error('No OAuth URL returned.');
 
       // Open in system browser (Tauri) or same tab (web/PWA)
-      const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
       if (isTauri) {
         const { openUrl } = await import(/* @vite-ignore */ '@tauri-apps/plugin-opener');
         await openUrl(data.url);
@@ -866,6 +864,14 @@ const sub = await fetchSubscription(cloudUser.id);
         <span>or continue with</span>
       </div>
 
+      {isTauri && (
+        <p className="settings-description sync-hint" style={{ marginTop: 10 }}>
+          <strong>Coming soon.</strong>
+        </p>
+      )}
+
+      {!isTauri && (
+        <>
       <div className="sync-oauth-btns">
         <button
           type="button"
@@ -903,6 +909,9 @@ const sub = await fetchSubscription(cloudUser.id);
       >
         Already completed browser sign-in? Click to connect →
       </button>
+
+        </>
+      )}
 
       <p className="settings-description sync-hint">
         Your data is stored locally first. Cloud backup is optional and encrypted in transit.
