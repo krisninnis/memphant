@@ -15,11 +15,18 @@ const labelMap: Record<string, string> = {
 
 interface DiffPreviewProps {
   diffs: DiffResult[];
+  checkpoint?: {
+    id: string;
+    platform: string;
+    timestamp: string;
+    summary: string;
+  } | null;
   detectionMeta?: {
     source: string;
     confidence: number;
   } | null;
-  onApply: () => void;
+  onApplySafe: () => void;
+  onApplyAll: () => void;
   onDiscard: () => void;
 }
 
@@ -136,10 +143,20 @@ function buildSummaryChips(diffs: DiffResult[]): string[] {
   });
 }
 
+function formatCheckpointTime(iso: string): string {
+  const date = new Date(iso);
+  return `${date.toLocaleDateString([], { month: 'short', day: 'numeric' })} ${date.toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  })}`;
+}
+
 export function DiffPreview({
   diffs,
+  checkpoint,
   detectionMeta,
-  onApply,
+  onApplySafe,
+  onApplyAll,
   onDiscard,
 }: DiffPreviewProps) {
   if (diffs.length === 0) {
@@ -159,6 +176,8 @@ export function DiffPreview({
   const sourceLabel = detectionMeta ? (labelMap[detectionMeta.source] ?? detectionMeta.source) : '';
   const summaryText = buildSummarySentence(diffs);
   const summaryChips = buildSummaryChips(diffs);
+  const riskyDiffs = diffs.filter((diff) => diff.riskyOverwrite);
+  const safeDiffCount = diffs.length - riskyDiffs.length;
 
   return (
     <div className="diff-preview">
@@ -174,12 +193,33 @@ export function DiffPreview({
         )}
       </div>
 
+      {checkpoint && (
+        <div className="diff-preview__summary" aria-label="Checkpoint summary">
+          <p className="diff-preview__summary-text">
+            Comparing this AI response against the last {checkpoint.platform} checkpoint from{' '}
+            {formatCheckpointTime(checkpoint.timestamp)}.
+          </p>
+          {checkpoint.summary && (
+            <div className="diff-preview__summary-chips">
+              <span className="diff-preview__summary-chip">{checkpoint.summary}</span>
+            </div>
+          )}
+        </div>
+      )}
+
       {fallbackUsed && (
         <div className="diff-warning">
           Warning:{' '}
           {isHighConfidence
             ? `Local AI detected this update (${confidencePercent}% confidence)`
             : `Low confidence detection (${confidencePercent}%) - review carefully`}
+        </div>
+      )}
+
+      {riskyDiffs.length > 0 && (
+        <div className="diff-warning">
+          Risky overwrite{riskyDiffs.length !== 1 ? 's' : ''} detected in{' '}
+          {joinWithAnd(riskyDiffs.map((diff) => fieldLabel(diff.field)))}. These fields changed since the last checkpoint and will only be overwritten if you choose Apply all.
         </div>
       )}
 
@@ -198,7 +238,7 @@ export function DiffPreview({
         {diffs.map((diff, index) => (
           <div
             key={`${diff.field}-${diff.action}-${index}`}
-            className={`diff-item diff-item--${diff.action}`}
+            className={`diff-item diff-item--${diff.action}${diff.riskyOverwrite ? ' diff-item--risky' : ''}`}
           >
             <span className="diff-item__field">{fieldLabel(diff.field)}</span>
 
@@ -207,7 +247,9 @@ export function DiffPreview({
             </span>
 
             <span className="diff-item__value">
-              {diff.action === 'updated'
+              {diff.action === 'updated' && diff.riskyOverwrite
+                ? `Checkpoint: "${renderValue(diff.checkpointValue)}" · Current: "${renderValue(diff.oldValue)}" -> AI: "${renderValue(diff.newValue)}"`
+                : diff.action === 'updated'
                 ? `"${renderValue(diff.oldValue)}" -> "${renderValue(diff.newValue)}"`
                 : renderValue(diff.newValue ?? diff.oldValue)}
             </span>
@@ -216,13 +258,22 @@ export function DiffPreview({
       </div>
 
       <div className="diff-preview__actions">
-        <button type="button" className="diff-apply" onClick={onApply}>
-          Apply changes
+        <button type="button" className="diff-apply" onClick={onApplySafe}>
+          Apply safe only
+        </button>
+        <button type="button" className="diff-discard" onClick={onApplyAll}>
+          Apply all
         </button>
         <button type="button" className="diff-discard" onClick={onDiscard}>
-          Discard
+          Cancel
         </button>
       </div>
+
+      {riskyDiffs.length > 0 && safeDiffCount >= 0 && (
+        <p className="diff-preview__summary-text" style={{ marginTop: 10 }}>
+          {safeDiffCount} safe change{safeDiffCount !== 1 ? 's' : ''} can be applied without overwriting newer local edits.
+        </p>
+      )}
     </div>
   );
 }

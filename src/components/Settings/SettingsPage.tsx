@@ -24,6 +24,7 @@ export function SettingsPage() {
   const setSettingsTab  = useProjectStore((s) => s.setSettingsTab);
   const [activeTab, setActiveTab] = useState<SettingsTab>((settingsTab as SettingsTab) || 'general');
   const setCurrentView  = useProjectStore((s) => s.setCurrentView);
+  const activeTabMeta = TABS.find((tab) => tab.id === activeTab) ?? TABS[0];
 
   // If the store says to open a specific tab (e.g. free-tier redirect), honour it
   useEffect(() => {
@@ -63,6 +64,27 @@ export function SettingsPage() {
       </div>
 
       <div className="settings-content">
+        <div className="settings-mobile-picker">
+          <label className="settings-mobile-picker__label" htmlFor="settings-mobile-tab">
+            Settings section
+          </label>
+          <select
+            id="settings-mobile-tab"
+            className="settings-mobile-picker__select"
+            value={activeTab}
+            onChange={(e) => setActiveTab(e.target.value as SettingsTab)}
+          >
+            {TABS.map((tab) => (
+              <option key={tab.id} value={tab.id}>
+                {tab.label}
+              </option>
+            ))}
+          </select>
+          <p className="settings-mobile-picker__hint">
+            Currently viewing: {activeTabMeta.label}
+          </p>
+        </div>
+
         {activeTab === 'general'   && <SettingsGeneral />}
         {activeTab === 'privacy'   && <SettingsPrivacy />}
         {activeTab === 'projects'  && <SettingsProjects />}

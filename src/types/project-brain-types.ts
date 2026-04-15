@@ -40,6 +40,7 @@ export interface ProjectMemory {
   schema_version: number;
   id: string;
   name: string;
+  updatedAt?: string;
   summary: string;
   goals: string[];
   rules: string[];

@@ -1,11 +1,63 @@
 import { useEffect, useRef } from 'react';
 import { useProjectStore } from '../store/projectStore';
 import { loadAllFromDisk, saveToDisk } from '../services/tauriActions';
-import { pullAndMerge, fetchSubscription, drainQueue } from '../services/cloudSync';
+import { fetchSubscription, runCloudSyncCycle } from '../services/cloudSync';
 import { supabase, cloudAvailable } from '../services/supabaseClient';
 
 function isTauri(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+}
+
+function withUiTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  message: string,
+  label: string,
+): Promise<T> {
+  return new Promise((resolve, reject) => {
+    let settled = false
+    let timedOut = false
+    const timeoutId = window.setTimeout(() => {
+      if (settled) return
+      settled = true
+      timedOut = true
+      console.warn('[useTauriSync] ui_timeout_fired', { label, timeoutMs, uiOnly: true })
+      reject(new Error(message))
+    }, timeoutMs)
+
+    promise.then(
+      (value) => {
+        if (settled) {
+          if (timedOut) {
+            console.warn('[useTauriSync] late_resolution_ignored', { label, timeoutMs })
+          }
+          return
+        }
+        settled = true
+        window.clearTimeout(timeoutId)
+        console.log('[useTauriSync] ui_timeout_resolved', { label, timeoutMs })
+        resolve(value)
+      },
+      (error) => {
+        if (settled) {
+          if (timedOut) {
+            console.warn('[useTauriSync] late_rejection_ignored', { label, timeoutMs, error })
+          }
+          return
+        }
+        settled = true
+        window.clearTimeout(timeoutId)
+        console.error('[useTauriSync] ui_timeout_rejected', { label, timeoutMs, error })
+        reject(error)
+      },
+    )
+
+    window.setTimeout(() => {
+      if (!settled) {
+        console.warn('[useTauriSync] underlying_request_still_in_flight', { label, timeoutMs })
+      }
+    }, timeoutMs + 50)
+  })
 }
 
 export function useTauriSync() {
@@ -62,11 +114,7 @@ export function useTauriSync() {
             const store = useProjectStore.getState();
 
             if (event === 'SIGNED_OUT') {
-              store.setCloudUser(null);
-              store.setSubscriptionTier('free');
-              store.setSubscriptionStatus('none');
-              store.setSyncStatus('idle');
-              store.setIsAdmin(false);
+              store.resetCloudState();
               return;
             }
 
@@ -81,11 +129,18 @@ export function useTauriSync() {
             };
 
             const currentId = store.cloudUser?.id;
+            const cloudSyncEnabled = store.settings.privacy.cloudSyncEnabled;
 
             store.setCloudUser(incomingUser);
 
             const role = (sessionUser.app_metadata as Record<string, unknown>)?.role;
             store.setIsAdmin(role === 'admin');
+
+            if (!cloudSyncEnabled) {
+              store.setCloudDisconnecting(false);
+              store.setSyncStatus('saved_local');
+              return;
+            }
 
             try {
               const sub = await fetchSubscription(incomingUser.id);
@@ -103,17 +158,24 @@ export function useTauriSync() {
             store.setSyncStatus('syncing');
 
             try {
-              await drainQueue();
-
               const projectsToSync = useProjectStore.getState().projects;
-              const { merged, changed } = await pullAndMerge(projectsToSync);
+              console.log('[useTauriSync] initial_session sync_start', {
+                projectCount: projectsToSync.length,
+                userId: incomingUser.id,
+              })
+              const { merged, changed } = await withUiTimeout(
+                runCloudSyncCycle(projectsToSync, 'startup', incomingUser.id),
+                30000,
+                'Cloud restore timed out.',
+                'useTauriSync.initial_session_sync_cycle',
+              );
 
               if (changed) {
                 store.setProjects(merged);
               }
 
               store.setLastSyncedAt(new Date().toISOString());
-              store.setSyncStatus('idle');
+              store.setSyncStatus('synced');
             } catch (err) {
               console.error('Cloud sync failed:', err);
               store.setSyncStatus('error');
@@ -166,6 +228,7 @@ export function useTauriSync() {
         await saveToDisk(project);
       } catch (err) {
         console.error('Auto-save failed:', err);
+        useProjectStore.getState().setSyncStatus('error');
       }
     }, 500);
 

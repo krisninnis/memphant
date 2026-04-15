@@ -22,6 +22,29 @@ const PRICE_IDS: Record<string, string | undefined> = {
 // The Vercel deployment that hosts the serverless functions
 const API_BASE = import.meta.env.VITE_API_URL || 'https://memphant.com';
 
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  const { supabase } = await import('./supabaseClient');
+  const { useProjectStore } = await import('../store/projectStore');
+  const { showToast } = useProjectStore.getState();
+
+  if (!supabase) {
+    throw new Error('Cloud auth is not configured.');
+  }
+
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
+
+  if (!token) {
+    showToast('Sign in first to manage billing.', 'info');
+    throw new Error('Not signed in.');
+  }
+
+  return {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${token}`,
+  };
+}
+
 // ── Tauri check ───────────────────────────────────────────────────────────────
 
 function isTauri(): boolean {
@@ -67,7 +90,7 @@ export async function startCheckout({ plan, userId, email }: CheckoutOptions): P
 
   const response = await fetch(`${API_BASE}/api/create-checkout`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: await getAuthHeaders(),
     body: JSON.stringify({ priceId, userId, email }),
   });
 
@@ -104,7 +127,7 @@ export async function openCustomerPortal(): Promise<boolean> {
     showToast('Opening subscription management…');
     const response = await fetch(`${API_BASE}/api/create-portal`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await getAuthHeaders(),
       body: JSON.stringify({ userId: cloudUser.id }),
     });
 

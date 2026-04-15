@@ -1,84 +1,60 @@
-# Privacy Policy — Memphant
+# Privacy Policy - Memephant
 
 **Last updated: April 2026**
 
 ## The short version
 
-Memphant stores everything on your device. Nothing is sent to any server. No accounts, no tracking, no analytics.
+Memephant is local-first. By default, your project data stays on your device. Cloud Backup is optional and only used if you sign in. Local AI is optional and runs on your device through Ollama.
 
----
+## What data does Memephant store?
 
-## What data does Memphant store?
+Memephant stores the project data you put into the app, including project names, summaries, goals, decisions, notes, linked-folder metadata, and other structured project memory.
 
-Memphant stores your project files — the text you type into the app (project names, summaries, goals, decisions, notes, and so on) — as JSON files on **your computer only**.
+By default, this data is stored locally on your device in your operating system's application data directory.
 
-These files are stored in your operating system's standard application data directory:
+## Does Memephant send data over the internet?
 
-- **Windows:** `%APPDATA%\com.memphant.app\projects\`
-- **macOS:** `~/Library/Application Support/com.memphant.app/projects/`
-- **Linux:** `~/.local/share/com.memphant.app/projects/`
+Not by default.
 
-You can see the exact path by going to **Settings → Privacy → View stored data**.
+Memephant can send data over the internet only in these optional cases:
 
----
+- If you sign in and enable Cloud Backup, your projects are sent to Supabase so they can sync across your devices.
+- If you subscribe to a paid plan, billing flows are handled through Stripe-hosted checkout and billing pages.
+- If you choose to use the web app instead of the desktop app, your browser will connect to the Memephant website and related backend endpoints.
 
-## Does Memphant send any data over the internet?
+Memephant does not send your project data to ChatGPT, Claude, Gemini, Grok, Perplexity, or any other AI service directly. You choose what to copy and paste into those services yourself.
 
-**No.** Memphant has no server connection of any kind. It does not:
+## Cloud Backup
 
-- Send your project data to any external service
-- Collect usage statistics or analytics
-- Send crash reports
-- Connect to any third-party API
-- Use any telemetry or tracking
+Cloud Backup is optional.
 
-The app runs entirely offline and locally.
+If you sign in, Memephant can back up your projects to Supabase so they are available across devices. Cloud data is transmitted over HTTPS. Your local project files remain available even if you never use Cloud Backup.
 
----
+## Local AI / Private Mode
 
-## Does Memphant scan my files?
+Local AI is optional.
 
-If you choose to link a project folder (optional), Memphant scans the files in that folder to help you build project context. This scan:
+If you enable Private Mode, Memephant can call a locally running Ollama model on your device to improve project update extraction. This runs against your local Ollama endpoint and is intended to keep processing on your machine.
 
-- Runs entirely on your device
-- Never sends file contents to any server
-- Automatically excludes sensitive files (`.env`, `.pem`, `.key`, SSH keys)
-- Automatically redacts common secret patterns (API keys, tokens, credentials) before any export
+## Linked folders
 
----
+If you link a project folder, Memephant scans local files and metadata to help build project context. That scan is designed to stay local unless you later choose to copy exported context into another tool or enable Cloud Backup.
 
-## Does Memphant export my data to AI platforms?
+## Billing and accounts
 
-When you click "Copy for [Platform]", Memphant copies formatted text to your clipboard. You then paste this into an AI chat tool yourself. Memphant does not:
+If you create an account, Memephant stores account and authentication data through Supabase Auth. If you subscribe to a paid plan, Stripe stores billing and subscription data needed to manage payments.
 
-- Connect directly to ChatGPT, Claude, Grok, Perplexity, Gemini, or any other AI service
-- Send any data automatically to any platform
-- Store or log what you paste into AI tools
+## Analytics and tracking
 
-All AI interaction is manual — you are always in control of what you share.
+This repository does not show product analytics or ad-tracking code in the core app. Cloud requests that support sign-in, sync, auth callbacks, subscriptions, and account management are still part of the product when those features are used.
 
----
+## Your control
 
-## Does Memphant collect personal information?
-
-No. Memphant does not ask for your name, email address, or any personal information. There are no user accounts. There is no registration process.
-
----
-
-## Cloud sync
-
-Cloud sync is not currently implemented. When it is introduced in a future version, it will be **opt-in only** with clear disclosure of what is synced and where it is stored. The local-first behaviour described above will always remain available.
-
----
-
-## Open source
-
-Memphant is open source under the MIT licence. You can inspect exactly what the app does at any time:
-
-**https://github.com/krisninnis/memphant**
-
----
+- You can use Memephant locally without signing in.
+- You can export your data from the app.
+- You can delete your local data from the app.
+- You can delete your cloud account from the app if you have signed in.
 
 ## Contact
 
-If you have questions about privacy, open a GitHub issue or discussion at the repository above.
+If you have privacy questions, contact hello@memephant.com or open an issue in the repository.

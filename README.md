@@ -135,7 +135,7 @@ You can find the exact path in **Settings → Privacy → View stored data**. Ro
 
 ## Privacy
 
-Your project data never leaves your machine unless you explicitly sign in to enable cloud backup. Cloud sync is fully opt-in. The app has no analytics, no crash reporting, and no connection to any AI platform directly. See [PRIVACY.md](./PRIVACY.md) for the full policy.
+Your project data stays local by default. Cloud Backup is optional and only used if you sign in. Local AI is optional and runs on your device through Ollama when enabled. Memephant does not connect directly to AI platforms on your behalf; you choose what to copy and paste. See [PRIVACY.md](./PRIVACY.md) for the full policy.
 
 ---
 

@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Signing you in — Memephant</title>
+    <title>Signing you in - Memephant</title>
     <style>
       *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -26,7 +26,7 @@
         max-width: 400px;
         width: 100%;
         text-align: center;
-        box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+        box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
       }
 
       .logo { font-size: 56px; margin-bottom: 16px; line-height: 1; }
@@ -56,7 +56,7 @@
 
       .status--loading { background: #16213e; color: #93c5fd; border: 1px solid #2a3f5f; }
       .status--success { background: #052e16; color: #4ade80; border: 1px solid #166534; }
-      .status--error   { background: #1a0e0e; color: #f87171; border: 1px solid #7f1d1d; }
+      .status--error { background: #1a0e0e; color: #f87171; border: 1px solid #7f1d1d; }
 
       .instructions {
         display: none;
@@ -99,7 +99,8 @@
 
       .spinner {
         display: inline-block;
-        width: 18px; height: 18px;
+        width: 18px;
+        height: 18px;
         border: 2px solid #2a3f5f;
         border-top-color: #93c5fd;
         border-radius: 50%;
@@ -113,33 +114,29 @@
   </head>
   <body>
     <div class="card">
-      <div class="logo">🐘</div>
+      <div class="logo">M</div>
       <h1>Signing you in</h1>
-      <p class="sub">Memephant is connecting your account&hellip;</p>
+      <p class="sub">Memephant is connecting your account...</p>
 
       <div class="status status--loading" id="status">
         <span class="spinner" id="spinner"></span>
-        <span id="status-text">Verifying with Supabase&hellip;</span>
+        <span id="status-text">Verifying with Supabase...</span>
       </div>
 
       <div class="instructions" id="instructions"></div>
-      <button class="close-btn" id="close-btn" onclick="window.close()">Close this tab &amp; return to Memephant</button>
+      <button class="close-btn" id="close-btn" onclick="window.close()">Close this tab and return to Memephant</button>
 
-      <div class="wordmark">Memephant · Remember everything. Explain nothing.</div>
+      <div class="wordmark">Memephant - Remember everything. Explain nothing.</div>
     </div>
 
-    <!--
-      Load the Supabase JS client from CDN so we can exchange the auth code
-      for a session without needing a bundler.
-    -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
     <script>
       (async () => {
-        const statusEl   = document.getElementById('status');
+        const statusEl = document.getElementById('status');
         const statusText = document.getElementById('status-text');
-        const spinnerEl  = document.getElementById('spinner');
-        const instrEl    = document.getElementById('instructions');
-        const closeBtn   = document.getElementById('close-btn');
+        const spinnerEl = document.getElementById('spinner');
+        const instrEl = document.getElementById('instructions');
+        const closeBtn = document.getElementById('close-btn');
 
         function showSuccess(msg, instructions) {
           spinnerEl.style.display = 'none';
@@ -159,62 +156,58 @@
         }
 
         try {
-          // ── Read config from meta tags injected by Vercel env vars, or fall back
-          //    to the known production values. We use the anon key (safe to expose).
-          const SUPABASE_URL    = document.querySelector('meta[name="supa-url"]')?.content
-                                  || 'https://YOUR_PROJECT.supabase.co';
-          const SUPABASE_ANON   = document.querySelector('meta[name="supa-anon"]')?.content
-                                  || 'YOUR_ANON_KEY';
+          const SUPABASE_URL = document.querySelector('meta[name="supa-url"]')?.content
+            || 'https://YOUR_PROJECT.supabase.co';
+          const SUPABASE_ANON = document.querySelector('meta[name="supa-anon"]')?.content
+            || 'YOUR_ANON_KEY';
 
           const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {
             auth: { persistSession: true, autoRefreshToken: true },
           });
 
-          // Supabase v2 automatically picks up the ?code= or #access_token from the URL
-          // and exchanges / stores the session in this browser's localStorage.
           const { data, error } = await supabase.auth.getSession();
-
           if (error) throw error;
 
           if (data?.session) {
-            showSuccess('✅ You\'re signed in!', `
-              <strong>Desktop app users:</strong> Coming soon.<br><br>
-              <strong>PWA / web users:</strong> you're all set — your session is saved.
-              You can close this tab.
+            showSuccess('You are signed in.', `
+              <strong>Desktop app users:</strong> Desktop browser-to-app OAuth bridging is not available yet.<br><br>
+              <strong>Web users:</strong> your session is saved. You can close this tab.
             `);
-          } else {
-            // No session yet — may need to exchange a PKCE code
-            // Try exchangeCodeForSession if there's a code in the URL
-            const params  = new URLSearchParams(window.location.search);
-            const code    = params.get('code');
-
-            if (code) {
-              const { data: exchanged, error: exchErr } = await supabase.auth.exchangeCodeForSession(code);
-              if (exchErr) throw exchErr;
-              if (exchanged?.session) {
-                showSuccess('✅ You\'re signed in!', `
-                  <strong>Desktop app users:</strong> Coming soon.<br><br>
-                  <strong>PWA / web users:</strong> session saved — you can close this tab.
-                `);
-              } else {
-                showError('⚠️ Could not establish session — please try signing in again.');
-              }
-            } else {
-              // Check hash fragment for implicit flow (access_token)
-              const hash  = new URLSearchParams(window.location.hash.replace('#', ''));
-              const token = hash.get('access_token');
-              if (token) {
-                showSuccess('✅ You\'re signed in!', `
-                  <strong>Desktop app users:</strong> Coming soon.
-                `);
-              } else {
-                showError('⚠️ No session received. Please go back and try again.');
-              }
-            }
+            return;
           }
+
+          const params = new URLSearchParams(window.location.search);
+          const code = params.get('code');
+
+          if (code) {
+            const { data: exchanged, error: exchErr } = await supabase.auth.exchangeCodeForSession(code);
+            if (exchErr) throw exchErr;
+
+            if (exchanged?.session) {
+              showSuccess('You are signed in.', `
+                <strong>Desktop app users:</strong> Desktop browser-to-app OAuth bridging is not available yet.<br><br>
+                <strong>Web users:</strong> your session is saved. You can close this tab.
+              `);
+              return;
+            }
+
+            showError('Could not establish a session. Please try signing in again.');
+            return;
+          }
+
+          const hash = new URLSearchParams(window.location.hash.replace('#', ''));
+          const token = hash.get('access_token');
+          if (token) {
+            showSuccess('You are signed in.', `
+              <strong>Desktop app users:</strong> Desktop browser-to-app OAuth bridging is not available yet.
+            `);
+            return;
+          }
+
+          showError('No session was received. Please go back and try again.');
         } catch (err) {
-          console.error('[Memphant] Auth callback error:', err);
-          showError('⚠️ Something went wrong: ' + (err.message || String(err)));
+          console.error('[Memephant] Auth callback error:', err);
+          showError('Something went wrong: ' + (err.message || String(err)));
         }
       })();
     </script>

@@ -2,7 +2,14 @@
  * Diff engine — detects, computes, and applies AI project updates.
  * Used by the Paste Zone to process AI responses.
  */
-import type { Decision, DiffResult, ProjectMemory } from '../types/memphant-types';
+import type {
+  Decision,
+  DiffResult,
+  Platform,
+  ProjectCheckpoint,
+  ProjectCheckpointSnapshot,
+  ProjectMemory,
+} from '../types/memphant-types';
 
 /** The structure of an AI update block */
 export interface DetectedUpdate {
@@ -400,17 +407,72 @@ export function detectUpdate(text: string): DetectionResult {
   return { update: null, source: 'none', confidence: 0 };
 }
 
+function getBaselineProject(
+  current: ProjectMemory,
+  checkpoint?: ProjectCheckpoint | null,
+): ProjectCheckpointSnapshot {
+  return checkpoint?.snapshot ?? current;
+}
+
+function isRiskyScalarOverwrite(
+  current: ProjectMemory,
+  baseline: ProjectCheckpointSnapshot,
+  field: 'summary' | 'currentState',
+  nextValue: string,
+): boolean {
+  return checkpointFieldChanged(current, baseline, field) && nextValue !== current[field];
+}
+
+function checkpointFieldChanged(
+  current: ProjectMemory,
+  baseline: ProjectCheckpointSnapshot,
+  field: 'summary' | 'currentState',
+): boolean {
+  return current[field] !== baseline[field];
+}
+
+export function getLatestCheckpoint(
+  project: ProjectMemory,
+  platform?: Platform,
+): ProjectCheckpoint | null {
+  const checkpoints = Array.isArray(project.checkpoints) ? project.checkpoints : [];
+  const candidates = platform
+    ? checkpoints.filter((checkpoint) => checkpoint.platform === platform)
+    : checkpoints;
+
+  if (candidates.length === 0) return null;
+
+  return [...candidates].sort((a, b) => {
+    const aTime = new Date(a.timestamp).getTime();
+    const bTime = new Date(b.timestamp).getTime();
+    return bTime - aTime;
+  })[0] ?? null;
+}
+
+export function countRiskyDiffs(diffs: DiffResult[]): number {
+  return diffs.filter((diff) => diff.riskyOverwrite).length;
+}
+
 /** Compute a human-readable diff between current project and an incoming update */
-export function computeDiff(current: ProjectMemory, update: DetectedUpdate): DiffResult[] {
+export function computeDiff(
+  current: ProjectMemory,
+  update: DetectedUpdate,
+  checkpoint?: ProjectCheckpoint | null,
+): DiffResult[] {
   const diffs: DiffResult[] = [];
+  const baseline = getBaselineProject(current, checkpoint);
 
   for (const field of ['summary', 'currentState'] as const) {
-    if (isNonEmptyString(update[field]) && update[field] !== current[field]) {
+    if (isNonEmptyString(update[field]) && update[field] !== baseline[field]) {
+      const riskyOverwrite = isRiskyScalarOverwrite(current, baseline, field, update[field]);
       diffs.push({
         field,
         action: 'updated',
         oldValue: current[field],
         newValue: update[field],
+        checkpointValue: baseline[field],
+        riskyOverwrite,
+        checkpointId: checkpoint?.id,
       });
     }
   }
@@ -425,7 +487,7 @@ export function computeDiff(current: ProjectMemory, update: DetectedUpdate): Dif
     const incoming = update[field];
     if (!incoming || !Array.isArray(incoming)) continue;
 
-    const existing = current[field] ?? [];
+    const existing = baseline[field] ?? [];
     const added = incoming.filter((item) => !existing.includes(item));
 
     if (added.length > 0) {
@@ -433,12 +495,14 @@ export function computeDiff(current: ProjectMemory, update: DetectedUpdate): Dif
         field,
         action: 'added',
         newValue: added,
+        checkpointValue: existing,
+        checkpointId: checkpoint?.id,
       });
     }
   }
 
   if (update.decisions && Array.isArray(update.decisions)) {
-    const existing = current.decisions ?? [];
+    const existing = baseline.decisions ?? [];
     const added = update.decisions.filter(
       (decision) => !existing.some((e) => e.decision === decision.decision),
     );
@@ -448,6 +512,8 @@ export function computeDiff(current: ProjectMemory, update: DetectedUpdate): Dif
         field: 'decisions',
         action: 'added',
         newValue: added,
+        checkpointValue: existing,
+        checkpointId: checkpoint?.id,
       });
     }
   }
@@ -479,31 +545,73 @@ export function countDiffs(diffs: DiffResult[]): number {
   }, 0);
 }
 
+interface ApplyUpdateOptions {
+  allowRiskyOverwrites?: boolean;
+  diffs?: DiffResult[];
+  checkpoint?: ProjectCheckpoint | null;
+}
+
+function findDiffForField(diffs: DiffResult[] | undefined, field: string): DiffResult | undefined {
+  return diffs?.find((diff) => diff.field === field && diff.action === 'updated');
+}
+
 /** Apply a detected update to the current project, producing a new project object */
-export function applyUpdate(current: ProjectMemory, update: DetectedUpdate): ProjectMemory {
+export function applyUpdate(
+  current: ProjectMemory,
+  update: DetectedUpdate,
+  options: ApplyUpdateOptions = {},
+): ProjectMemory {
   const now = new Date().toISOString();
   const changelog = [...current.changelog];
-
-  const merged: ProjectMemory = { ...current };
+  const merged: ProjectMemory = {
+    ...current,
+    checkpoints: [...(current.checkpoints ?? [])],
+    decisions: current.decisions.map((decision) => ({ ...decision })),
+    changelog,
+    importantAssets: [...current.importantAssets],
+    goals: [...current.goals],
+    rules: [...current.rules],
+    nextSteps: [...current.nextSteps],
+    openQuestions: [...current.openQuestions],
+    platformState: Object.fromEntries(
+      Object.entries(current.platformState ?? {}).map(([platform, state]) => [
+        platform,
+        state ? { ...state } : state,
+      ]),
+    ) as Partial<Record<Platform, any>>,
+  };
+  const allowRiskyOverwrites = options.allowRiskyOverwrites ?? true;
 
   if (isNonEmptyString(update.summary) && update.summary !== current.summary) {
-    merged.summary = update.summary;
-    changelog.push({
-      timestamp: now,
-      field: 'summary',
-      action: 'updated',
-      summary: 'Summary updated by AI',
-    });
+    const diff = findDiffForField(options.diffs, 'summary');
+    if (!diff?.riskyOverwrite || allowRiskyOverwrites) {
+      merged.summary = update.summary;
+      changelog.push({
+        timestamp: now,
+        field: 'summary',
+        action: 'updated',
+        summary: diff?.riskyOverwrite
+          ? 'Summary overwritten from AI checkpoint'
+          : 'Summary updated by AI',
+        source: options.checkpoint ? `checkpoint:${options.checkpoint.id}` : 'ai',
+      });
+    }
   }
 
   if (isNonEmptyString(update.currentState) && update.currentState !== current.currentState) {
-    merged.currentState = update.currentState;
-    changelog.push({
-      timestamp: now,
-      field: 'currentState',
-      action: 'updated',
-      summary: 'Status updated by AI',
-    });
+    const diff = findDiffForField(options.diffs, 'currentState');
+    if (!diff?.riskyOverwrite || allowRiskyOverwrites) {
+      merged.currentState = update.currentState;
+      changelog.push({
+        timestamp: now,
+        field: 'currentState',
+        action: 'updated',
+        summary: diff?.riskyOverwrite
+          ? 'Current state overwritten from AI checkpoint'
+          : 'Status updated by AI',
+        source: options.checkpoint ? `checkpoint:${options.checkpoint.id}` : 'ai',
+      });
+    }
   }
 
   for (const field of [
@@ -526,6 +634,7 @@ export function applyUpdate(current: ProjectMemory, update: DetectedUpdate): Pro
         field,
         action: 'added',
         summary: `${added.length} item${added.length === 1 ? '' : 's'} added by AI`,
+        source: options.checkpoint ? `checkpoint:${options.checkpoint.id}` : 'ai',
       });
     }
   }
@@ -543,10 +652,22 @@ export function applyUpdate(current: ProjectMemory, update: DetectedUpdate): Pro
         field: 'decisions',
         action: 'added',
         summary: `${added.length} decision${added.length === 1 ? '' : 's'} added by AI`,
+        source: options.checkpoint ? `checkpoint:${options.checkpoint.id}` : 'ai',
       });
     }
   }
 
+  if (options.checkpoint) {
+    merged.platformState = {
+      ...merged.platformState,
+      [options.checkpoint.platform]: {
+        ...merged.platformState?.[options.checkpoint.platform],
+        lastReplyAt: now,
+      },
+    };
+  }
+
   merged.changelog = changelog;
+  merged.updatedAt = now;
   return merged;
 }

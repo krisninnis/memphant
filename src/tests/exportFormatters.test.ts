@@ -33,6 +33,7 @@ function makeProject(overrides: Partial<ProjectMemory> = {}): ProjectMemory {
         source: 'app',
       },
     ],
+    checkpoints: [],
     platformState: {},
     ...overrides,
   };

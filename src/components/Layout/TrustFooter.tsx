@@ -1,7 +1,7 @@
 export function TrustFooter() {
   return (
     <footer className="trust-footer">
-      Your data stays on this device. No cloud. No tracking.
+      Local-first by default. Cloud backup is optional. AI exports only happen when you click copy.
     </footer>
   );
 }

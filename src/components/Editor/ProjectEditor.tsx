@@ -7,9 +7,19 @@ import { DecisionList } from './DecisionCard';
 import { generateSuggestions } from '../../utils/autoSuggest';
 import { GitHubScanPreview } from './GitHubScanPreview';
 import { scanGitHubRepo, mergeScanResult, parseGitHubUrl } from '../../services/githubScanner';
+import { restoreProjectFromHistory } from '../../services/tauriActions';
 import type { GitHubScanResult } from '../../services/githubScanner';
 
 type ScanState = 'idle' | 'scanning' | 'preview' | 'error';
+
+function formatRestorePointTime(isoString: string): string {
+  return new Date(isoString).toLocaleString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
 
 export function ProjectEditor() {
   const activeProject = useActiveProject();
@@ -19,6 +29,7 @@ export function ProjectEditor() {
   const [scanState, setScanState] = useState<ScanState>('idle');
   const [scanResult, setScanResult] = useState<GitHubScanResult | null>(null);
   const [scanError, setScanError] = useState<string>('');
+  const [restoringId, setRestoringId] = useState<string | null>(null);
 
   if (!activeProject) {
     return (
@@ -30,6 +41,9 @@ export function ProjectEditor() {
 
   // Captured here so TypeScript knows it's non-null inside nested functions
   const project = activeProject;
+  const recentRestorePoints = [...(project.restorePoints ?? [])]
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    .slice(0, 5);
 
   const update = (field: string, value: unknown) =>
     updateProject(project.id, { [field]: value } as Parameters<typeof updateProject>[1]);
@@ -109,8 +123,56 @@ export function ProjectEditor() {
     }
   }
 
+  const handleRestore = useCallback(async (restorePointId: string) => {
+    setRestoringId(restorePointId);
+
+    try {
+      await restoreProjectFromHistory(project.id, restorePointId);
+    } finally {
+      setRestoringId((current) => (current === restorePointId ? null : current));
+    }
+  }, [project.id]);
+
   return (
     <div className="project-editor" data-tour="editor">
+      {recentRestorePoints.length > 0 && (
+        <div className="project-history-card">
+          <div className="project-history-card__header">
+            <div>
+              <div className="field-label">Restore History</div>
+              <div className="project-history-card__hint">
+                Restore the project to how it looked before a recent AI apply or rescan.
+              </div>
+            </div>
+            <span className="project-history-card__badge">
+              {recentRestorePoints.length} available
+            </span>
+          </div>
+
+          <div className="project-history-list">
+            {recentRestorePoints.map((restorePoint) => (
+              <div key={restorePoint.id} className="project-history-item">
+                <div className="project-history-item__meta">
+                  <strong>{restorePoint.reason === 'rescan' ? 'Before rescan' : 'Before AI apply'}</strong>
+                  <span>{formatRestorePointTime(restorePoint.timestamp)}</span>
+                </div>
+                <div className="project-history-item__summary">
+                  {restorePoint.summary}
+                </div>
+                <button
+                  type="button"
+                  className="project-history-item__restore"
+                  onClick={() => void handleRestore(restorePoint.id)}
+                  disabled={restoringId === restorePoint.id}
+                >
+                  {restoringId === restorePoint.id ? 'Restoring...' : 'Restore'}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Project name */}
       <div className="field-group" data-tour="editor-name">
         <div className="field-label">Project Name</div>

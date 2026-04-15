@@ -38,10 +38,11 @@ export interface GitHubScanInfo {
   keyFilesFound: string[];  // files successfully fetched during scan
 }
 
-export interface ProjectMemory {
+export interface ProjectCheckpointSnapshot {
   schema_version: number;
   id: string;
   name: string;
+  updatedAt?: string;
   summary: string;
   goals: string[];
   rules: string[];
@@ -57,6 +58,28 @@ export interface ProjectMemory {
   linkedFolder?: LinkedFolder;
   changelog: ChangelogEntry[];
   platformState: Partial<Record<Platform, PlatformState>>;
+}
+
+export interface ProjectCheckpoint {
+  id: string;
+  platform: Platform;
+  timestamp: string;
+  summary: string;
+  snapshot: ProjectCheckpointSnapshot;
+  hash: string;
+}
+
+export interface ProjectRestorePoint {
+  id: string;
+  timestamp: string;
+  reason: 'ai_apply' | 'rescan';
+  summary: string;
+  snapshot: ProjectCheckpointSnapshot;
+}
+
+export interface ProjectMemory extends ProjectCheckpointSnapshot {
+  checkpoints: ProjectCheckpoint[];
+  restorePoints?: ProjectRestorePoint[];
 }
 
 export interface MemphantUpdate {
@@ -77,6 +100,9 @@ export interface DiffResult {
   action: 'added' | 'updated' | 'removed';
   oldValue?: unknown;
   newValue?: unknown;
+  checkpointValue?: unknown;
+  riskyOverwrite?: boolean;
+  checkpointId?: string;
 }
 
 export interface ExportCache {
@@ -149,7 +175,42 @@ export const DEFAULT_SETTINGS: AppSettings = {
   },
 };
 
-export function hashProjectState(project: ProjectMemory): string {
+export function cloneCheckpointSnapshot(project: ProjectCheckpointSnapshot): ProjectCheckpointSnapshot {
+  return {
+    schema_version: project.schema_version,
+    id: project.id,
+    name: project.name,
+    updatedAt: project.updatedAt,
+    summary: project.summary,
+    goals: [...project.goals],
+    rules: [...project.rules],
+    decisions: project.decisions.map((decision) => ({ ...decision })),
+    currentState: project.currentState,
+    nextSteps: [...project.nextSteps],
+    openQuestions: [...project.openQuestions],
+    importantAssets: [...project.importantAssets],
+    aiInstructions: project.aiInstructions,
+    githubRepo: project.githubRepo,
+    detectedStack: project.detectedStack ? [...project.detectedStack] : undefined,
+    scanInfo: project.scanInfo
+      ? {
+          scannedAt: project.scanInfo.scannedAt,
+          repoUrl: project.scanInfo.repoUrl,
+          keyFilesFound: [...project.scanInfo.keyFilesFound],
+        }
+      : undefined,
+    linkedFolder: project.linkedFolder ? { ...project.linkedFolder } : undefined,
+    changelog: project.changelog.map((entry) => ({ ...entry })),
+    platformState: Object.fromEntries(
+      Object.entries(project.platformState ?? {}).map(([platform, state]) => [
+        platform,
+        state ? { ...state } : state,
+      ]),
+    ) as Partial<Record<Platform, PlatformState>>,
+  };
+}
+
+export function hashProjectState(project: ProjectCheckpointSnapshot): string {
   const key = [
     project.summary,
     project.currentState,

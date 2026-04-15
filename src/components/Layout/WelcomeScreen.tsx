@@ -1,10 +1,9 @@
 /**
- * WelcomeScreen — shown when no projects exist.
+ * WelcomeScreen - shown when no projects exist.
  *
  * Two modes:
- *   1. Landing: choose "guided setup" or "scan a folder"
- *   2. Wizard: 3-step guided flow → creates a project with enough content
- *              to make the first export genuinely useful
+ *   1. Landing: choose guided setup, templates, or folder scan
+ *   2. Wizard: 3-step guided flow that creates a useful first project
  */
 import { useState } from 'react';
 import { useProjectStore } from '../../store/projectStore';
@@ -24,8 +23,8 @@ const STEP_TITLES: Record<Step, string> = {
 };
 
 const STEP_HINTS: Record<Step, string> = {
-  1: 'Give it a clear name — this is how you will find it later.',
-  2: "One or two sentences is enough. Your AI will read this every session to get up to speed.",
+  1: 'Give it a clear name - this is how you will find it later.',
+  2: 'One or two sentences is enough. Your AI will read this every session to get up to speed.',
   3: 'Add the one thing you want to tackle in your first AI session.',
 };
 
@@ -37,7 +36,7 @@ const STEP_PLACEHOLDERS: Record<Step, string> = {
 
 function buildFirstProject(name: string, summary: string, firstStep: string): ProjectMemory {
   const now = new Date().toISOString();
-  const id = name.trim().replace(/\s+/g, '_').toLowerCase() + '_' + Date.now();
+  const id = `${name.trim().replace(/\s+/g, '_').toLowerCase()}_${Date.now()}`;
 
   return {
     schema_version: 1,
@@ -53,6 +52,8 @@ function buildFirstProject(name: string, summary: string, firstStep: string): Pr
     nextSteps: firstStep.trim() ? [firstStep.trim()] : [],
     openQuestions: [],
     importantAssets: [],
+    checkpoints: [],
+    restorePoints: [],
     changelog: [
       {
         timestamp: now,
@@ -110,10 +111,10 @@ export function WelcomeScreen() {
       await saveToDisk(project);
       addProject(project);
       setActiveProject(project.id);
-      showToast(`"${project.name}" is ready — copy it for your AI to get started.`);
+      showToast(`"${project.name}" is ready - copy it for your AI to get started.`);
     } catch (err) {
       console.error('Create failed:', err);
-      showToast('Could not create the project — please try again.', 'error');
+      showToast('Could not create the project - please try again.', 'error');
       setCreating(false);
     }
   };
@@ -126,55 +127,74 @@ export function WelcomeScreen() {
     }
   };
 
-  // ── Landing ────────────────────────────────────────────────────────────────
-
   if (mode === 'landing') {
     return (
       <div className="welcome-screen">
         <div className="welcome-card">
           <div className="welcome-logo">
-  <img src="/icons/icon-192.png" alt="Memephant logo" className="welcome-logo__image" />
-</div>
+            <img src="/icons/icon-192.png" alt="Memephant logo" className="welcome-logo__image" />
+          </div>
+
           <h1 className="welcome-title">Memephant</h1>
           <p className="welcome-tagline">
-            Remember your projects so your AIs don&apos;t have to.
+            Remember your projects so your AIs do not have to.
           </p>
 
+          <div className="welcome-flow">
+            <div className="welcome-flow__step">
+              <span className="welcome-flow__number">1</span>
+              <div>
+                <strong>Build project memory</strong>
+                <div>Scan a folder or describe the project once.</div>
+              </div>
+            </div>
+            <div className="welcome-flow__step">
+              <span className="welcome-flow__number">2</span>
+              <div>
+                <strong>Copy for any AI</strong>
+                <div>Claude, ChatGPT, Grok, Gemini, or another tool.</div>
+              </div>
+            </div>
+            <div className="welcome-flow__step">
+              <span className="welcome-flow__number">3</span>
+              <div>
+                <strong>Paste replies back safely</strong>
+                <div>Review diffs before Memephant updates anything.</div>
+              </div>
+            </div>
+          </div>
+
           <div className="welcome-actions">
-            <button
-              className="welcome-btn welcome-btn--primary"
-              onClick={() => setMode('wizard')}
-            >
-              <span>✏️</span>
+            <button className="welcome-btn welcome-btn--primary" onClick={() => setMode('wizard')}>
+              <span>Start</span>
               Set up my first project
             </button>
-            <button
-              className="welcome-btn welcome-btn--secondary"
-              onClick={() => setMode('templates')}
-            >
-              <span>📋</span>
+            <button className="welcome-btn welcome-btn--secondary" onClick={() => setMode('templates')}>
+              <span>Use</span>
               Start from a template
             </button>
-            <button
-              className="welcome-btn welcome-btn--secondary"
-              onClick={() => void createProjectFromFolder()}
-            >
-              <span>📂</span>
+            <button className="welcome-btn welcome-btn--secondary" onClick={() => void createProjectFromFolder()}>
+              <span>Scan</span>
               Scan a project folder
             </button>
           </div>
 
           <p className="welcome-description">
-            Switch between ChatGPT, Claude, Grok, Perplexity and Gemini — without starting over.
+            Switch between ChatGPT, Claude, Grok, Perplexity and Gemini without starting over.
           </p>
-          <p className="welcome-privacy">🔒 Your data stays on this device. No accounts required.</p>
+          <p className="welcome-privacy">
+            Local-first by default. Sign in only if you want cloud backup across devices.
+          </p>
 
           {!cloudUser && (
             <button
               className="welcome-sync-link"
-              onClick={() => { setSettingsTab('sync'); setCurrentView('settings'); }}
+              onClick={() => {
+                setSettingsTab('sync');
+                setCurrentView('settings');
+              }}
             >
-              ☁️ Sign in to back up &amp; sync across devices →
+              Sign in to back up and sync across devices
             </button>
           )}
         </div>
@@ -182,17 +202,14 @@ export function WelcomeScreen() {
     );
   }
 
-  // ── Templates ──────────────────────────────────────────────────────────────
-
   if (mode === 'templates') {
-    // Step 2: name the chosen template
     if (selectedTemplate) {
       return (
         <div className="welcome-screen">
           <div className="welcome-card welcome-card--wizard">
             <div className="wizard-back-row">
               <button className="wizard-cancel" onClick={() => setSelectedTemplate(null)}>
-                ← Templates
+                Back to templates
               </button>
             </div>
             <div className="welcome-template-icon">{selectedTemplate.emoji}</div>
@@ -209,7 +226,7 @@ export function WelcomeScreen() {
                   void createProjectFromTemplate(selectedTemplate, templateName);
                 }
               }}
-              placeholder={`e.g. ${selectedTemplate.id === 'job-search' ? 'Job Search 2025' : selectedTemplate.label + ' — ' + new Date().getFullYear()}`}
+              placeholder={`e.g. ${selectedTemplate.id === 'job-search' ? 'Job Search 2025' : `${selectedTemplate.label} - ${new Date().getFullYear()}`}`}
               maxLength={100}
             />
             <div className="wizard-nav">
@@ -224,7 +241,7 @@ export function WelcomeScreen() {
                   );
                 }}
               >
-                {creating ? 'Creating…' : "Let's go 🚀"}
+                {creating ? 'Creating...' : "Let's go"}
               </button>
             </div>
           </div>
@@ -232,60 +249,57 @@ export function WelcomeScreen() {
       );
     }
 
-    // Step 1: pick a template
     return (
       <div className="welcome-screen">
         <div className="welcome-card welcome-card--templates">
           <h2 className="wizard-title">Choose a template</h2>
           <p className="wizard-hint">Pre-filled goals, rules, and next steps to get you started fast.</p>
           <div className="template-grid">
-            {PROJECT_TEMPLATES.map((t) => (
+            {PROJECT_TEMPLATES.map((template) => (
               <button
-                key={t.id}
+                key={template.id}
                 className="template-card"
-                onClick={() => { setSelectedTemplate(t); setTemplateName(''); }}
+                onClick={() => {
+                  setSelectedTemplate(template);
+                  setTemplateName('');
+                }}
               >
-                <span className="template-card__emoji">{t.emoji}</span>
-                <span className="template-card__label">{t.label}</span>
-                <span className="template-card__desc">{t.description}</span>
+                <span className="template-card__emoji">{template.emoji}</span>
+                <span className="template-card__label">{template.label}</span>
+                <span className="template-card__desc">{template.description}</span>
               </button>
             ))}
           </div>
           <button
             className="wizard-cancel"
-            onClick={() => { setMode('landing'); setSelectedTemplate(null); }}
+            onClick={() => {
+              setMode('landing');
+              setSelectedTemplate(null);
+            }}
           >
-            ← Back to start
+            Back to start
           </button>
         </div>
       </div>
     );
   }
 
-  // ── Wizard ─────────────────────────────────────────────────────────────────
-
   const progressPct = ((step - 1) / 3) * 100;
 
   return (
     <div className="welcome-screen">
       <div className="welcome-card welcome-card--wizard">
-
-        {/* Progress bar */}
         <div className="wizard-progress">
-          <div
-            className="wizard-progress__fill"
-            style={{ width: `${progressPct + 33}%` }}
-          />
+          <div className="wizard-progress__fill" style={{ width: `${progressPct + 33}%` }} />
         </div>
 
-        {/* Step indicator */}
         <div className="wizard-steps">
-          {([1, 2, 3] as Step[]).map((s) => (
+          {([1, 2, 3] as Step[]).map((wizardStep) => (
             <div
-              key={s}
-              className={`wizard-step-dot${s === step ? ' wizard-step-dot--active' : s < step ? ' wizard-step-dot--done' : ''}`}
+              key={wizardStep}
+              className={`wizard-step-dot${wizardStep === step ? ' wizard-step-dot--active' : wizardStep < step ? ' wizard-step-dot--done' : ''}`}
             >
-              {s < step ? '✓' : s}
+              {wizardStep < step ? 'OK' : wizardStep}
             </div>
           ))}
         </div>
@@ -293,7 +307,6 @@ export function WelcomeScreen() {
         <h2 className="wizard-title">{STEP_TITLES[step]}</h2>
         <p className="wizard-hint">{STEP_HINTS[step]}</p>
 
-        {/* Step 1 — Name */}
         {step === 1 && (
           <input
             className="wizard-input"
@@ -307,7 +320,6 @@ export function WelcomeScreen() {
           />
         )}
 
-        {/* Step 2 — Summary */}
         {step === 2 && (
           <textarea
             className="wizard-textarea"
@@ -320,7 +332,6 @@ export function WelcomeScreen() {
           />
         )}
 
-        {/* Step 3 — First next step */}
         {step === 3 && (
           <textarea
             className="wizard-textarea"
@@ -333,11 +344,10 @@ export function WelcomeScreen() {
           />
         )}
 
-        {/* Navigation */}
         <div className="wizard-nav">
           {step > 1 && (
             <button className="wizard-btn wizard-btn--back" onClick={handleBack}>
-              ← Back
+              Back
             </button>
           )}
 
@@ -347,16 +357,13 @@ export function WelcomeScreen() {
               onClick={handleNext}
               disabled={!canAdvanceStep1}
             >
-              Next →
+              Next
             </button>
           )}
 
           {step === 2 && (
             <>
-              <button
-                className="wizard-btn wizard-btn--skip"
-                onClick={handleSkipSummary}
-              >
+              <button className="wizard-btn wizard-btn--skip" onClick={handleSkipSummary}>
                 Skip for now
               </button>
               <button
@@ -364,7 +371,7 @@ export function WelcomeScreen() {
                 onClick={handleNext}
                 disabled={!canAdvanceStep2}
               >
-                Next →
+                Next
               </button>
             </>
           )}
@@ -375,16 +382,22 @@ export function WelcomeScreen() {
               onClick={() => void handleCreate()}
               disabled={!canFinish || creating}
             >
-              {creating ? 'Creating…' : "Let's go 🚀"}
+              {creating ? 'Creating...' : "Let's go"}
             </button>
           )}
         </div>
 
         <button
           className="wizard-cancel"
-          onClick={() => { setMode('landing'); setStep(1); setName(''); setSummary(''); setFirstStep(''); }}
+          onClick={() => {
+            setMode('landing');
+            setStep(1);
+            setName('');
+            setSummary('');
+            setFirstStep('');
+          }}
         >
-          ← Back to start
+          Back to start
         </button>
       </div>
     </div>

@@ -4,320 +4,1237 @@
  * Strategy:
  *  - Push: after every local save, upsert the project to Supabase.
  *  - Pull: on login / app open, fetch all remote projects and merge.
- *  - Conflict resolution: last-write-wins by `updated_at` timestamp.
- *    The remote `updated_at` column is managed by Supabase (set on upsert).
- *    The local "last updated" is the timestamp of the most recent changelog entry.
+ *  - Conflict resolution: last-write-wins by `updatedAt`.
  *
- * Table schema (already created in Supabase):
- *   projects (
- *     id uuid primary key default gen_random_uuid(),
- *     user_id uuid references auth.users not null,
- *     project_id text not null,
- *     name text not null,
- *     data jsonb not null,
- *     updated_at timestamptz default now(),
- *     unique(user_id, project_id)
- *   )
+ * Auth strategy (important):
+ *  - We prefer cached identity / known user IDs for sync paths whenever the
+ *    app already has a confirmed signed-in user in state.
+ *  - getSession() can trigger token refresh work internally and may hang.
+ *    We wrap it in a short timeout.
+ *  - getUser() makes a live network call to /auth/v1/user and CAN hang
+ *    indefinitely if the auth server is slow. We only call it as a fallback
+ *    with an explicit 5-second timeout.
+ *  - For sync operations, RLS policies enforce row-level security regardless,
+ *    so the cached session user is safe to use.
  */
 
-import { supabase } from './supabaseClient';
-import type { ProjectMemory } from '../types/memphant-types';
-import type { SubscriptionTier, SubscriptionStatus } from '../store/projectStore';
-import { enqueue, dequeue, getAll as getQueued } from './syncQueue';
+import { supabase, supabaseClientInstanceId } from './supabaseClient'
+import type { ProjectMemory } from '../types/memphant-types'
+import type { SubscriptionTier, SubscriptionStatus } from '../store/projectStore'
+import { enqueue, dequeue, getAll as getQueued } from './syncQueue'
 
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-// ─── Retry helper ─────────────────────────────────────────────────────────────
+type CloudSyncStage =
+  | 'auth'
+  | 'queue'
+  | 'push'
+  | 'pull'
+  | 'subscription'
+  | 'cycle'
 
-/**
- * Call `fn` up to `maxAttempts` times with exponential back-off.
- * Throws on final failure.
- */
-// ─── Auth callback URL (used for email confirmation + OAuth fallback) ─────────
+type SyncReason = 'manual' | 'signin' | 'startup' | 'autosave' | 'unknown'
+const SUPABASE_WRITE_TIMEOUT_MS = 15000
+const PROJECTS_TABLE = 'projects'
+const PROJECTS_ON_CONFLICT = 'user_id,project_id'
+const PROJECTS_EXPECTED_KEYS = ['user_id', 'project_id', 'name', 'data', 'updated_at'] as const
+
+type ProjectRow = {
+  user_id: string
+  project_id: string
+  name: string
+  data: Record<string, unknown>
+  updated_at: string
+}
+
+interface SyncLogMeta {
+  reason?: SyncReason
+  requestId?: string
+  [key: string]: unknown
+}
+
+interface SupabaseErrorShape {
+  code?: string
+  message?: string
+  details?: string
+  hint?: string
+  name?: string
+}
+
+interface AuthUserResult {
+  user: { id: string; email?: string | null } | null
+  requestId: string
+}
+
+// ─── In-flight dedup ──────────────────────────────────────────────────────────
+
+// Prevents concurrent sync cycles from stepping on each other.
+let syncCycleInFlight: Promise<{ merged: ProjectMemory[]; changed: boolean }> | null = null
+let authLookupInFlight: Promise<AuthUserResult> | null = null
+let authLookupOwnerRequestId: string | null = null
+let authLookupWaiterCount = 0
+const subscriptionLookupInFlight = new Map<string, Promise<SubscriptionInfo>>()
+let cloudConnectionGeneration = 0
+let cloudDisconnectInProgress = false
+
+// ─── Auth callback URL ────────────────────────────────────────────────────────
 
 const AUTH_CALLBACK_URL =
   (import.meta as any).env?.VITE_APP_URL
     ? `${(import.meta as any).env.VITE_APP_URL}/auth/callback`
     : (import.meta as any).env?.VITE_API_URL
       ? `${(import.meta as any).env.VITE_API_URL}/auth/callback`
-      : 'https://memephant.com/auth/callback';
+      : 'https://memephant.com/auth/callback'
+
+// ─── Utilities ────────────────────────────────────────────────────────────────
+
+function nextRequestId(prefix: string): string {
+  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+function normalizeError(err: unknown): SupabaseErrorShape {
+  if (!err || typeof err !== 'object') {
+    return { message: String(err) }
+  }
+  const candidate = err as SupabaseErrorShape
+  return {
+    name: candidate.name,
+    code: candidate.code,
+    message: candidate.message ?? String(err),
+    details: candidate.details,
+    hint: candidate.hint,
+  }
+}
+
+function classifyError(
+  err: unknown,
+): 'auth_failure' | 'network_failure' | 'timeout' | 'rls_or_database_rejection' {
+  const normalized = normalizeError(err)
+  const message = (normalized.message ?? '').toLowerCase()
+  const code = (normalized.code ?? '').toLowerCase()
+
+  if (message.includes('timed out')) return 'timeout'
+  if (
+    message.includes('not signed in') ||
+    message.includes('session') ||
+    code.startsWith('auth')
+  ) {
+    return 'auth_failure'
+  }
+  if (normalized.code || normalized.details || normalized.hint) {
+    return 'rls_or_database_rejection'
+  }
+  return 'network_failure'
+}
+
+function logSync(stage: CloudSyncStage, event: string, meta: SyncLogMeta = {}): void {
+  console.log(`[CloudSync][${stage}] ${event}`, meta)
+}
+
+function logSyncError(
+  stage: CloudSyncStage,
+  event: string,
+  err: unknown,
+  meta: SyncLogMeta = {},
+): void {
+  console.error(`[CloudSync][${stage}] ${event}`, {
+    ...meta,
+    kind: classifyError(err),
+    error: normalizeError(err),
+  })
+}
+
+function estimateChars(value: unknown): number {
+  try {
+    return JSON.stringify(value)?.length ?? 0
+  } catch {
+    return -1
+  }
+}
+
+function summarizeLargeDataShape(
+  value: unknown,
+  path = 'data',
+  findings: string[] = [],
+): string[] {
+  if (findings.length >= 6) return findings
+
+  if (typeof value === 'string') {
+    if (value.length > 50_000) findings.push(`${path}:string(${value.length})`)
+    return findings
+  }
+
+  if (Array.isArray(value)) {
+    if (value.length > 250) findings.push(`${path}:array(${value.length})`)
+    for (let i = 0; i < Math.min(value.length, 5); i++) {
+      summarizeLargeDataShape(value[i], `${path}[${i}]`, findings)
+      if (findings.length >= 6) break
+    }
+    return findings
+  }
+
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>)
+    if (entries.length > 100) findings.push(`${path}:objectKeys(${entries.length})`)
+    for (const [key, nested] of entries.slice(0, 8)) {
+      summarizeLargeDataShape(nested, `${path}.${key}`, findings)
+      if (findings.length >= 6) break
+    }
+  }
+
+  return findings
+}
+
+function summarizeProjectRows(rows: ProjectRow[]): SyncLogMeta {
+  const first = rows[0]
+  const keys = first ? Object.keys(first).sort() : []
+  const expectedKeys = [...PROJECTS_EXPECTED_KEYS].sort()
+  const unexpectedKeys = keys.filter((key) => !expectedKeys.includes(key as typeof PROJECTS_EXPECTED_KEYS[number]))
+  const missingKeys = expectedKeys.filter((key) => !keys.includes(key))
+  const payloadChars = estimateChars(rows)
+  const payloadBytes = payloadChars >= 0 ? new Blob([JSON.stringify(rows)]).size : -1
+  const firstDataKeys =
+    first?.data && typeof first.data === 'object'
+      ? Object.keys(first.data).sort().slice(0, 20)
+      : []
+
+  return {
+    table: PROJECTS_TABLE,
+    onConflict: PROJECTS_ON_CONFLICT,
+    recordCount: rows.length,
+    payloadChars,
+    payloadBytes,
+    firstRecordKeys: keys,
+    firstDataKeys,
+    missingKeys,
+    unexpectedKeys,
+    firstProjectId: first?.project_id ?? null,
+    largeDataFindings: first ? summarizeLargeDataShape(first.data) : [],
+  }
+}
+
+/**
+ * Run a Supabase write request with a hard deadline.
+ *
+ * Previous pattern: wraps a PromiseLike in Promise.race() — this only
+ * cancels the JS promise; the underlying fetch() keeps running as a zombie.
+ *
+ * New pattern: accepts a factory (signal) => PromiseLike so an AbortController
+ * is created here, its signal passed to the Supabase query builder via
+ * .abortSignal(), and controller.abort() is called on timeout. This actually
+ * cancels the HTTP request, preventing zombie requests piling up on retry.
+ */
+async function withSupabaseWriteTimeout<T>(
+  requestFactory: (signal: AbortSignal) => PromiseLike<T>,
+  eventBase: 'request' | 'batch',
+  meta: SyncLogMeta = {},
+  timeoutMs = SUPABASE_WRITE_TIMEOUT_MS,
+): Promise<T> {
+  const startedAt = Date.now()
+  const controller = new AbortController()
+
+  logSync('push', `${eventBase}_factory_created`, {
+    ...meta,
+    timeoutMs,
+  })
+
+  const timeoutId = window.setTimeout(() => {
+    logSync('push', `${eventBase}_timeout`, {
+      ...meta,
+      timeoutMs,
+      durationMs: Date.now() - startedAt,
+    })
+    controller.abort(new Error(`Cloud write timed out after ${Math.round(timeoutMs / 1000)} s`))
+  }, timeoutMs)
+
+  try {
+    logSync('push', `${eventBase}_factory_invoked`, {
+      ...meta,
+      signalAlreadyAborted: controller.signal.aborted,
+    })
+
+    const requestLike = requestFactory(controller.signal)
+    logSync('push', `${eventBase}_query_builder_created`, {
+      ...meta,
+      hasThen: Boolean(requestLike && typeof (requestLike as { then?: unknown }).then === 'function'),
+    })
+
+    logSync('push', `${eventBase}_query_execution_started`, {
+      ...meta,
+    })
+    const requestPromise = Promise.resolve(requestLike)
+    const result = await requestPromise
+    window.clearTimeout(timeoutId)
+    logSync('push', `${eventBase}_response_received`, {
+      ...meta,
+      durationMs: Date.now() - startedAt,
+    })
+    return result
+  } catch (err) {
+    window.clearTimeout(timeoutId)
+    // Normalise AbortError (thrown by fetch when controller.abort() fires) into
+    // our standard timeout error so classifyError() recognises it.
+    const isAbort =
+      (err instanceof DOMException && err.name === 'AbortError') ||
+      (err instanceof Error && err.name === 'AbortError')
+    if (isAbort) {
+      const timeoutErr = new Error(`Cloud write timed out after ${Math.round(timeoutMs / 1000)} s`)
+      logSyncError('push', `${eventBase}_promise_unresolved`, timeoutErr, {
+        ...meta,
+        durationMs: Date.now() - startedAt,
+      })
+      throw timeoutErr
+    }
+    throw err
+  }
+}
+
+// ─── Supabase reachability check ─────────────────────────────────────────────
+
+/**
+ * Ping the Supabase REST metadata endpoint with a 5-second deadline.
+ *
+ * Purpose: detect a paused / unreachable Supabase project BEFORE we waste
+ * 15 seconds waiting for an upsert that will never respond. A paused free-tier
+ * project accepts TCP connections but never sends HTTP responses — this ping
+ * surfaces that quickly.
+ *
+ * Returns 'ok' | 'paused' | 'unreachable'.
+ */
+async function checkSupabaseReachable(
+  projectUrl: string,
+  anonKey: string,
+): Promise<'ok' | 'paused' | 'unreachable'> {
+  const controller = new AbortController()
+  const timeoutId = window.setTimeout(() => controller.abort(), 5000)
+
+  try {
+    const res = await fetch(`${projectUrl}/rest/v1/`, {
+      method: 'HEAD',
+      headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` },
+      signal: controller.signal,
+    })
+    window.clearTimeout(timeoutId)
+    // 2xx or 4xx = Supabase is up (4xx means it's alive, just no table to HEAD)
+    return res.status < 500 ? 'ok' : 'unreachable'
+  } catch (err) {
+    window.clearTimeout(timeoutId)
+    const isAbort = err instanceof DOMException && err.name === 'AbortError'
+    logSync('push', 'health_check_result', {
+      reachable: false,
+      isAbort,
+      error: err instanceof Error ? err.message : String(err),
+    })
+    return isAbort ? 'paused' : 'unreachable'
+  }
+}
+
+let lastHealthCheckAt = 0
+let lastHealthResult: 'ok' | 'paused' | 'unreachable' | null = null
+const HEALTH_CHECK_CACHE_MS = 30_000 // don't re-ping within 30 s
+
+async function ensureSupabaseReachable(): Promise<void> {
+  const url = (import.meta as any).env?.VITE_SUPABASE_URL as string | undefined
+  const key = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY as string | undefined
+  if (!url || !key) return // no config — let the actual request fail naturally
+
+  const now = Date.now()
+  if (lastHealthResult === 'ok' && now - lastHealthCheckAt < HEALTH_CHECK_CACHE_MS) {
+    return // recent passing check — skip
+  }
+
+  logSync('push', 'health_check_start', { url })
+  const result = await checkSupabaseReachable(url, key)
+  lastHealthCheckAt = Date.now()
+  lastHealthResult = result
+  logSync('push', 'health_check_result', { result })
+
+  if (result === 'paused') {
+    throw new Error(
+      'Supabase is not responding (project may be paused on free tier). ' +
+      'Visit supabase.com/dashboard → your project → Resume to wake it up.',
+    )
+  }
+  if (result === 'unreachable') {
+    throw new Error('Cannot reach Supabase — check your internet connection.')
+  }
+}
+
+// ─── Session pre-warm ─────────────────────────────────────────────────────────
+
+/**
+ * Ensure the Supabase JWT is fresh before making a write request.
+ *
+ * WHY THIS EXISTS:
+ *   With autoRefreshToken:false in the client, no background refresh runs.
+ *   But if we DON'T call this, the client sends the expired token to Supabase
+ *   and gets a 401 (fast fail). If autoRefreshToken:true (old default), the
+ *   client would instead try to refresh INSIDE the upsert call using a fetch
+ *   with NO AbortSignal — causing the 15-second hang we've seen in logs.
+ *
+ *   By refreshing here (with an explicit 6s timeout), we ensure:
+ *   1. Token is valid before the upsert fires.
+ *   2. If refresh times out, we proceed anyway — the upsert will get a fast
+ *      401 from Supabase rather than hanging silently.
+ */
+const SESSION_EXPIRY_BUFFER_SEC = 120 // refresh if expiring within 2 min
+
+async function ensureSessionFresh(reason: SyncReason): Promise<void> {
+  if (!supabase) return
+
+  // Quick cached read — 500ms max. With autoRefreshToken:false this never hangs.
+  let needsRefresh = false
+  try {
+    const { data } = await Promise.race([
+      supabase.auth.getSession(),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('session quick-check timed out')), 500),
+      ),
+    ])
+    const exp = data?.session?.expires_at ?? 0
+    const nowSec = Math.floor(Date.now() / 1000)
+    const secsLeft = exp - nowSec
+    if (exp === 0 || secsLeft < SESSION_EXPIRY_BUFFER_SEC) {
+      needsRefresh = true
+      logSync('push', 'session_stale', { reason, secsLeft })
+    } else {
+      logSync('push', 'session_fresh', { reason, secsLeft })
+      return
+    }
+  } catch {
+    needsRefresh = true
+    logSync('push', 'session_check_timed_out', { reason })
+  }
+
+  if (!needsRefresh) return
+
+  logSync('push', 'session_refresh_start', { reason })
+  try {
+    const { data, error } = await Promise.race([
+      supabase.auth.refreshSession(),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('session refresh timed out after 6 s')), 6000),
+      ),
+    ])
+    if (error) {
+      logSyncError('push', 'session_refresh_error', error, { reason })
+    } else {
+      const newExp = data.session?.expires_at ?? 0
+      logSync('push', 'session_refresh_success', {
+        reason,
+        newSecsLeft: newExp - Math.floor(Date.now() / 1000),
+      })
+    }
+  } catch (err) {
+    // Timed out or network error. Proceed anyway — upsert will get a fast 401
+    // (with autoRefreshToken:false) rather than hanging indefinitely.
+    logSyncError('push', 'session_refresh_failed', err, { reason })
+  }
+}
+
+// ─── Retry helper ─────────────────────────────────────────────────────────────
 
 async function withRetry<T>(
   fn: () => Promise<T>,
   maxAttempts = 4,
   baseDelayMs = 500,
+  shouldRetry?: (attempt: number, err: unknown) => boolean,
 ): Promise<T> {
-  let lastErr: unknown;
+  let lastErr: unknown
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
-      return await fn();
+      return await fn()
     } catch (err) {
-      lastErr = err;
+      lastErr = err
+      if (shouldRetry && !shouldRetry(attempt, err)) {
+        throw err
+      }
       if (attempt < maxAttempts - 1) {
-        const delay = baseDelayMs * Math.pow(2, attempt) + Math.random() * 200;
-        await new Promise((res) => setTimeout(res, delay));
+        const delay = baseDelayMs * Math.pow(2, attempt) + Math.random() * 200
+        await new Promise((res) => setTimeout(res, delay))
       }
     }
   }
-  throw lastErr;
+  throw lastErr
 }
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Auth helper ──────────────────────────────────────────────────────────────
+
+/**
+ * Get the currently signed-in user for a sync operation.
+ *
+ * Uses getSession() first as the primary path.
+ * Only falls back to getUser() (network call) if the session is absent or
+ * expired, and wraps that call in a 5-second timeout so it cannot hang forever.
+ *
+ * Root cause of the "auth_check_start → nothing" hang:
+ *   both getSession() and getUser() can stall if token refresh gets stuck.
+ *   We keep timeouts around both and skip them entirely when a known user ID
+ *   is already available from app state.
+ */
+async function getAuthUser(reason: SyncReason, source: CloudSyncStage): Promise<AuthUserResult> {
+  const requestId = nextRequestId(source)
+
+  if (!supabase) {
+    logSync(source, 'auth_skipped_no_supabase', { reason, requestId })
+    return { user: null, requestId }
+  }
+
+  if (authLookupInFlight) {
+    authLookupWaiterCount += 1
+    logSync(source, 'auth_check_join_inflight', {
+      reason,
+      requestId,
+      ownerRequestId: authLookupOwnerRequestId,
+      waiterCount: authLookupWaiterCount,
+      clientInstanceId: supabaseClientInstanceId,
+    })
+    return authLookupInFlight
+  }
+
+  authLookupOwnerRequestId = requestId
+  authLookupWaiterCount = 0
+
+  authLookupInFlight = (async () => {
+    logSync(source, 'auth_check_start', {
+      reason,
+      requestId,
+      method: 'getSession_first',
+      clientInstanceId: supabaseClientInstanceId,
+      anotherAuthInFlight: false,
+    })
+
+  // ── Fast path: read cached session from localStorage (no network) ──────────
+  // IMPORTANT: supabase.auth.getSession() can trigger a token refresh internally
+  // if the token is expired, which makes a network request that can hang forever.
+  // We race it against a 3-second timeout so this path is never a blocking hang.
+  try {
+    const t0 = Date.now()
+    const sessionTimeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(
+        () => reject(new Error('getSession timed out — token refresh may be hanging')),
+        3000,
+      ),
+    )
+    const { data: sessionData, error: sessionError } = await Promise.race([
+      supabase.auth.getSession(),
+      sessionTimeoutPromise,
+    ])
+    const sessionMs = Date.now() - t0
+
+    if (sessionError) {
+      logSyncError(source, 'auth_session_error', sessionError, { reason, requestId, sessionMs })
+      // Don't throw yet — fall through to getUser() below
+    } else if (sessionData.session?.user) {
+      const sessionUser = sessionData.session.user
+
+      // Check the session hasn't expired (exp is in seconds)
+      const expiry = sessionData.session.expires_at ?? 0
+      const nowSec = Math.floor(Date.now() / 1000)
+      const isExpired = expiry > 0 && nowSec > expiry
+
+      if (!isExpired) {
+        logSync(source, 'auth_check_success', {
+          reason,
+          requestId,
+          sessionMs,
+          method: 'session_cache',
+          userId: sessionUser.id,
+          expiresIn: expiry - nowSec,
+        })
+        return { user: sessionUser, requestId }
+      }
+
+      logSync(source, 'auth_session_expired', {
+        reason,
+        requestId,
+        sessionMs,
+        expiredSecondsAgo: nowSec - expiry,
+      })
+    } else {
+      logSync(source, 'auth_session_empty', { reason, requestId, sessionMs })
+    }
+  } catch (sessionErr) {
+    logSyncError(source, 'auth_session_exception', sessionErr, { reason, requestId })
+  }
+
+  // ── Slow path: verify with server, with explicit 5-second timeout ──────────
+  logSync(source, 'auth_getuser_start', { reason, requestId })
+
+  try {
+    const getUserPromise = supabase.auth.getUser()
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(
+        () => reject(new Error('Auth getUser timed out after 5 s — token refresh may be stuck')),
+        5000,
+      ),
+    )
+
+    const t1 = Date.now()
+    const { data, error } = await Promise.race([getUserPromise, timeoutPromise])
+    const getUserMs = Date.now() - t1
+
+    if (error) {
+      logSyncError(source, 'auth_getuser_failed', error, { reason, requestId, getUserMs })
+      throw new Error(error.message)
+    }
+
+    logSync(source, 'auth_check_success', {
+      reason,
+      requestId,
+      getUserMs,
+      method: 'getUser_network',
+      hasUser: Boolean(data.user),
+      userId: data.user?.id ?? null,
+    })
+
+    return { user: data.user, requestId }
+    } catch (err) {
+      logSyncError(source, 'auth_check_exception', err, { reason, requestId })
+      throw err
+    }
+  })().finally(() => {
+    logSync(source, 'auth_check_settled', {
+      reason,
+      requestId,
+      waiterCount: authLookupWaiterCount,
+      clientInstanceId: supabaseClientInstanceId,
+    })
+    authLookupInFlight = null
+    authLookupOwnerRequestId = null
+    authLookupWaiterCount = 0
+  })
+
+  return authLookupInFlight
+}
+
+// ─── Public types ─────────────────────────────────────────────────────────────
 
 export interface CloudUser {
-  id: string;
-  email: string;
+  id: string
+  email: string
 }
 
 interface RemoteRow {
-  project_id: string;
-  name: string;
-  data: ProjectMemory;
-  updated_at: string;
+  project_id: string
+  name: string
+  data: ProjectMemory
+  updated_at: string
+}
+
+export interface CloudPushResult {
+  status: 'disabled' | 'skipped' | 'saved_local' | 'pending' | 'error'
+  message?: string
 }
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
-export async function signIn(
-  email: string,
-  password: string,
-): Promise<CloudUser> {
-  if (!supabase) throw new Error('Cloud sync not configured.');
+export async function signIn(email: string, password: string): Promise<CloudUser> {
+  if (!supabase) throw new Error('Cloud sync not configured.')
+  cloudDisconnectInProgress = false
 
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+  if (error) throw new Error(error.message)
+  if (!data.user?.email) throw new Error('Sign-in succeeded but no user returned.')
 
-  if (error) throw new Error(error.message);
-  if (!data.user?.email) throw new Error('Sign-in succeeded but no user returned.');
-
-  return { id: data.user.id, email: data.user.email };
+  return { id: data.user.id, email: data.user.email }
 }
 
-export async function signUp(
-  email: string,
-  password: string,
-): Promise<CloudUser> {
-  if (!supabase) throw new Error('Cloud sync not configured.');
+export async function signUp(email: string, password: string): Promise<CloudUser> {
+  if (!supabase) throw new Error('Cloud sync not configured.')
+  cloudDisconnectInProgress = false
 
- const { data, error } = await supabase.auth.signUp({
-  email,
-  password,
-  options: {
-    emailRedirectTo: AUTH_CALLBACK_URL,
-  },
-});
-  if (error) throw new Error(error.message);
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: { emailRedirectTo: AUTH_CALLBACK_URL },
+  })
+  if (error) throw new Error(error.message)
+  if (!data.user) throw new Error('Sign-up succeeded but no user returned.')
 
-  // Supabase may require email confirmation — handle gracefully
-  const user = data.user;
-  if (!user) throw new Error('Sign-up succeeded but no user returned.');
-
-  return { id: user.id, email: user.email ?? email };
+  return { id: data.user.id, email: data.user.email ?? email }
 }
 
 export async function signOut(): Promise<void> {
-  if (!supabase) return;
-  await supabase.auth.signOut();
+  if (!supabase) return
+  const { error } = await supabase.auth.signOut({ scope: 'local' })
+  if (error) throw new Error(error.message)
 }
 
-// ─── Push ─────────────────────────────────────────────────────────────────────
+function clearSupabaseAuthStorage(): { clearedKeys: string[] } {
+  const clearedKeys = new Set<string>()
+  const shouldClearKey = (key: string): boolean =>
+    key.startsWith('sb-') ||
+    key.startsWith('supabase.auth.') ||
+    key.includes('.auth.token') ||
+    key.includes('.auth.refreshToken') ||
+    key.includes('.auth.expiresAt') ||
+    key.includes('gotrue')
 
-/** Push a single project to Supabase. Queues for offline retry on failure. */
-export async function pushProject(project: ProjectMemory): Promise<void> {
-  if (!supabase) return;
+  const clearFromStorage = (storage: Storage | undefined) => {
+    if (!storage) return
+    const keysToRemove: string[] = []
+    for (let i = 0; i < storage.length; i++) {
+      const key = storage.key(i)
+      if (key && shouldClearKey(key)) {
+        keysToRemove.push(key)
+      }
+    }
+    for (const key of keysToRemove) {
+      storage.removeItem(key)
+      clearedKeys.add(key)
+    }
+  }
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return;
+  if (typeof window !== 'undefined') {
+    clearFromStorage(window.localStorage)
+    clearFromStorage(window.sessionStorage)
+  }
+
+  return { clearedKeys: Array.from(clearedKeys).sort() }
+}
+
+export async function disconnectCloud(): Promise<{ clearedKeys: string[] }> {
+  cloudDisconnectInProgress = true
+  cloudConnectionGeneration += 1
+  logSync('auth', 'disconnect_start', {
+    clientInstanceId: supabaseClientInstanceId,
+    connectionGeneration: cloudConnectionGeneration,
+  })
 
   try {
-    await withRetry(async () => {
-      const { error } = await supabase!.from('projects').upsert(
-        {
-          user_id: user.id,
-          project_id: project.id,
-          name: project.name,
-          data: project as unknown as Record<string, unknown>,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'user_id,project_id' },
-      );
-      if (error) throw new Error(error.message);
-    });
+    logSync('auth', 'disconnect_complete', {
+      clientInstanceId: supabaseClientInstanceId,
+      clearedKeys: [],
+      connectionGeneration: cloudConnectionGeneration,
+    })
 
-    // Succeeded — remove from offline queue in case it was queued previously
-    await dequeue(project.id);
-  } catch (err) {
-    console.warn('[CloudSync] Push failed after retries — queueing offline:', err);
-    await enqueue(project);
+    return { clearedKeys: [] }
+  } finally {
+    cloudDisconnectInProgress = false
   }
 }
 
-/** Remove a project from Supabase when deleted locally. */
-export async function deleteCloudProject(projectId: string): Promise<void> {
-  if (!supabase) return;
+export async function logoutCloudAccount(): Promise<{ clearedKeys: string[] }> {
+  cloudDisconnectInProgress = true
+  cloudConnectionGeneration += 1
+  logSync('auth', 'logout_start', {
+    clientInstanceId: supabaseClientInstanceId,
+    connectionGeneration: cloudConnectionGeneration,
+  })
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return;
+  try {
+    await signOut()
+    const result = clearSupabaseAuthStorage()
 
-  await supabase
-    .from('projects')
-    .delete()
-    .eq('user_id', user.id)
-    .eq('project_id', projectId);
+    logSync('auth', 'logout_complete', {
+      clientInstanceId: supabaseClientInstanceId,
+      clearedKeys: result.clearedKeys,
+      connectionGeneration: cloudConnectionGeneration,
+    })
+
+    return result
+  } finally {
+    cloudDisconnectInProgress = false
+  }
 }
 
-// ─── Pull + merge ─────────────────────────────────────────────────────────────
+// ─── Timestamp helper ─────────────────────────────────────────────────────────
 
-/** Return the ISO timestamp of the most recent changelog entry, or epoch. */
 function localUpdatedAt(project: ProjectMemory): string {
-  if (!project.changelog?.length) return '1970-01-01T00:00:00.000Z';
-  const sorted = project.changelog.map((e) => e.timestamp).sort();
-  return sorted[sorted.length - 1] ?? '1970-01-01T00:00:00.000Z';
+  if (project.updatedAt) return project.updatedAt
+  if (!project.changelog?.length) return '1970-01-01T00:00:00.000Z'
+  const sorted = project.changelog.map((entry) => entry.timestamp).sort()
+  return sorted[sorted.length - 1] ?? '1970-01-01T00:00:00.000Z'
 }
 
-/**
- * Pull all remote projects and merge with local list.
- * - Remote project not in local → add it.
- * - Both exist → keep whichever has the newer timestamp.
- * Returns the merged array (does not mutate the input).
- */
-export async function pullAndMerge(
-  localProjects: ProjectMemory[],
-): Promise<{ merged: ProjectMemory[]; changed: boolean }> {
-  if (!supabase) return { merged: localProjects, changed: false };
+// ─── Push single project ──────────────────────────────────────────────────────
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { merged: localProjects, changed: false };
+export async function pushProject(
+  project: ProjectMemory,
+  knownUserId?: string,
+): Promise<CloudPushResult> {
+  if (!supabase) return { status: 'disabled' }
+  const connectionGenerationAtStart = cloudConnectionGeneration
 
-  let data: RemoteRow[] | null = null;
-  let error: { message: string } | null = null;
+  let userId: string
+  let requestId: string
 
-  try {
-    await withRetry(async () => {
-      const res = await supabase!
-        .from('projects')
-        .select('project_id, name, data, updated_at')
-        .eq('user_id', user.id)
-        .order('updated_at', { ascending: false });
-      if (res.error) throw new Error(res.error.message);
-      data = res.data as RemoteRow[];
-    });
-  } catch (err) {
-    error = { message: String(err) };
-  }
-
-  if (error || !data) {
-    console.warn('[CloudSync] Pull failed:', error?.message);
-    return { merged: localProjects, changed: false };
-  }
-
-  const remote = data as RemoteRow[];
-  const localMap = new Map(localProjects.map((p) => [p.id, p]));
-  let changed = false;
-
-  for (const row of remote) {
-    const local = localMap.get(row.project_id);
-
-    if (!local) {
-      // New project from another device — add it
-      localMap.set(row.project_id, row.data);
-      changed = true;
-    } else {
-      // Compare timestamps — remote wins if it's strictly newer
-      const localTs = localUpdatedAt(local);
-      const remoteTs = row.updated_at;
-
-      if (remoteTs > localTs) {
-        localMap.set(row.project_id, row.data);
-        changed = true;
+  if (knownUserId) {
+    userId = knownUserId
+    requestId = nextRequestId('push')
+    logSync('push', 'auth_skipped_known_user', {
+      reason: 'autosave',
+      requestId,
+      userId,
+      projectId: project.id,
+    })
+  } else {
+    try {
+      const { user, requestId: authRequestId } = await getAuthUser('autosave', 'push')
+      if (!user) return { status: 'error', message: 'Cloud session is missing.' }
+      userId = user.id
+      requestId = authRequestId
+    } catch (err) {
+      logSyncError('push', 'auth_failed_before_request', err, {
+        reason: 'autosave',
+        projectId: project.id,
+      })
+      await enqueue(project)
+      return {
+        status: 'pending',
+        message: err instanceof Error ? err.message : 'Cloud auth timed out. Will retry later.',
       }
     }
   }
 
-  return { merged: Array.from(localMap.values()), changed };
+  try {
+    const row: ProjectRow = {
+      user_id: userId,
+      project_id: project.id,
+      name: project.name,
+      data: project as unknown as Record<string, unknown>,
+      updated_at: localUpdatedAt(project),
+    }
+
+    // Ensure JWT is fresh so the Supabase client won't attempt an internal
+    // auto-refresh (which ignores our AbortSignal and can hang indefinitely).
+    await ensureSessionFresh('autosave')
+
+    // Fast reachability check — surfaces a paused Supabase project in 5 s
+    // rather than after each 15-second upsert timeout.
+    await ensureSupabaseReachable()
+
+    await withRetry(async () => {
+      const startedAt = Date.now()
+      logSync('push', 'request_start', {
+        reason: 'autosave',
+        requestId,
+        projectId: project.id,
+      })
+
+      logSync('push', 'request_before_upsert', {
+        reason: 'autosave',
+        requestId,
+        projectId: project.id,
+        ...summarizeProjectRows([row]),
+      })
+
+      const { error } = await withSupabaseWriteTimeout<{ error: SupabaseErrorShape | null }>(
+        (signal) => supabase!
+          .from(PROJECTS_TABLE)
+          .upsert(row, { onConflict: PROJECTS_ON_CONFLICT })
+          .abortSignal(signal),
+        'request',
+        {
+          reason: 'autosave',
+          requestId,
+          projectId: project.id,
+        },
+      )
+
+      if (error) {
+        logSyncError('push', 'request_failed', error, {
+          requestId,
+          projectId: project.id,
+          durationMs: Date.now() - startedAt,
+        })
+        throw new Error(error.message)
+      }
+
+      logSync('push', 'request_success', {
+        requestId,
+        projectId: project.id,
+        durationMs: Date.now() - startedAt,
+      })
+    }, 4, 500, (attempt) => {
+      const disconnected = cloudDisconnectInProgress || cloudConnectionGeneration !== connectionGenerationAtStart
+      if (disconnected) {
+        logSync('push', 'request_retry_aborted_disconnect', {
+          requestId,
+          projectId: project.id,
+          attempt: attempt + 1,
+        })
+        return false
+      }
+      return true
+    })
+
+    await dequeue(project.id)
+    return { status: 'saved_local' }
+  } catch (err) {
+    const disconnected = cloudDisconnectInProgress || cloudConnectionGeneration !== connectionGenerationAtStart
+    if (disconnected) {
+      logSync('push', 'request_aborted_disconnect', {
+        reason: 'autosave',
+        requestId,
+        projectId: project.id,
+      })
+      return { status: 'saved_local', message: 'Cloud disconnected during autosave.' }
+    }
+
+    if (!cloudDisconnectInProgress) {
+      logSyncError('push', 'request_exception', err, {
+        reason: 'autosave',
+        requestId,
+        projectId: project.id,
+      })
+      await enqueue(project)
+    }
+    return {
+      status: 'pending',
+      message: err instanceof Error ? err.message : 'Cloud sync failed. Will retry later.',
+    }
+  }
 }
 
 // ─── Subscription ─────────────────────────────────────────────────────────────
 
 export interface SubscriptionInfo {
-  tier: SubscriptionTier;
-  status: SubscriptionStatus;
+  tier: SubscriptionTier
+  status: SubscriptionStatus
 }
 
-/**
- * Fetch the current subscription tier and status for a user.
- * Returns { tier: 'free', status: 'none' } when no row exists yet.
- */
 export async function fetchSubscription(userId: string): Promise<SubscriptionInfo> {
-  if (!supabase) return { tier: 'free', status: 'none' };
+  const defaultInfo: SubscriptionInfo = { tier: 'free', status: 'none' }
+
+  if (!supabase) return defaultInfo
+
+  if (subscriptionLookupInFlight.has(userId)) {
+    return subscriptionLookupInFlight.get(userId)!
+  }
+
+  const requestId = nextRequestId('subscription')
+  logSync('subscription', 'fetch_start', { userId, requestId })
+
+  const promise = (async (): Promise<SubscriptionInfo> => {
+    try {
+      const { data, error } = await supabase
+        .from('subscriptions')
+        .select('tier, status')
+        .eq("user_id", userId)
+        .limit(500)
+        .single()
+
+      if (error || !data) {
+        logSync('subscription', 'fetch_not_found', { userId, requestId })
+        return defaultInfo
+      }
+
+      const tier = (['pro', 'team'].includes(data.tier) ? data.tier : 'free') as SubscriptionTier
+      const status = (
+        ['active', 'trialing', 'past_due', 'canceled'].includes(data.status)
+          ? data.status
+          : 'none'
+      ) as SubscriptionStatus
+
+      logSync('subscription', 'fetch_success', { userId, requestId, tier, status })
+      return { tier, status }
+    } catch (err) {
+      logSyncError('subscription', 'fetch_exception', err, { userId, requestId })
+      return defaultInfo
+    } finally {
+      subscriptionLookupInFlight.delete(userId)
+    }
+  })()
+
+  subscriptionLookupInFlight.set(userId, promise)
+  return promise
+}
+
+// ─── Pull & merge ─────────────────────────────────────────────────────────────
+
+async function pullAndMerge(
+  localProjects: ProjectMemory[],
+  userId: string,
+  reason: SyncReason,
+): Promise<{ merged: ProjectMemory[]; changed: boolean }> {
+  const requestId = nextRequestId('pull')
+
+  if (!supabase) {
+    logSync('pull', 'skipped_no_supabase', { reason, requestId })
+    return { merged: localProjects, changed: false }
+  }
+
+  logSync('pull', 'fetch_start', { reason, requestId, userId })
 
   const { data, error } = await supabase
-    .from('subscriptions')
-    .select('tier, status')
+    .from(PROJECTS_TABLE)
+    .select('project_id, name, data, updated_at')
     .eq('user_id', userId)
-    .single();
+    .limit(500)
 
-  if (error || !data) {
-    // No row is fine — user is on free tier
-    return { tier: 'free', status: 'none' };
+  if (error) {
+    logSyncError('pull', 'fetch_failed', error, { reason, requestId, userId })
+    throw new Error(error.message)
   }
 
-  return {
-    tier:   (data.tier   as SubscriptionTier)   || 'free',
-    status: (data.status as SubscriptionStatus) || 'none',
-  };
-}
+  const remoteRows = (data ?? []) as RemoteRow[]
+  logSync('pull', 'fetch_success', { reason, requestId, remoteCount: remoteRows.length })
 
-// ─── Offline queue ────────────────────────────────────────────────────────────
+  const localMap = new Map(localProjects.map((p) => [p.id, p]))
+  let changed = false
 
-export { pendingCount } from './syncQueue';
+  for (const row of remoteRows) {
+    const remoteProject = row.data as ProjectMemory
+    if (!remoteProject?.id) continue
 
-/**
- * Push any projects that failed while offline.
- * Call after a successful connection is confirmed.
- */
-export async function drainQueue(): Promise<number> {
-  const queued = await getQueued();
-  if (queued.length === 0) return 0;
-
-  let flushed = 0;
-  for (const project of queued) {
-    try {
-      await pushProject(project);
-      flushed++;
-    } catch {
-      // leave in queue for next attempt
+    const local = localMap.get(remoteProject.id)
+    if (!local) {
+      // Remote-only — add to local
+      localMap.set(remoteProject.id, remoteProject)
+      changed = true
+      logSync('pull', 'added_remote_project', {
+        reason,
+        requestId,
+        projectId: remoteProject.id,
+      })
+    } else {
+      // Both exist — last-write-wins by updatedAt
+      const localTs = localUpdatedAt(local)
+      const remoteTs = row.updated_at ?? localUpdatedAt(remoteProject)
+      if (remoteTs > localTs) {
+        localMap.set(remoteProject.id, remoteProject)
+        changed = true
+        logSync('pull', 'updated_from_remote', {
+          reason,
+          requestId,
+          projectId: remoteProject.id,
+          localTs,
+          remoteTs,
+        })
+      }
     }
   }
-  return flushed;
+
+  const merged = Array.from(localMap.values())
+  logSync('pull', 'merge_complete', { reason, requestId, changed, mergedCount: merged.length })
+  return { merged, changed }
 }
 
-// ─── Push all ─────────────────────────────────────────────────────────────────
+// ─── Drain offline queue ──────────────────────────────────────────────────────
 
-/**
- * Push all local projects to Supabase in one batch.
- * Used after login to ensure the cloud is up to date.
- */
-export async function pushAll(projects: ProjectMemory[]): Promise<void> {
-  if (!supabase || projects.length === 0) return;
+async function drainQueue(
+  userId: string,
+  reason: SyncReason,
+): Promise<void> {
+  const queued = await getQueued()
+  if (queued.length === 0) return
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return;
+  logSync('queue', 'drain_start', { reason, userId, queuedCount: queued.length })
 
-  const rows = projects.map((p) => ({
-    user_id: user.id,
+  for (const project of queued) {
+    try {
+      const row: ProjectRow = {
+        user_id: userId,
+        project_id: project.id,
+        name: project.name,
+        data: project as unknown as Record<string, unknown>,
+        updated_at: localUpdatedAt(project),
+      }
+
+      const { error } = await withSupabaseWriteTimeout<{ error: SupabaseErrorShape | null }>(
+        (signal) => supabase!
+          .from(PROJECTS_TABLE)
+          .upsert(row, { onConflict: PROJECTS_ON_CONFLICT })
+          .abortSignal(signal),
+        'batch',
+        { reason, projectId: project.id, drain: true },
+      )
+
+      if (error) {
+        logSyncError('queue', 'drain_project_failed', error, { reason, projectId: project.id })
+        continue
+      }
+
+      await dequeue(project.id)
+      logSync('queue', 'drain_project_success', { reason, projectId: project.id })
+    } catch (err) {
+      logSyncError('queue', 'drain_project_exception', err, { reason, projectId: project.id })
+    }
+  }
+
+  logSync('queue', 'drain_complete', { reason, userId })
+}
+
+// ─── Push all local projects ──────────────────────────────────────────────────
+
+async function pushAll(
+  localProjects: ProjectMemory[],
+  userId: string,
+  reason: SyncReason,
+): Promise<void> {
+  if (!supabase || localProjects.length === 0) return
+
+  const requestId = nextRequestId('push')
+  logSync('push', 'push_all_start', { reason, requestId, userId, count: localProjects.length })
+
+  const rows: ProjectRow[] = localProjects.map((p) => ({
+    user_id: userId,
     project_id: p.id,
     name: p.name,
     data: p as unknown as Record<string, unknown>,
     updated_at: localUpdatedAt(p),
-  }));
+  }))
 
-  const { error } = await supabase
-    .from('projects')
-    .upsert(rows, { onConflict: 'user_id,project_id' });
+  const BATCH_SIZE = 50
+  for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+    const batch = rows.slice(i, i + BATCH_SIZE)
 
-  if (error) {
-    console.warn('[CloudSync] Batch push failed:', error.message);
+    const { error } = await withSupabaseWriteTimeout<{ error: SupabaseErrorShape | null }>(
+      (signal) => supabase!
+        .from(PROJECTS_TABLE)
+        .upsert(batch, { onConflict: PROJECTS_ON_CONFLICT })
+        .abortSignal(signal),
+      'batch',
+      { reason, requestId, batchStart: i, batchSize: batch.length },
+      20000,
+    )
+
+    if (error) {
+      logSyncError('push', 'push_all_batch_failed', error, {
+        reason,
+        requestId,
+        batchStart: i,
+      })
+      throw new Error(error.message)
+    }
+
+    logSync('push', 'push_all_batch_success', {
+      reason,
+      requestId,
+      batchStart: i,
+      batchSize: batch.length,
+    })
+  }
+
+  logSync('push', 'push_all_complete', { reason, requestId, count: localProjects.length })
+}
+
+// ─── Full sync cycle ──────────────────────────────────────────────────────────
+
+async function _runCycle(
+  localProjects: ProjectMemory[],
+  reason: SyncReason,
+  userId: string,
+): Promise<{ merged: ProjectMemory[]; changed: boolean }> {
+  const cycleId = nextRequestId('cycle')
+  logSync('cycle', 'cycle_start', { reason, cycleId, userId, localCount: localProjects.length })
+
+  try {
+    // 1. Ensure JWT is fresh before any writes (prevents internal auto-refresh hang)
+    await ensureSessionFresh(reason)
+
+    // 2. Fast reachability check — surfaces paused free-tier projects quickly
+    await ensureSupabaseReachable()
+
+    // 3. Drain any offline-queued projects first
+    await drainQueue(userId, reason)
+
+    // 3. Push all local projects to cloud (upsert)
+    await pushAll(localProjects, userId, reason)
+
+    // 4. Pull remote and merge
+    const result = await pullAndMerge(localProjects, userId, reason)
+
+    logSync('cycle', 'cycle_complete', {
+      reason,
+      cycleId,
+      userId,
+      changed: result.changed,
+      mergedCount: result.merged.length,
+    })
+
+    return result
+  } catch (err) {
+    logSyncError('cycle', 'cycle_failed', err, { reason, cycleId, userId })
+    throw err
   }
 }
+
+export async function runCloudSyncCycle(
+  localProjects: ProjectMemory[],
+  reason: SyncReason,
+  knownUserId?: string,
+): Promise<{ merged: ProjectMemory[]; changed: boolean }> {
+  if (!supabase) {
+    return { merged: localProjects, changed: false }
+  }
+
+  // Deduplicate concurrent calls — all callers share one in-flight cycle
+  if (syncCycleInFlight) {
+    logSync('cycle', 'cycle_join_inflight', { reason })
+    return syncCycleInFlight
+  }
+
+  const cyclePromise = (async (): Promise<{ merged: ProjectMemory[]; changed: boolean }> => {
+    let userId: string
+
+    if (knownUserId) {
+      userId = knownUserId
+      logSync('cycle', 'auth_skipped_known_user', { reason, userId })
+    } else {
+      const { user } = await getAuthUser(reason, 'cycle')
+      if (!user) {
+        logSync('cycle', 'auth_no_user', { reason })
+        return { merged: localProjects, changed: false }
+      }
+      userId = user.id
+    }
+
+    return _runCycle(localProjects, reason, userId)
+  })().finally(() => {
+    syncCycleInFlight = null
+  })
+
+  syncCycleInFlight = cyclePromise
+  return cyclePromise
+}
+
+// ─── Delete project from cloud ────────────────────────────────────────────────
+
+export async function deleteCloudProject(projectId: string, knownUserId?: string): Promise<void> {
+  if (!supabase) return
+
+  const requestId = nextRequestId('push')
+
+  let userId: string
+  if (knownUserId) {
+    userId = knownUserId
+    logSync('push', 'delete_auth_skipped_known_user', { requestId, projectId, userId })
+  } else {
+    try {
+      const { user } = await getAuthUser('autosave', 'push')
+      if (!user) {
+        logSync('push', 'delete_skipped_no_user', { requestId, projectId })
+        return
+      }
+      userId = user.id
+    } catch (err) {
+      logSyncError('push', 'delete_auth_failed', err, { requestId, projectId })
+      return
+    }
+  }
+
+  logSync('push', 'delete_start', { requestId, projectId, userId })
+
+  try {
+    const { error } = await supabase
+      .from(PROJECTS_TABLE)
+      .delete()
+      .eq('user_id', userId)
+      .eq('project_id', projectId)
+
+    if (error) {
+      logSyncError('push', 'delete_failed', error, { requestId, projectId, userId })
+    } else {
+      logSync('push', 'delete_success', { requestId, projectId, userId })
+    }
+  } catch (err) {
+    logSyncError('push', 'delete_exception', err, { requestId, projectId, userId })
+  }
+}
+
+// ─── Re-export pendingCount from syncQueue ────────────────────────────────────
+
+export { pendingCount } from './syncQueue'

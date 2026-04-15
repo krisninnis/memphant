@@ -6,25 +6,27 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
 );
 
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-};
+function setCors(res: VercelResponse) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  setCors(res);
+
   if (req.method === 'OPTIONS') {
-    return res.status(204).set(CORS).end();
+    return res.status(204).end();
   }
 
   if (req.method !== 'POST') {
-    return res.status(405).set(CORS).json({ error: 'Method not allowed' });
+    return res.status(405).json({ error: 'Method not allowed' });
   }
 
   const { email } = req.body ?? {};
 
   if (!email || typeof email !== 'string' || !email.includes('@')) {
-    return res.status(400).set(CORS).json({ error: 'Valid email required' });
+    return res.status(400).json({ error: 'Valid email required' });
   }
 
   const normalised = email.trim().toLowerCase();
@@ -42,8 +44,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (error) {
     console.error('[subscribe] supabase error:', error.message);
-    return res.status(500).set(CORS).json({ error: 'Could not save email.' });
+    return res.status(500).json({ error: 'Could not save email.' });
   }
 
-  return res.status(200).set(CORS).json({ ok: true });
+  return res.status(200).json({ ok: true });
 }

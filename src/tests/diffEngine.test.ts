@@ -28,6 +28,7 @@ function makeProject(overrides: Partial<ProjectMemory> = {}): ProjectMemory {
     importantAssets: ['src/index.ts'],
     aiInstructions: 'Be precise.',
     changelog: [],
+    checkpoints: [],
     platformState: {},
     ...overrides,
   };

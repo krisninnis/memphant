@@ -12,7 +12,7 @@ import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2024-11-20.acacia',
+  apiVersion: '2026-03-25.dahlia',
 });
 
 const supabase = createClient(
@@ -44,17 +44,12 @@ export default async function handler(req: any, res: any) {
       .single();
 
     if (error || !data?.stripe_customer_id) {
-      // This usually means the Stripe webhook hasn't written the subscription row yet,
-      // or the user downgraded/cancelled before a row existed.
-      return res.status(404).json({
-        error:   'No billing record found for this account.',
-        details: 'If you recently upgraded, wait a moment and try again. If this keeps happening, contact support at hello@memephant.com',
-      });
+      return res.status(404).json({ error: 'No active subscription found for this user.' });
     }
 
     const returnUrl = process.env.APP_URL
       ? `${process.env.APP_URL}/success`
-      : 'https://memphant.com/success';
+      : 'https://memephant.com/success';
 
     const portalSession = await stripe.billingPortal.sessions.create({
       customer:   data.stripe_customer_id,

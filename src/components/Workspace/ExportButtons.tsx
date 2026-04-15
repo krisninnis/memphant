@@ -21,31 +21,34 @@ function formatSyncAge(isoString: string): string {
   return `${diffD}d ago`;
 }
 
+function formatCheckpointTime(isoString: string): string {
+  return new Date(isoString).toLocaleString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 export function ExportButtons() {
   const [copied, setCopied] = useState(false);
   const targetPlatform = useProjectStore((s) => s.targetPlatform);
   const setTargetPlatform = useProjectStore((s) => s.setTargetPlatform);
   const currentTask = useProjectStore((s) => s.currentTask);
   const showToast = useProjectStore((s) => s.showToast);
-  const updateProject = useProjectStore((s) => s.updateProject);
   const defaultExportMode = useProjectStore((s) => s.settings.projects.defaultExportMode);
   const secretsScannerLevel = useProjectStore((s) => s.settings.privacy.secretsScannerLevel);
   const subscriptionTier = useProjectStore((s) => s.subscriptionTier);
 
   const isPro = subscriptionTier === 'pro' || subscriptionTier === 'team';
-  // Fall back to 'full' if the user has Smart selected but isn't on Pro
-  const effectiveExportMode = (defaultExportMode === 'smart' && !isPro) ? 'full' : defaultExportMode;
+  const effectiveExportMode = defaultExportMode === 'smart' && !isPro ? 'full' : defaultExportMode;
 
   const activeProject = useActiveProject();
   const enabledPlatforms = useEnabledPlatforms();
 
   const selectedProject = activeProject;
-  const lastSeenAt =
-    selectedProject?.platformState?.[targetPlatform]?.lastSeenAt;
-  const recentChanges = selectedProject
-    ? getChangesSince(selectedProject, lastSeenAt)
-    : [];
-  void recentChanges;
+  const lastSeenAt = selectedProject?.platformState?.[targetPlatform]?.lastSeenAt;
+  const recentChanges = selectedProject ? getChangesSince(selectedProject, lastSeenAt) : [];
 
   const visiblePlatforms = enabledPlatforms.slice(0, 5);
   const targetConfig = PLATFORM_CONFIG[targetPlatform];
@@ -54,6 +57,22 @@ export function ExportButtons() {
     ? formatSyncAge(targetState.lastExportedAt)
     : null;
   const quality = activeProject ? scoreExport(activeProject) : null;
+  const allCheckpoints = activeProject?.checkpoints ?? [];
+  const latestAnyCheckpoint =
+    allCheckpoints.length > 0 ? allCheckpoints[allCheckpoints.length - 1] : undefined;
+  const latestCheckpoint =
+    [...allCheckpoints].reverse().find((checkpoint) => checkpoint.platform === targetPlatform)
+    ?? latestAnyCheckpoint;
+  const checkpointSummary = latestCheckpoint
+    ? `Last checkpoint saved ${formatSyncAge(latestCheckpoint.timestamp)}.`
+    : 'Every copy saves a checkpoint before anything is pasted back in.';
+  const changeSummary = !activeProject
+    ? 'Open a project to prepare an AI handoff.'
+    : recentChanges.length > 0
+      ? `${recentChanges.length} tracked change${recentChanges.length === 1 ? '' : 's'} ready for the next handoff.`
+      : syncLabel
+        ? `No tracked changes since your last ${targetConfig.name} copy.`
+        : `Your first copy for ${targetConfig.name} will create a checkpoint snapshot.`;
 
   const handleSelectPlatform = (platform: Platform) => {
     if (platform !== targetPlatform) {
@@ -78,22 +97,6 @@ export function ExportButtons() {
 
     await copyExportToClipboard(exportText, targetPlatform);
 
-    const now = new Date().toISOString();
-
-   const updatedProject = {
-  ...activeProject,
-  platformState: {
-    ...(activeProject.platformState ?? {}),
-    [targetPlatform]: {
-      ...(activeProject.platformState?.[targetPlatform] || {}),
-      lastSeenAt: now,
-      lastExportedAt: now,
-    },
-  },
-};
-
-    updateProject(activeProject.id, updatedProject);
-
     setCopied(true);
     setTimeout(() => setCopied(false), 1800);
   }, [
@@ -101,14 +104,12 @@ export function ExportButtons() {
     currentTask,
     effectiveExportMode,
     secretsScannerLevel,
-    updateProject,
     showToast,
     targetPlatform,
   ]);
 
   return (
     <div className="export-controls" data-tour="export">
-      {/* Platform selector pills */}
       <div className="export-buttons" role="tablist" aria-label="Choose AI platform">
         {visiblePlatforms.map((platform) => {
           const config = PLATFORM_CONFIG[platform];
@@ -123,7 +124,7 @@ export function ExportButtons() {
               className={`export-pill${isActive ? ' export-pill--active' : ''}`}
               style={{ '--pill-color': config.color } as React.CSSProperties}
               onClick={() => handleSelectPlatform(platform)}
-              title={age ? `${config.name} — last copied ${age}` : `Select ${config.name}`}
+              title={age ? `${config.name} - last copied ${age}` : `Select ${config.name}`}
               aria-pressed={isActive}
             >
               <span className="export-pill__icon">{config.icon}</span>
@@ -134,7 +135,6 @@ export function ExportButtons() {
         })}
       </div>
 
-      {/* Quality indicator */}
       {quality && (
         <div className="export-quality" title={quality.message || `Export is ${quality.label}`}>
           <div className="export-quality__bar">
@@ -152,7 +152,6 @@ export function ExportButtons() {
         </div>
       )}
 
-      {/* Single prominent copy button for the active platform */}
       <button
         type="button"
         className={`export-copy-btn${copied ? ' export-copy-btn--copied' : ''}`}
@@ -167,8 +166,8 @@ export function ExportButtons() {
       >
         {copied ? (
           <>
-            <span className="export-copy-btn__icon">✓</span>
-            <span className="export-copy-btn__text">Copied — paste into {targetConfig.name}!</span>
+            <span className="export-copy-btn__icon">OK</span>
+            <span className="export-copy-btn__text">Copied. Paste into {targetConfig.name}.</span>
           </>
         ) : (
           <>
@@ -180,6 +179,29 @@ export function ExportButtons() {
           </>
         )}
       </button>
+
+      <div className="export-trust-card">
+        <div className="export-trust-card__row">
+          <span className="export-trust-card__label">Checkpoint</span>
+          <span className="export-trust-card__value">{checkpointSummary}</span>
+        </div>
+
+        {latestCheckpoint && (
+          <div className="export-trust-card__detail">
+            {targetConfig.name} handoff from {formatCheckpointTime(latestCheckpoint.timestamp)}
+            {latestCheckpoint.summary ? ` - ${latestCheckpoint.summary}` : ''}
+          </div>
+        )}
+
+        <div className="export-trust-card__row">
+          <span className="export-trust-card__label">Ready now</span>
+          <span className="export-trust-card__value">{changeSummary}</span>
+        </div>
+
+        <div className="export-trust-card__detail">
+          Nothing leaves this device until you click copy. Cloud backup is separate from AI export.
+        </div>
+      </div>
     </div>
   );
 }

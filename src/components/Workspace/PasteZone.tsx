@@ -1,18 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useProjectStore } from '../../store/projectStore';
 import { useActiveProject } from '../../hooks/useActiveProject';
+import { saveToDisk, withRestorePoint } from '../../services/tauriActions';
 import {
   detectUpdate,
   computeDiff,
   applyUpdate,
   countDiffs,
+  countRiskyDiffs,
   fieldLabel,
+  getLatestCheckpoint,
 } from '../../utils/diffEngine';
-import { extractStructuredProjectUpdate } from '../../services/localAiService';
+import { extractStructuredProjectUpdate, runLocalAiAction } from '../../services/localAiService';
 import { getChangesSince } from '../../utils/getChangesSince';
 import DiffPreview from './DiffPreview';
 import type { DetectedUpdate } from '../../utils/diffEngine';
-import type { DiffResult } from '../../types/memphant-types';
+import type { DiffResult, ProjectCheckpoint } from '../../types/memphant-types';
 
 type PasteState = 'idle' | 'typing' | 'diff' | 'no-update';
 
@@ -31,6 +34,7 @@ export function PasteZone() {
   const [state, setState] = useState<PasteState>('idle');
   const [diffs, setDiffs] = useState<DiffResult[]>([]);
   const [detectedUpdate, setDetectedUpdate] = useState<DetectedUpdate | null>(null);
+  const [linkedCheckpoint, setLinkedCheckpoint] = useState<ProjectCheckpoint | null>(null);
   const [detectionMeta, setDetectionMeta] = useState<DetectionMeta>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [autoChecking, setAutoChecking] = useState(false);
@@ -47,6 +51,15 @@ export function PasteZone() {
   const setPreAiBackup = useProjectStore((s) => s.setPreAiBackup);
   const showToast = useProjectStore((s) => s.showToast);
   const targetPlatform = useProjectStore((s) => s.targetPlatform);
+  const localAiSettings = useProjectStore((s) => s.settings.localAi);
+  const [localAiActionBusy, setLocalAiActionBusy] = useState(false);
+  const [localAiActionTitle, setLocalAiActionTitle] = useState('');
+  const [localAiActionOutput, setLocalAiActionOutput] = useState('');
+
+  const localAiActionsEnabled =
+    localAiSettings.enabled &&
+    typeof window !== 'undefined' &&
+    '__TAURI_INTERNALS__' in window;
 
   const lastSeenAt =
   activeProject?.platformState?.[targetPlatform]?.lastSeenAt;
@@ -73,9 +86,12 @@ const recentChanges = activeProject
   const resetPasteState = () => {
     clearAutoAnalyseState();
     setPasteText('');
+    setLocalAiActionTitle('');
+    setLocalAiActionOutput('');
     setState('idle');
     setDiffs([]);
     setDetectedUpdate(null);
+    setLinkedCheckpoint(null);
     setDetectionMeta(null);
     setIsDragOver(false);
     setAutoChecking(false);
@@ -89,6 +105,7 @@ const recentChanges = activeProject
       setState('idle');
       setDiffs([]);
       setDetectedUpdate(null);
+      setLinkedCheckpoint(null);
       setDetectionMeta(null);
       setAutoChecking(false);
       return;
@@ -130,16 +147,21 @@ const recentChanges = activeProject
 
     if (!update) {
       setDetectedUpdate(null);
+      setLinkedCheckpoint(null);
       setDetectionMeta(null);
       setDiffs([]);
       setState('no-update');
       return;
     }
 
-    const computedDiffs = computeDiff(activeProject, update);
+    const checkpoint =
+      getLatestCheckpoint(activeProject, targetPlatform) ??
+      getLatestCheckpoint(activeProject);
+    const computedDiffs = computeDiff(activeProject, update, checkpoint);
 
     if (computedDiffs.length === 0) {
       setDetectedUpdate(null);
+      setLinkedCheckpoint(checkpoint);
       setDetectionMeta(null);
       setDiffs([]);
       setState('no-update');
@@ -148,6 +170,7 @@ const recentChanges = activeProject
     }
 
     setDetectedUpdate(update);
+    setLinkedCheckpoint(checkpoint);
     setDiffs(computedDiffs);
     setDetectionMeta({
       source: detectionSource,
@@ -170,7 +193,7 @@ const recentChanges = activeProject
         );
       }
     }
-  }, [activeProject, showToast]);
+  }, [activeProject, showToast, targetPlatform]);
 
   const handleAnalyse = async () => {
     const trimmedText = pasteText.trim();
@@ -274,29 +297,89 @@ const recentChanges = activeProject
     clearAutoAnalyseState();
   }, [clearAutoAnalyseState]);
 
-  const handleApply = () => {
+  const cloneProjectForBackup = (project: typeof activeProject) => {
+    if (!project) return null;
+
+    return {
+      ...project,
+      checkpoints: (project.checkpoints ?? []).map((checkpoint) => ({
+        ...checkpoint,
+        snapshot: {
+          ...checkpoint.snapshot,
+          goals: [...checkpoint.snapshot.goals],
+          rules: [...checkpoint.snapshot.rules],
+          decisions: checkpoint.snapshot.decisions.map((decision) => ({ ...decision })),
+          nextSteps: [...checkpoint.snapshot.nextSteps],
+          openQuestions: [...checkpoint.snapshot.openQuestions],
+          importantAssets: [...checkpoint.snapshot.importantAssets],
+          changelog: checkpoint.snapshot.changelog.map((entry) => ({ ...entry })),
+          platformState: { ...checkpoint.snapshot.platformState },
+          linkedFolder: checkpoint.snapshot.linkedFolder
+            ? { ...checkpoint.snapshot.linkedFolder }
+            : undefined,
+          detectedStack: checkpoint.snapshot.detectedStack
+            ? [...checkpoint.snapshot.detectedStack]
+            : undefined,
+          scanInfo: checkpoint.snapshot.scanInfo
+            ? {
+                ...checkpoint.snapshot.scanInfo,
+                keyFilesFound: [...checkpoint.snapshot.scanInfo.keyFilesFound],
+              }
+            : undefined,
+        },
+      })),
+      decisions: project.decisions.map((decision) => ({ ...decision })),
+      changelog: project.changelog.map((entry) => ({ ...entry })),
+      importantAssets: [...project.importantAssets],
+      goals: [...project.goals],
+      rules: [...project.rules],
+      nextSteps: [...project.nextSteps],
+      openQuestions: [...project.openQuestions],
+      platformState: { ...project.platformState },
+      linkedFolder: project.linkedFolder ? { ...project.linkedFolder } : undefined,
+    };
+  };
+
+  const handleApply = (allowRiskyOverwrites: boolean) => {
     if (!activeProject || !detectedUpdate) {
       return;
     }
 
-    setPreAiBackup({
-      ...activeProject,
-      decisions: activeProject.decisions.map((decision) => ({ ...decision })),
-      changelog: activeProject.changelog.map((entry) => ({ ...entry })),
-      importantAssets: [...activeProject.importantAssets],
-      goals: [...activeProject.goals],
-      rules: [...activeProject.rules],
-      nextSteps: [...activeProject.nextSteps],
-      openQuestions: [...activeProject.openQuestions],
-      platformState: { ...activeProject.platformState },
-      linkedFolder: activeProject.linkedFolder ? { ...activeProject.linkedFolder } : undefined,
+    setPreAiBackup(cloneProjectForBackup(activeProject));
+    const projectWithRestore = withRestorePoint(
+      activeProject,
+      'ai_apply',
+      `Before AI apply for ${targetPlatform}`,
+    );
+
+    const mergedProject = applyUpdate(projectWithRestore, detectedUpdate, {
+      allowRiskyOverwrites,
+      diffs,
+      checkpoint: linkedCheckpoint,
     });
 
-    const mergedProject = applyUpdate(activeProject, detectedUpdate);
+    if (JSON.stringify(mergedProject) === JSON.stringify(activeProject)) {
+      showToast(
+        allowRiskyOverwrites
+          ? 'No changes were applied.'
+          : 'No safe changes were available to apply.',
+        'info',
+      );
+      return;
+    }
+
     updateProject(activeProject.id, mergedProject);
+    void saveToDisk(mergedProject);
 
     const totalChanges = countDiffs(diffs);
-    showToast(`Project updated with ${totalChanges} change${totalChanges !== 1 ? 's' : ''}`);
+    const riskyCount = countRiskyDiffs(diffs);
+    showToast(
+      allowRiskyOverwrites
+        ? `Project updated with ${totalChanges} change${totalChanges !== 1 ? 's' : ''}. Restore available.`
+        : riskyCount > 0
+          ? `Applied ${totalChanges - riskyCount} safe change${totalChanges - riskyCount !== 1 ? 's' : ''}. ${riskyCount} overwrite${riskyCount !== 1 ? 's were' : ' was'} skipped. Restore available.`
+          : `Project updated with ${totalChanges} safe change${totalChanges !== 1 ? 's' : ''}. Restore available.`,
+    );
 
     resetPasteState();
   };
@@ -314,6 +397,62 @@ const recentChanges = activeProject
       showToast('Suggestion copied — paste it into your AI chat');
     } catch {
       showToast('Could not copy the suggestion', 'error');
+    }
+  };
+
+  const handleCopyLocalAiOutput = async () => {
+    if (!localAiActionOutput.trim()) return;
+
+    try {
+      await navigator.clipboard.writeText(localAiActionOutput);
+      showToast('Local AI result copied');
+    } catch {
+      showToast('Could not copy the Local AI result', 'error');
+    }
+  };
+
+  const handleRunLocalAiAction = async (
+    action: 'clean_response' | 'explain_changes' | 'improve_summary',
+    label: string,
+  ) => {
+    const trimmedText = pasteText.trim();
+
+    if (!trimmedText) {
+      showToast('Paste some AI output first', 'error');
+      return;
+    }
+
+    if (!localAiActionsEnabled) {
+      showToast('Enable Private Mode in the desktop app to use Local AI actions', 'info');
+      return;
+    }
+
+    setLocalAiActionBusy(true);
+    setLocalAiActionTitle(label);
+
+    try {
+      const result = await runLocalAiAction(action, {
+        text: trimmedText,
+        projectName: activeProject?.name,
+        projectSummary: activeProject?.summary,
+        diffSummary: diffs.length
+          ? diffs.map((diff) => `${fieldLabel(diff.field)} ${diff.action}`).join(', ')
+          : undefined,
+      });
+
+      if (action === 'clean_response') {
+        handleTextChange(result);
+        setLocalAiActionOutput(result);
+        showToast('AI response cleaned locally');
+        return;
+      }
+
+      setLocalAiActionOutput(result);
+      showToast(`${label} ready`);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : `Could not ${label.toLowerCase()}`, 'error');
+    } finally {
+      setLocalAiActionBusy(false);
     }
   };
 
@@ -363,7 +502,9 @@ const recentChanges = activeProject
       <DiffPreview
         diffs={diffs}
         detectionMeta={detectionMeta}
-        onApply={handleApply}
+        checkpoint={linkedCheckpoint}
+        onApplySafe={() => handleApply(false)}
+        onApplyAll={() => handleApply(true)}
         onDiscard={handleDiscard}
       />
     ) : (
@@ -418,8 +559,71 @@ const recentChanges = activeProject
                 </button>
               </div>
 
+              {localAiActionsEnabled && (
+                <div className="paste-zone-actions paste-zone-actions--secondary">
+                  <button
+                    type="button"
+                    className="paste-zone-hint-btn"
+                    onClick={() => void handleRunLocalAiAction('clean_response', 'Clean AI response')}
+                    disabled={localAiActionBusy || !pasteText.trim()}
+                  >
+                    {localAiActionBusy && localAiActionTitle === 'Clean AI response'
+                      ? 'Cleaning...'
+                      : 'Clean AI response'}
+                  </button>
+                  <button
+                    type="button"
+                    className="paste-zone-hint-btn"
+                    onClick={() => void handleRunLocalAiAction('explain_changes', 'Explain changes')}
+                    disabled={localAiActionBusy || !pasteText.trim()}
+                  >
+                    {localAiActionBusy && localAiActionTitle === 'Explain changes'
+                      ? 'Explaining...'
+                      : 'Explain changes'}
+                  </button>
+                  <button
+                    type="button"
+                    className="paste-zone-hint-btn"
+                    onClick={() => void handleRunLocalAiAction('improve_summary', 'Improve summary')}
+                    disabled={localAiActionBusy || !pasteText.trim()}
+                  >
+                    {localAiActionBusy && localAiActionTitle === 'Improve summary'
+                      ? 'Improving...'
+                      : 'Improve summary'}
+                  </button>
+                </div>
+              )}
+
               {autoChecking && (
                 <div className="paste-zone-hint" aria-live="polite">Auto-checking...</div>
+              )}
+
+              {localAiActionOutput && (
+                <div className="paste-zone-no-update" style={{ textAlign: 'left' }}>
+                  <p style={{ marginBottom: 8 }}>{localAiActionTitle || 'Local AI result'}</p>
+                  <div className="paste-zone-hint" style={{ whiteSpace: 'pre-wrap', color: '#ccc' }}>
+                    {localAiActionOutput}
+                  </div>
+                  <div className="paste-zone-no-update__actions">
+                    <button
+                      type="button"
+                      className="paste-zone-hint-btn"
+                      onClick={() => void handleCopyLocalAiOutput()}
+                    >
+                      Copy result
+                    </button>
+                    <button
+                      type="button"
+                      className="paste-zone-hint-btn"
+                      onClick={() => {
+                        setLocalAiActionTitle('');
+                        setLocalAiActionOutput('');
+                      }}
+                    >
+                      Clear result
+                    </button>
+                  </div>
+                </div>
               )}
 
               {state === 'no-update' && (

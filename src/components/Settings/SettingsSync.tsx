@@ -4,11 +4,10 @@ import { supabase, cloudAvailable } from '../../services/supabaseClient';
 import {
   signIn,
   signUp,
-  signOut,
-  pullAndMerge,
-  pushAll,
+  disconnectCloud,
+  logoutCloudAccount,
+  runCloudSyncCycle,
   fetchSubscription,
-  drainQueue,
   pendingCount,
 } from '../../services/cloudSync';
 import { startCheckoutForCurrentUser, openCustomerPortal } from '../../services/stripe';
@@ -24,6 +23,70 @@ function formatSyncTime(iso: string | null): string {
     ', ' +
     d.toLocaleDateString([], { month: 'short', day: 'numeric' })
   );
+}
+
+function withUiTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  message: string,
+  label: string,
+): Promise<T> {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    let timedOut = false;
+    const timeoutId = window.setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      timedOut = true;
+      console.warn('[SettingsSync] ui_timeout_fired', { label, timeoutMs, uiOnly: true });
+      reject(new Error(message));
+    }, timeoutMs);
+
+    promise.then(
+      (value) => {
+        if (settled) {
+          if (timedOut) {
+            console.warn('[SettingsSync] late_resolution_ignored', { label, timeoutMs });
+          }
+          return;
+        }
+        settled = true;
+        window.clearTimeout(timeoutId);
+        console.log('[SettingsSync] ui_timeout_resolved', { label, timeoutMs });
+        resolve(value);
+      },
+      (error) => {
+        if (settled) {
+          if (timedOut) {
+            console.warn('[SettingsSync] late_rejection_ignored', { label, timeoutMs, error });
+          }
+          return;
+        }
+        settled = true;
+        window.clearTimeout(timeoutId);
+        console.error('[SettingsSync] ui_timeout_rejected', { label, timeoutMs, error });
+        reject(error);
+      },
+    );
+
+    window.setTimeout(() => {
+      if (!settled) {
+        console.warn('[SettingsSync] underlying_request_still_in_flight', { label, timeoutMs });
+      }
+    }, timeoutMs + 50);
+  });
+}
+
+function errorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message.trim();
+  }
+
+  if (typeof error === 'string' && error.trim()) {
+    return error.trim();
+  }
+
+  return fallback;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -138,14 +201,19 @@ export function SettingsSync() {
   const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
   const cloudUser = useProjectStore((s) => s.cloudUser);
+  const cloudDisconnecting = useProjectStore((s) => s.cloudDisconnecting);
   const syncStatus = useProjectStore((s) => s.syncStatus);
   const lastSyncedAt = useProjectStore((s) => s.lastSyncedAt);
   const projects = useProjectStore((s) => s.projects);
   const setProjects = useProjectStore((s) => s.setProjects);
   const setCloudUser = useProjectStore((s) => s.setCloudUser);
+  const setCloudDisconnecting = useProjectStore((s) => s.setCloudDisconnecting);
   const setSyncStatus = useProjectStore((s) => s.setSyncStatus);
   const setLastSyncedAt = useProjectStore((s) => s.setLastSyncedAt);
+  const resetCloudState = useProjectStore((s) => s.resetCloudState);
   const showToast = useProjectStore((s) => s.showToast);
+  const settings = useProjectStore((s) => s.settings);
+  const updateSettings = useProjectStore((s) => s.updateSettings);
   const subscriptionTier = useProjectStore((s) => s.subscriptionTier);
   const subscriptionStatus = useProjectStore((s) => s.subscriptionStatus);
   const setSubscriptionTier = useProjectStore((s) => s.setSubscriptionTier);
@@ -158,9 +226,73 @@ export function SettingsSync() {
   const [resetEmail, setResetEmail] = useState('');
   const [sentToEmail, setSentToEmail] = useState('');
   const [busy, setBusy] = useState(false);
+  const [accountBusy, setAccountBusy] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const [formError, setFormError] = useState('');
   const [emailNotConfirmed, setEmailNotConfirmed] = useState(false);
   const [pendingChanges, setPendingChanges] = useState(0);
+  const [syncErrorDetails, setSyncErrorDetails] = useState('');
+  // Shows a "waking up cloud…" hint after 8 s of syncing (cold Supabase start)
+  const [syncSlow, setSyncSlow] = useState(false);
+
+  const cloudSyncEnabled = settings.privacy.cloudSyncEnabled;
+
+  async function finishCloudSignIn(user: { id: string; email: string }) {
+    updateSettings({
+      privacy: {
+        ...settings.privacy,
+        cloudSyncEnabled: true,
+      },
+    });
+
+    try {
+      const sub = await withUiTimeout(
+        fetchSubscription(user.id),
+        8000,
+        'Plan lookup timed out.',
+        'settings.subscription_fetch',
+      );
+      setSubscriptionTier(sub.tier);
+      setSubscriptionStatus(sub.status);
+    } catch (err) {
+      console.error('[SettingsSync] subscription fetch error:', err);
+      setSubscriptionTier('free');
+      setSubscriptionStatus('none');
+    }
+
+    setSyncStatus('syncing');
+
+    try {
+      const projectsToSync = useProjectStore.getState().projects;
+
+      console.log('[SettingsSync] finishCloudSignIn sync_start', {
+        projectCount: projectsToSync.length,
+        userId: user.id,
+      });
+
+      const { merged, changed } = await withUiTimeout(
+        runCloudSyncCycle(projectsToSync, 'signin', user.id),
+        30000,
+        'Cloud sync timed out - server may be waking up. Try syncing again.',
+        'settings.signin_sync_cycle',
+      );
+
+      if (changed) {
+        setProjects(merged);
+      }
+
+      setLastSyncedAt(new Date().toISOString());
+      setSyncStatus('synced');
+      setSyncErrorDetails('');
+      showToast('Signed in. Cloud backup is now synced.');
+    } catch (err) {
+      const message = errorMessage(err, 'Cloud sync failed.');
+      setSyncStatus('error');
+      setSyncErrorDetails(message);
+      showToast(`Signed in, but cloud sync failed: ${message}`, 'error');
+      console.error('[SettingsSync] finishCloudSignIn error:', err);
+    }
+  }
 
   // Poll offline queue count so the badge stays current
   useEffect(() => {
@@ -201,50 +333,119 @@ VITE_SUPABASE_ANON_KEY=your-anon-key`}</pre>
   async function handleSyncNow() {
     if (syncStatus === 'syncing') return;
 
+    console.log('[SettingsSync] syncNow start', {
+      projectCount: projects.length,
+      hasCloudUser: Boolean(cloudUser),
+    });
+
     setSyncStatus('syncing');
+    setSyncSlow(false);
+
+    // After 8 s of waiting, show a friendly hint that the cloud server is
+    // waking up (Supabase free-tier pauses after inactivity).
+    const slowTimer = window.setTimeout(() => setSyncSlow(true), 8000);
 
     try {
-      // Drain any queued offline pushes first
-      await drainQueue();
-
-      await pushAll(projects);
-      const { merged, changed } = await pullAndMerge(projects);
+      const { merged, changed } = await withUiTimeout(
+        runCloudSyncCycle(projects, 'manual', cloudUser?.id),
+        30000,
+        'Cloud sync timed out - server may be waking up. Try again in a moment.',
+        'settings.manual_sync_cycle',
+      );
 
       if (changed) {
         setProjects(merged);
       }
 
+      window.clearTimeout(slowTimer);
+      setSyncSlow(false);
       setLastSyncedAt(new Date().toISOString());
-      setSyncStatus('idle');
+      setSyncStatus('synced');
 
       // Refresh pending count after successful sync
       const remaining = await pendingCount();
       setPendingChanges(remaining);
 
+      if (remaining > 0) {
+        setSyncStatus('pending');
+        setSyncErrorDetails('');
+        showToast('Saved locally. Some cloud changes are still pending.', 'info');
+        return;
+      }
+
+      setSyncErrorDetails('');
       showToast('Synced with cloud.');
     } catch (err) {
+      window.clearTimeout(slowTimer);
+      setSyncSlow(false);
+      const message = errorMessage(err, 'Cloud sync failed.');
+      setSyncErrorDetails(message);
       setSyncStatus('error');
-      showToast('Sync failed — check your connection.', 'error');
-      console.error('[SettingsSync] syncNow error:', err);
+      // Surface the real error message rather than the generic "check connection"
+      showToast(`Sync failed: ${message}`, 'error');
+      console.error('[SettingsSync] syncNow error — full detail:', err);
     }
   }
 
-  async function handleSignOut() {
-    setBusy(true);
+  async function handleDisconnectCloud() {
+    if (cloudDisconnecting) return;
+
+    setCloudDisconnecting(true);
 
     try {
-      await signOut();
-      setCloudUser(null);
-      setSyncStatus('idle');
-      setSubscriptionTier('free');
-      setSubscriptionStatus('none');
-      useProjectStore.getState().setIsAdmin(false);
-      showToast('Signed out of cloud backup.');
+      const result = await disconnectCloud();
+      updateSettings({
+        privacy: {
+          ...settings.privacy,
+          cloudSyncEnabled: false,
+        },
+      });
+      setSyncStatus('saved_local');
+      setSyncErrorDetails('');
+      showToast('Cloud disconnected. Local projects stay on this device.');
+      console.log('[SettingsSync] disconnect_cloud_success', {
+        clearedKeys: result.clearedKeys,
+      });
     } catch (err) {
-      showToast('Sign-out failed.', 'error');
-      console.error('[SettingsSync] signOut error:', err);
+      const message = errorMessage(err, 'Could not disconnect cloud backup.');
+      console.error('[SettingsSync] disconnect_cloud_error:', err);
+      showToast(message, 'error');
+      setCloudDisconnecting(false);
     } finally {
-      setBusy(false);
+      setCloudDisconnecting(false);
+    }
+  }
+
+  async function handleReconnectCloud() {
+    if (!cloudUser || syncStatus === 'syncing' || cloudDisconnecting) return;
+
+    updateSettings({
+      privacy: {
+        ...settings.privacy,
+        cloudSyncEnabled: true,
+      },
+    });
+
+    await handleSyncNow();
+  }
+
+  async function handleLogout() {
+    if (loggingOut) return;
+
+    setLoggingOut(true);
+
+    try {
+      await logoutCloudAccount();
+      resetCloudState();
+      setSyncErrorDetails('');
+      showToast('Logged out.');
+    } catch (err) {
+      const message = errorMessage(err, 'Could not log out.');
+      console.error('[SettingsSync] logout_error:', err);
+      showToast(message, 'error');
+    } finally {
+      setLoggingOut(false);
+      setCloudDisconnecting(false);
     }
   }
 
@@ -263,19 +464,66 @@ VITE_SUPABASE_ANON_KEY=your-anon-key`}</pre>
           ? '👥 Team'
           : '🆓 Free';
 
+    void statusLabel;
+    void tierLabel;
+
+    const renderedStatusLabel =
+      !cloudSyncEnabled
+        ? 'Disconnected - local only'
+        : syncStatus === 'syncing'
+        ? 'Syncing...'
+        : syncStatus === 'pending'
+          ? 'Saved locally - sync pending'
+          : syncStatus === 'saved_local'
+            ? 'Saved locally'
+            : syncStatus === 'error'
+              ? 'Saved locally - sync failed'
+              : 'Synced';
+
+    const renderedTierLabel =
+      subscriptionTier === 'pro'
+        ? 'Pro'
+        : subscriptionTier === 'team'
+          ? 'Team'
+          : 'Free';
+
+    const statusBadgeLabel =
+      !cloudSyncEnabled
+        ? 'Local-only mode'
+        : syncStatus === 'synced'
+          ? 'Synced with cloud'
+          : syncStatus === 'syncing'
+            ? 'Syncing...'
+            : syncStatus === 'pending'
+              ? 'Sync pending'
+              : syncStatus === 'error'
+                ? 'Sync issue'
+                : 'Saved locally';
+
+    const statusBadgeClassName =
+      !cloudSyncEnabled
+        ? 'sync-status-badge'
+        : syncStatus === 'synced'
+          ? 'sync-status-badge sync-status-badge--success'
+          : syncStatus === 'pending'
+            ? 'sync-status-badge sync-status-badge--warning'
+            : syncStatus === 'error'
+              ? 'sync-status-badge sync-status-badge--error'
+              : 'sync-status-badge';
+
     const isPastDue = subscriptionStatus === 'past_due';
 
     async function handleUpgrade(plan: 'pro' | 'team') {
-      setBusy(true);
+      setAccountBusy(true);
       try {
         await startCheckoutForCurrentUser(plan);
       } finally {
-        setBusy(false);
+        setAccountBusy(false);
       }
     }
 
     async function handleRefreshPlan() {
-      setBusy(true);
+      setAccountBusy(true);
       try {
         if (!cloudUser) return;
 const sub = await fetchSubscription(cloudUser.id);
@@ -285,7 +533,7 @@ const sub = await fetchSubscription(cloudUser.id);
       } catch {
         showToast('Could not refresh plan.', 'error');
       } finally {
-        setBusy(false);
+        setAccountBusy(false);
       }
     }
 
@@ -300,17 +548,23 @@ const sub = await fetchSubscription(cloudUser.id);
           </div>
           <div className="sync-status-row">
             <span className="sync-label">Plan</span>
-            <span className="sync-value">{tierLabel}</span>
+            <span className="sync-value">{renderedTierLabel}</span>
           </div>
           <div className="sync-status-row">
             <span className="sync-label">Status</span>
-            <span className="sync-value">{statusLabel}</span>
+            <span className="sync-value">{renderedStatusLabel}</span>
+          </div>
+          <div className="sync-status-row">
+            <span className="sync-label">Mode</span>
+            <span className="sync-value">
+              {cloudSyncEnabled ? 'Cloud backup connected' : 'Local-only mode'}
+            </span>
           </div>
           <div className="sync-status-row">
             <span className="sync-label">Last synced</span>
             <span className="sync-value">{formatSyncTime(lastSyncedAt)}</span>
           </div>
-          {pendingChanges > 0 && (
+          {cloudSyncEnabled && pendingChanges > 0 && (
             <div className="sync-status-row sync-pending-row">
               <span className="sync-label">Pending</span>
               <span className="sync-value sync-pending-badge">
@@ -326,20 +580,75 @@ const sub = await fetchSubscription(cloudUser.id);
           </div>
         )}
 
-        <div className="sync-actions">
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={handleSyncNow}
-            disabled={syncStatus === 'syncing'}
-          >
-            {syncStatus === 'syncing' ? 'Syncing…' : 'Sync now'}
-          </button>
+        {syncStatus === 'syncing' && syncSlow && (
+          <p className="sync-slow-notice" style={{ marginTop: 12, color: '#f59e0b', fontSize: 13 }}>
+            ⏳ Waking up cloud server — this can take up to 30 seconds after a period of inactivity…
+          </p>
+        )}
 
-          <button type="button" className="btn btn-ghost" onClick={handleSignOut} disabled={busy}>
-            Sign out
+        {syncStatus === 'error' && syncErrorDetails && (
+          <p className="sync-form-error" style={{ marginTop: 12 }}>
+            Last sync error: {syncErrorDetails}
+          </p>
+        )}
+
+        <div className="sync-status-meta">
+          <span className={statusBadgeClassName} aria-live="polite">
+            {statusBadgeLabel}
+          </span>
+        </div>
+
+        <div className="sync-actions">
+          {cloudSyncEnabled ? (
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={handleDisconnectCloud}
+              disabled={cloudDisconnecting || loggingOut}
+            >
+              {cloudDisconnecting ? 'Disconnecting...' : 'Disconnect Cloud'}
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => void handleReconnectCloud()}
+              disabled={syncStatus === 'syncing' || cloudDisconnecting || loggingOut}
+            >
+              Connect Cloud
+            </button>
+          )}
+
+          <button type="button" className="btn btn-ghost" onClick={() => void handleLogout()} disabled={cloudDisconnecting || loggingOut}>
+            {loggingOut ? 'Logging out...' : 'Log out'}
           </button>
         </div>
+
+        <p className="settings-description sync-hint" style={{ marginTop: 12 }}>
+          {cloudSyncEnabled
+            ? 'Cloud backup is connected. Your projects stay local first, and backups are kept up to date in the cloud.'
+            : 'Cloud backup is off. Memephant is running in local-only mode, and nothing new is uploaded until you reconnect.'}
+        </p>
+
+        <p className="settings-description sync-hint">
+          {cloudSyncEnabled
+            ? 'Disconnect Cloud keeps you signed in. Log out ends your account session.'
+            : 'Connect Cloud turns backup back on. Log out ends your account session.'}
+        </p>
+
+        {cloudSyncEnabled && syncStatus !== 'synced' && syncStatus !== 'syncing' && (
+          <p className="settings-description sync-hint">
+            <button
+              type="button"
+              className="sync-refresh-link"
+              onClick={() => void handleSyncNow()}
+              disabled={cloudDisconnecting || loggingOut}
+            >
+              Sync now
+            </button>{' '}
+            to upload recent local changes.
+          </p>
+        )}
 
         {subscriptionTier === 'free' && (
           <div className="sync-upgrade-card">
@@ -354,7 +663,7 @@ const sub = await fetchSubscription(cloudUser.id);
                 type="button"
                 className="btn btn-ghost"
                 onClick={() => handleUpgrade('team')}
-                disabled={busy}
+                disabled={accountBusy}
               >
                 Team plan — $20/mo
               </button>
@@ -368,8 +677,8 @@ const sub = await fetchSubscription(cloudUser.id);
               <button
                 type="button"
                 className="btn btn-ghost"
-                onClick={() => { setBusy(true); openCustomerPortal().finally(() => setBusy(false)); }}
-                disabled={busy}
+                onClick={() => { setAccountBusy(true); openCustomerPortal().finally(() => setAccountBusy(false)); }}
+                disabled={accountBusy}
               >
                 Manage subscription
               </button>
@@ -379,7 +688,7 @@ const sub = await fetchSubscription(cloudUser.id);
                 type="button"
                 className="sync-refresh-link"
                 onClick={handleRefreshPlan}
-                disabled={busy}
+                disabled={accountBusy}
               >
                 Refresh plan
               </button>{' '}
@@ -389,20 +698,17 @@ const sub = await fetchSubscription(cloudUser.id);
         )}
 
         <p className="settings-description sync-hint">
-          Your projects are automatically backed up every time you make a change.
+          Local projects are never removed by disconnecting cloud backup.
         </p>
 
         {/* ── Delete account ─────────────────────────────────────── */}
-        <DeleteAccountSection
-          cloudUser={cloudUser}
-          onDeleted={() => {
-            setCloudUser(null);
-            setSyncStatus('idle');
-            setSubscriptionTier('free');
-            setSubscriptionStatus('none');
-            showToast('Your account has been deleted.');
-          }}
-        />
+          <DeleteAccountSection
+            cloudUser={cloudUser}
+            onDeleted={() => {
+              resetCloudState();
+              showToast('Your account has been deleted.');
+            }}
+          />
       </section>
     );
   }
@@ -424,36 +730,29 @@ const sub = await fetchSubscription(cloudUser.id);
       let user;
 
       if (mode === 'signin') {
-        user = await signIn(email.trim(), password);
+        user = await withUiTimeout(
+          signIn(email.trim(), password),
+          10000,
+          'Sign-in timed out. Please try again.',
+          'settings.signin_submit',
+        );
       } else {
-        await signUp(email.trim(), password);
+        await withUiTimeout(
+          signUp(email.trim(), password),
+          10000,
+          'Account creation timed out. Please try again.',
+          'settings.signup_submit',
+        );
         setSentToEmail(email.trim());
         setMode('emailSent');
         return;
       }
 
       setCloudUser(user);
+      void finishCloudSignIn(user);
 
-      const sub = await fetchSubscription(user.id);
-      setSubscriptionTier(sub.tier);
-      setSubscriptionStatus(sub.status);
+      return;
 
-      setSyncStatus('syncing');
-      try {
-        await pushAll(projects);
-        const { merged, changed } = await pullAndMerge(projects);
-
-        if (changed) {
-          setProjects(merged);
-        }
-
-        setLastSyncedAt(new Date().toISOString());
-        setSyncStatus('idle');
-      } catch {
-        setSyncStatus('error');
-      }
-
-      showToast('Signed in — your projects are backed up.');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Something went wrong.';
       // Supabase returns "Email not confirmed" when the user hasn't clicked the link
@@ -720,6 +1019,13 @@ const sub = await fetchSubscription(cloudUser.id);
       if (error) throw new Error(error.message);
       if (!data.url) throw new Error('No OAuth URL returned.');
 
+      updateSettings({
+        privacy: {
+          ...settings.privacy,
+          cloudSyncEnabled: true,
+        },
+      });
+
       // Open in system browser (Tauri) or same tab (web/PWA)
       if (isTauri) {
         const { openUrl } = await import(/* @vite-ignore */ '@tauri-apps/plugin-opener');
@@ -859,7 +1165,6 @@ const sub = await fetchSubscription(cloudUser.id);
         </button>
       </form>
 
-      {/* ── OAuth divider ─────────────────────────────────────────── */}
       <div className="sync-oauth-divider">
         <span>or continue with</span>
       </div>
@@ -872,44 +1177,43 @@ const sub = await fetchSubscription(cloudUser.id);
 
       {!isTauri && (
         <>
-      <div className="sync-oauth-btns">
-        <button
-          type="button"
-          className="sync-oauth-btn sync-oauth-btn--google"
-          onClick={() => void handleOAuth('google')}
-          disabled={busy}
-        >
-          <svg width="18" height="18" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M47.5 24.5c0-1.6-.1-3.2-.4-4.7H24v8.9h13.2c-.6 3-2.3 5.5-4.9 7.2v6h7.9c4.6-4.3 7.3-10.6 7.3-17.4z" fill="#4285F4"/>
-            <path d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.9-6c-2.1 1.4-4.8 2.3-8 2.3-6.1 0-11.3-4.1-13.1-9.7H2.8v6.2C6.8 42.7 14.8 48 24 48z" fill="#34A853"/>
-            <path d="M10.9 28.8c-.5-1.4-.7-2.9-.7-4.4s.2-3 .7-4.4v-6.2H2.8C1 17.5 0 20.6 0 24s1 6.5 2.8 9.2l8.1-4.4z" fill="#FBBC05"/>
-            <path d="M24 9.5c3.4 0 6.5 1.2 8.9 3.5l6.7-6.7C35.9 2.5 30.4 0 24 0 14.8 0 6.8 5.3 2.8 13.2l8.1 4.4C12.7 13.6 17.9 9.5 24 9.5z" fill="#EA4335"/>
-          </svg>
-          Sign in with Google
-        </button>
+          <div className="sync-oauth-btns">
+            <button
+              type="button"
+              className="sync-oauth-btn sync-oauth-btn--google"
+              onClick={() => void handleOAuth('google')}
+              disabled={busy}
+            >
+              <svg width="18" height="18" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M47.5 24.5c0-1.6-.1-3.2-.4-4.7H24v8.9h13.2c-.6 3-2.3 5.5-4.9 7.2v6h7.9c4.6-4.3 7.3-10.6 7.3-17.4z" fill="#4285F4"/>
+                <path d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.9-6c-2.1 1.4-4.8 2.3-8 2.3-6.1 0-11.3-4.1-13.1-9.7H2.8v6.2C6.8 42.7 14.8 48 24 48z" fill="#34A853"/>
+                <path d="M10.9 28.8c-.5-1.4-.7-2.9-.7-4.4s.2-3 .7-4.4v-6.2H2.8C1 17.5 0 20.6 0 24s1 6.5 2.8 9.2l8.1-4.4z" fill="#FBBC05"/>
+                <path d="M24 9.5c3.4 0 6.5 1.2 8.9 3.5l6.7-6.7C35.9 2.5 30.4 0 24 0 14.8 0 6.8 5.3 2.8 13.2l8.1 4.4C12.7 13.6 17.9 9.5 24 9.5z" fill="#EA4335"/>
+              </svg>
+              Sign in with Google
+            </button>
 
-        <button
-          type="button"
-          className="sync-oauth-btn sync-oauth-btn--apple"
-          onClick={() => void handleOAuth('apple')}
-          disabled={busy}
-        >
-          <svg width="16" height="18" viewBox="0 0 814 1000" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-            <path d="M788.1 340.9c-5.8 4.5-108.2 62.2-108.2 190.5 0 148.4 130.3 200.9 134.2 202.2-.6 3.2-20.7 71.9-68.7 141.9-42.8 61.6-87.5 123.1-155.5 123.1s-85.5-39.5-164-39.5c-76 0-103.7 40.8-165.9 40.8s-105-43.4-150.3-104.9C93.5 800.7 50 710.6 50 621.7c0-197.3 152.2-302.3 302.8-302.3 89.2 0 163.5 40.7 220.4 40.7 54.4 0 140.4-42.8 211.3-42.8zm-262-161.1c31.1-36.9 53.1-88.1 53.1-139.3 0-7.1-.6-14.3-1.9-20.1-50.6 1.9-110.8 33.7-147.1 75.8-28.5 32.4-55.1 83.6-55.1 135.5 0 7.8 1.3 15.6 1.9 18.1 3.2.6 8.4 1.3 13.6 1.3 45.4 0 102.5-30.4 135.5-71.3z"/>
-          </svg>
-          Sign in with Apple
-        </button>
-      </div>
+            <button
+              type="button"
+              className="sync-oauth-btn sync-oauth-btn--apple"
+              onClick={() => void handleOAuth('apple')}
+              disabled={busy}
+            >
+              <svg width="16" height="18" viewBox="0 0 814 1000" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                <path d="M788.1 340.9c-5.8 4.5-108.2 62.2-108.2 190.5 0 148.4 130.3 200.9 134.2 202.2-.6 3.2-20.7 71.9-68.7 141.9-42.8 61.6-87.5 123.1-155.5 123.1s-85.5-39.5-164-39.5c-76 0-103.7 40.8-165.9 40.8s-105-43.4-150.3-104.9C93.5 800.7 50 710.6 50 621.7c0-197.3 152.2-302.3 302.8-302.3 89.2 0 163.5 40.7 220.4 40.7 54.4 0 140.4-42.8 211.3-42.8zm-262-161.1c31.1-36.9 53.1-88.1 53.1-139.3 0-7.1-.6-14.3-1.9-20.1-50.6 1.9-110.8 33.7-147.1 75.8-28.5 32.4-55.1 83.6-55.1 135.5 0 7.8 1.3 15.6 1.9 18.1 3.2.6 8.4 1.3 13.6 1.3 45.4 0 102.5-30.4 135.5-71.3z"/>
+              </svg>
+              Sign in with Apple
+            </button>
+          </div>
 
-      <button
-        type="button"
-        className="sync-oauth-refresh"
-        onClick={() => void handleOAuthRefresh()}
-        disabled={busy}
-      >
-        Already completed browser sign-in? Click to connect →
-      </button>
-
+          <button
+            type="button"
+            className="sync-oauth-refresh"
+            onClick={() => void handleOAuthRefresh()}
+            disabled={busy}
+          >
+            Already completed browser sign-in? Click to connect →
+          </button>
         </>
       )}
 

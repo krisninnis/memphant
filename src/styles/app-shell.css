@@ -582,6 +582,12 @@ select {
   justify-content: flex-end;
 }
 
+.paste-zone-actions--secondary {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
 .paste-zone-submit {
   background: #10a37f;
   border: none;
@@ -661,6 +667,93 @@ select {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.project-history-card {
+  background: #111827;
+  border: 1px solid #24314f;
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+
+.project-history-card__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.project-history-card__hint {
+  color: #8ca2c7;
+  font-size: 12px;
+  line-height: 1.5;
+  margin-top: 4px;
+}
+
+.project-history-card__badge {
+  background: #162136;
+  border: 1px solid #2c446d;
+  border-radius: 999px;
+  color: #b9cff3;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  white-space: nowrap;
+}
+
+.project-history-list {
+  display: grid;
+  gap: 10px;
+}
+
+.project-history-item {
+  background: #0f1524;
+  border: 1px solid #202944;
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+.project-history-item__meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  color: #d9e3f7;
+}
+
+.project-history-item__meta span {
+  color: #7f96bc;
+  font-size: 11px;
+}
+
+.project-history-item__summary {
+  color: #9fb0cb;
+  font-size: 13px;
+  line-height: 1.45;
+  margin-top: 6px;
+  margin-bottom: 10px;
+}
+
+.project-history-item__restore {
+  background: #1f3b63;
+  border: 1px solid #2c5a96;
+  border-radius: 8px;
+  color: #dce9ff;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 12px;
+  cursor: pointer;
+}
+
+.project-history-item__restore:hover:not(:disabled) {
+  background: #285084;
+}
+
+.project-history-item__restore:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .project-editor--empty {
@@ -1760,6 +1853,44 @@ select {
   font-weight: 400;
 }
 
+.export-trust-card {
+  background: #0f1524;
+  border: 1px solid #24314f;
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: grid;
+  gap: 8px;
+}
+
+.export-trust-card__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.export-trust-card__label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #6e86ad;
+  flex-shrink: 0;
+}
+
+.export-trust-card__value {
+  font-size: 12px;
+  color: #d8e2f5;
+  text-align: right;
+  line-height: 1.45;
+}
+
+.export-trust-card__detail {
+  font-size: 12px;
+  color: #8ca2c7;
+  line-height: 1.5;
+}
+
 /* ── Export quality indicator ───────────────────────────────────────────── */
 
 .export-quality {
@@ -1895,6 +2026,15 @@ select {
 
   .export-pill {
     flex: unset;
+  }
+
+  .export-trust-card__row {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .export-trust-card__value {
+    text-align: left;
   }
 
   /* Decision cards — full width */

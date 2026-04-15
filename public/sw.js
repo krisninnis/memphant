@@ -4,7 +4,7 @@
  * Strategy: Cache-first for assets, network-first for navigation.
  */
 
-const CACHE_NAME = 'memphant-v1';
+const CACHE_NAME = 'memephant-v2';
 
 // App shell files to pre-cache on install
 const PRECACHE_URLS = [
@@ -104,5 +104,6 @@ self.addEventListener('fetch', (event) => {
 
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'SKIP_WAITING') {
-   }
+    self.skipWaiting();
+  }
 });

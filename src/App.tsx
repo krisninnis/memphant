@@ -1,5 +1,6 @@
 import { Component, type ReactNode, type ErrorInfo } from 'react';
 import AppShell from './components/Layout/AppShell';
+import { PWAUpdatePrompt } from './components/PWAUpdatePrompt';
 import './styles/app-shell.css';
 
 interface ErrorBoundaryState {
@@ -41,10 +42,10 @@ class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryStat
           }}
         >
           <div style={{ maxWidth: 420 }}>
-            <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🐘</div>
+            <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>M</div>
             <h2 style={{ margin: '0 0 0.5rem', color: '#fff' }}>Something went wrong</h2>
             <p style={{ color: '#888', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
-              Memephant hit an unexpected error. Your project data is safe — it's saved locally
+              Memephant hit an unexpected error. Your project data is safe - it&apos;s saved locally
               on your computer.
             </p>
             {this.state.error && (
@@ -94,6 +95,7 @@ function App() {
   return (
     <ErrorBoundary>
       <AppShell />
+      <PWAUpdatePrompt />
     </ErrorBoundary>
   );
 }

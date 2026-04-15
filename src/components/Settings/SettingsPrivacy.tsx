@@ -1,7 +1,15 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useProjectStore } from '../../store/projectStore';
 import { getProjectsPath, loadAllFromDisk, downloadAllData } from '../../services/tauriActions';
-import { checkOllamaAvailability, checkModelExists } from '../../services/localAiService';
+import {
+  checkOllamaAvailability,
+  checkModelExists,
+  listOllamaModels,
+  chooseBestOllamaModel,
+  pullOllamaModel,
+  DEFAULT_OLLAMA_ENDPOINT,
+  DEFAULT_OLLAMA_MODEL,
+} from '../../services/localAiService';
 import ConfirmDialog from '../Shared/ConfirmDialog';
 import Toggle from '../Shared/Toggle';
 import '../Shared/Toggle.css';
@@ -13,31 +21,11 @@ function isTauri(): boolean {
 type LocalAiConnectionStatus =
   | 'not_tested'
   | 'checking'
+  | 'not_installed'
+  | 'no_model'
+  | 'downloading'
   | 'connected'
-  | 'failed'
-  | 'model_missing';
-
-function normalizeEndpoint(endpoint: string): string {
-  return endpoint.trim().replace(/\/+$/, '');
-}
-
-async function fetchJsonWithTimeout<T>(
-  url: string,
-  opts: RequestInit,
-  timeoutMs: number,
-): Promise<T> {
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const res = await fetch(url, { ...opts, signal: controller.signal });
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status}`);
-    }
-    return (await res.json()) as T;
-  } finally {
-    clearTimeout(id);
-  }
-}
+  | 'failed';
 
 async function openExternalUrl(url: string): Promise<void> {
   const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -49,7 +37,34 @@ async function openExternalUrl(url: string): Promise<void> {
   }
 }
 
+function formatAuditTime(isoString: string): string {
+  return new Date(isoString).toLocaleString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function formatPlatformLabel(platform: string): string {
+  switch (platform) {
+    case 'chatgpt':
+      return 'ChatGPT';
+    case 'claude':
+      return 'Claude';
+    case 'grok':
+      return 'Grok';
+    case 'perplexity':
+      return 'Perplexity';
+    case 'gemini':
+      return 'Gemini';
+    default:
+      return platform;
+  }
+}
+
 export function SettingsPrivacy() {
+  const projects = useProjectStore((s) => s.projects);
   const showToast = useProjectStore((s) => s.showToast);
   const setProjects = useProjectStore((s) => s.setProjects);
   const setActiveProject = useProjectStore((s) => s.setActiveProject);
@@ -67,16 +82,50 @@ export function SettingsPrivacy() {
   };
 
   const localAi = settings.localAi;
+  const totalCheckpoints = projects.reduce((count, project) => count + (project.checkpoints?.length ?? 0), 0);
+  const recentExports = projects
+    .flatMap((project) =>
+      (project.checkpoints ?? []).map((checkpoint) => ({
+        checkpoint,
+        projectName: project.name,
+      })),
+    )
+    .sort((a, b) => new Date(b.checkpoint.timestamp).getTime() - new Date(a.checkpoint.timestamp).getTime())
+    .slice(0, 5);
   const [localAiStatus, setLocalAiStatus] = useState<{
     status: LocalAiConnectionStatus;
     endpoint?: string;
     checkedAt?: string;
   }>({ status: 'not_tested' });
   const [localAiPulling, setLocalAiPulling] = useState(false);
+  const [autoSetupBusy, setAutoSetupBusy] = useState(false);
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
 
   const resetLocalAiStatus = () => {
     setLocalAiStatus({ status: 'not_tested' });
     setLocalAiPulling(false);
+  };
+
+  const syncDetectedModels = async (
+    endpoint: string,
+    preferredModel?: string,
+  ): Promise<string[]> => {
+    const models = await listOllamaModels(endpoint);
+    setAvailableModels(models);
+
+    if (models.length > 0) {
+      const best = chooseBestOllamaModel(models, preferredModel || localAi.model || DEFAULT_OLLAMA_MODEL);
+      if (best && best !== useProjectStore.getState().settings.localAi.model) {
+        updateSettings({
+          localAi: {
+            ...useProjectStore.getState().settings.localAi,
+            model: best,
+          },
+        });
+      }
+    }
+
+    return models;
   };
 
   const updateLocalAi = (updates: Partial<typeof localAi>, opts?: { toast?: boolean }) => {
@@ -94,6 +143,50 @@ export function SettingsPrivacy() {
       showToast('Setting saved');
     }
   };
+
+  useEffect(() => {
+    let active = true;
+
+    if (!inTauri || !localAi.enabled) {
+      setAvailableModels([]);
+      return () => {
+        active = false;
+      };
+    }
+
+    const endpoint = localAi.endpoint?.trim() || DEFAULT_OLLAMA_ENDPOINT;
+
+    void (async () => {
+      const ok = await checkOllamaAvailability(endpoint);
+      if (!active) return;
+
+      if (!ok) {
+        setAvailableModels([]);
+        return;
+      }
+
+      const models = await listOllamaModels(endpoint);
+      if (!active) return;
+
+      setAvailableModels(models);
+
+      if (models.length > 0) {
+        const best = chooseBestOllamaModel(models, localAi.model || DEFAULT_OLLAMA_MODEL);
+        if (best && best !== localAi.model) {
+          updateSettings({
+            localAi: {
+              ...useProjectStore.getState().settings.localAi,
+              model: best,
+            },
+          });
+        }
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [inTauri, localAi.enabled, localAi.endpoint, localAi.model, updateSettings]);
 
   const handleTestLocalAi = async () => {
     console.log('[LocalAI] Test clicked');
@@ -130,27 +223,106 @@ export function SettingsPrivacy() {
     }
 
     if (!ok) {
-      showToast('Could not connect to Ollama', 'error');
-      setLocalAiStatus({ status: 'failed', endpoint, checkedAt: new Date().toISOString() });
+      showToast('Ollama is not installed or not running', 'error');
+      setAvailableModels([]);
+      setLocalAiStatus({ status: 'not_installed', endpoint, checkedAt: new Date().toISOString() });
       return;
     }
 
-    const model = useProjectStore.getState().settings.localAi.model?.trim() ?? '';
-    if (!model) {
+    const models = await syncDetectedModels(endpoint, useProjectStore.getState().settings.localAi.model);
+    const selectedModel = useProjectStore.getState().settings.localAi.model?.trim() ?? '';
+
+    if (models.length === 0 || !selectedModel) {
       showToast('Model not found', 'error');
-      setLocalAiStatus({ status: 'model_missing', endpoint, checkedAt: new Date().toISOString() });
+      setLocalAiStatus({ status: 'no_model', endpoint, checkedAt: new Date().toISOString() });
       return;
     }
 
-    const exists = await checkModelExists(endpoint, model);
+    const exists = await checkModelExists(endpoint, selectedModel);
     if (!exists) {
       showToast('Model not found', 'error');
-      setLocalAiStatus({ status: 'model_missing', endpoint, checkedAt: new Date().toISOString() });
+      setLocalAiStatus({ status: 'no_model', endpoint, checkedAt: new Date().toISOString() });
       return;
     }
 
     showToast('Ollama connected', 'success');
     setLocalAiStatus({ status: 'connected', endpoint, checkedAt: new Date().toISOString() });
+  };
+
+  const handleAutoSetupLocalAi = async () => {
+    if (!inTauri) {
+      showToast('Local AI setup is available in the desktop app', 'info');
+      return;
+    }
+
+    const endpoint = DEFAULT_OLLAMA_ENDPOINT;
+    const desiredModel = DEFAULT_OLLAMA_MODEL;
+
+    setAutoSetupBusy(true);
+    updateSettings({
+      localAi: {
+        ...useProjectStore.getState().settings.localAi,
+        enabled: true,
+        endpoint,
+        model: desiredModel,
+      },
+    });
+    setLocalAiStatus({ status: 'checking', endpoint, checkedAt: new Date().toISOString() });
+
+    try {
+      const available = await checkOllamaAvailability(endpoint);
+      if (!available) {
+        setAvailableModels([]);
+        setLocalAiStatus({ status: 'not_installed', endpoint, checkedAt: new Date().toISOString() });
+        showToast('Install Ollama to finish Private Mode setup', 'error');
+        return;
+      }
+
+      let models = await syncDetectedModels(endpoint, desiredModel);
+      let selectedModel = chooseBestOllamaModel(models, desiredModel);
+
+      const hasSelected = models.length > 0 && await checkModelExists(endpoint, selectedModel);
+
+      if (!hasSelected) {
+        setLocalAiStatus({ status: 'downloading', endpoint, checkedAt: new Date().toISOString() });
+        const pulled = await pullOllamaModel(endpoint, desiredModel);
+        if (!pulled) {
+          setLocalAiStatus({ status: 'failed', endpoint, checkedAt: new Date().toISOString() });
+          showToast('Could not download the recommended model', 'error');
+          return;
+        }
+
+        models = await syncDetectedModels(endpoint, desiredModel);
+        selectedModel = chooseBestOllamaModel(models, desiredModel);
+      }
+
+      if (models.length === 0) {
+        setLocalAiStatus({ status: 'no_model', endpoint, checkedAt: new Date().toISOString() });
+        showToast('Ollama is running, but no local model is available yet', 'error');
+        return;
+      }
+
+      updateSettings({
+        localAi: {
+          ...useProjectStore.getState().settings.localAi,
+          enabled: true,
+          endpoint,
+          model: selectedModel,
+        },
+      });
+
+      const connected = await checkModelExists(endpoint, selectedModel);
+      if (!connected) {
+        setLocalAiStatus({ status: 'no_model', endpoint, checkedAt: new Date().toISOString() });
+        showToast('Model not found after setup', 'error');
+        return;
+      }
+
+      setLocalAiStatus({ status: 'connected', endpoint, checkedAt: new Date().toISOString() });
+      showToast('Private Mode is ready', 'success');
+    } finally {
+      setAutoSetupBusy(false);
+    }
   };
 
   const handleDownloadModel = async () => {
@@ -169,31 +341,26 @@ export function SettingsPrivacy() {
     }
 
     setLocalAiPulling(true);
-    setLocalAiStatus({ status: 'model_missing', endpoint, checkedAt: new Date().toISOString() });
+    setLocalAiStatus({ status: 'downloading', endpoint, checkedAt: new Date().toISOString() });
 
     try {
-      const base = normalizeEndpoint(endpoint);
-      await fetchJsonWithTimeout(
-        `${base}/api/pull`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: model, stream: false }),
-        },
-        600_000,
-      );
+      const pulled = await pullOllamaModel(endpoint, model);
+      if (!pulled) {
+        throw new Error('Could not download model');
+      }
 
+      await syncDetectedModels(endpoint, model);
       const exists = await checkModelExists(endpoint, model);
       if (exists) {
         showToast('Model downloaded', 'success');
         setLocalAiStatus({ status: 'connected', endpoint, checkedAt: new Date().toISOString() });
       } else {
         showToast('Model download did not complete', 'error');
-        setLocalAiStatus({ status: 'model_missing', endpoint, checkedAt: new Date().toISOString() });
+        setLocalAiStatus({ status: 'no_model', endpoint, checkedAt: new Date().toISOString() });
       }
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Could not download model', 'error');
-      setLocalAiStatus({ status: 'model_missing', endpoint, checkedAt: new Date().toISOString() });
+      setLocalAiStatus({ status: 'failed', endpoint, checkedAt: new Date().toISOString() });
     } finally {
       setLocalAiPulling(false);
     }
@@ -226,7 +393,13 @@ export function SettingsPrivacy() {
       <h2 className="settings-section-title">Privacy &amp; Security</h2>
 
       <div className="settings-trust-box">
-        By default, Memephant keeps your data on this device. Cloud Backup is optional and only used if you sign in.
+        <div>Memephant is local-first. You decide when anything leaves this device.</div>
+        <div className="settings-trust-list">
+          <div>- Projects and checkpoints stay local by default</div>
+          <div>- Cloud backup only runs if you sign in</div>
+          <div>- AI exports only happen when you click copy</div>
+          <div>- Private Mode keeps Local AI on this device</div>
+        </div>
       </div>
 
       <div className="settings-group">
@@ -236,14 +409,14 @@ export function SettingsPrivacy() {
           <div className="setting-info">
             <div className="setting-label">Cloud Backup &amp; Sync</div>
             <div className="setting-description">
-              Back up your projects and sync across devices — sign in to get started
+              Back up your projects and sync across devices when you choose to sign in.
             </div>
           </div>
           <button
             className="setting-btn"
             onClick={() => setSettingsTab('sync')}
           >
-            Open Cloud Backup →
+            Open Cloud Backup
           </button>
         </div>
       </div>
@@ -327,6 +500,23 @@ export function SettingsPrivacy() {
 
         <div className="setting-row">
           <div className="setting-info">
+            <div className="setting-label">Auto setup Local AI</div>
+            <div className="setting-description">
+              Automatically turn on Private Mode, use the default local endpoint, install the recommended model,
+              and test the connection.
+            </div>
+          </div>
+          <button
+            className="setting-btn"
+            onClick={() => void handleAutoSetupLocalAi()}
+            disabled={!inTauri || autoSetupBusy || localAiPulling}
+          >
+            {autoSetupBusy ? 'Setting up...' : 'Auto setup'}
+          </button>
+        </div>
+
+        <div className="setting-row">
+          <div className="setting-info">
             <div className="setting-label">Ollama endpoint</div>
             <div className="setting-description">Default: http://127.0.0.1:11434</div>
           </div>
@@ -337,23 +527,42 @@ export function SettingsPrivacy() {
             placeholder="http://127.0.0.1:11434"
             spellCheck={false}
             inputMode="url"
-            disabled={!localAi.enabled}
+            disabled={!localAi.enabled || autoSetupBusy || localAiPulling}
           />
         </div>
 
         <div className="setting-row">
           <div className="setting-info">
             <div className="setting-label">Model</div>
-            <div className="setting-description">Example: llama3.1:8b</div>
+            <div className="setting-description">
+              {availableModels.length > 0
+                ? `Detected ${availableModels.length} local model${availableModels.length !== 1 ? 's' : ''}`
+                : 'Recommended: llama3.1:8b'}
+            </div>
           </div>
-          <input
-            className="setting-select"
-            value={localAi.model}
-            onChange={(e) => updateLocalAi({ model: e.target.value })}
-            placeholder="llama3.1:8b"
-            spellCheck={false}
-            disabled={!localAi.enabled}
-          />
+          {availableModels.length > 0 ? (
+            <select
+              className="setting-select"
+              value={localAi.model}
+              onChange={(e) => updateLocalAi({ model: e.target.value })}
+              disabled={!localAi.enabled || autoSetupBusy || localAiPulling}
+            >
+              {availableModels.map((modelName) => (
+                <option key={modelName} value={modelName}>
+                  {modelName}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              className="setting-select"
+              value={localAi.model}
+              onChange={(e) => updateLocalAi({ model: e.target.value })}
+              placeholder="llama3.1:8b"
+              spellCheck={false}
+              disabled={!localAi.enabled || autoSetupBusy || localAiPulling}
+            />
+          )}
         </div>
 
         <div className="setting-row">
@@ -365,7 +574,7 @@ export function SettingsPrivacy() {
                 : 'Optional and local-only. Enable Private Mode to configure and test Ollama.'}
               {!inTauri && (
                 <div className="setting-desc-muted" style={{ marginTop: 6 }}>
-                  In browser mode, we can’t test Ollama on localhost (blocked by CORS). Use the desktop app.
+                  In browser mode, we can't test Ollama on localhost (blocked by CORS). Use the desktop app.
                 </div>
               )}
             </div>
@@ -373,7 +582,7 @@ export function SettingsPrivacy() {
           <button
             className="setting-btn"
             onClick={() => void handleTestLocalAi()}
-            disabled={!localAi.enabled || !inTauri}
+            disabled={!localAi.enabled || !inTauri || autoSetupBusy || localAiPulling}
           >
             {localAiStatus.status === 'checking' ? 'Checking...' : 'Test connection'}
           </button>
@@ -385,12 +594,14 @@ export function SettingsPrivacy() {
             <div className="setting-description">
               {localAiStatus.status === 'not_tested' && <span>Not tested</span>}
               {localAiStatus.status === 'checking' && <span>Checking connection...</span>}
+              {localAiStatus.status === 'not_installed' && <span>Ollama is not installed or not running</span>}
+              {localAiStatus.status === 'no_model' && <span>No local model found yet</span>}
+              {localAiStatus.status === 'downloading' && <span>Downloading the recommended model...</span>}
               {localAiStatus.status === 'connected' && <span>Connected</span>}
-              {localAiStatus.status === 'model_missing' && <span>Model not found</span>}
               {localAiStatus.status === 'failed' && <span>Could not connect</span>}
               {!inTauri && (
                 <div className="setting-desc-muted" style={{ marginTop: 6 }}>
-                  Browser builds can’t reach `http://127.0.0.1:11434` reliably. Install the desktop app to use Private Mode.
+                  Browser builds can't reach http://127.0.0.1:11434 reliably. Install the desktop app to use Private Mode.
                 </div>
               )}
               {localAiStatus.endpoint && (
@@ -399,7 +610,7 @@ export function SettingsPrivacy() {
                 </div>
               )}
 
-              {localAiStatus.status === 'failed' && (
+              {localAiStatus.status === 'not_installed' && (
                 <div style={{ marginTop: 10 }}>
                   <button
                     type="button"
@@ -412,7 +623,7 @@ export function SettingsPrivacy() {
                 </div>
               )}
 
-              {localAiStatus.status === 'model_missing' && (
+              {localAiStatus.status === 'no_model' && (
                 <div style={{ marginTop: 10, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                   <button
                     type="button"
@@ -464,7 +675,7 @@ export function SettingsPrivacy() {
           <div className="setting-info">
             <div className="setting-label">Download all my data</div>
             <div className="setting-description">
-              Export all your projects and settings as a single JSON file — for backup or GDPR requests
+              Export all your projects and settings as a single JSON file for backup or GDPR requests.
             </div>
           </div>
           <button
@@ -475,11 +686,37 @@ export function SettingsPrivacy() {
           </button>
         </div>
 
+        <div className="setting-row setting-row--stacked">
+          <div className="setting-info">
+            <div className="setting-label">Recent AI handoffs</div>
+            <div className="setting-description">
+              {recentExports.length > 0 ? (
+                <div className="settings-audit-list">
+                  {recentExports.map(({ checkpoint, projectName }) => (
+                    <div key={checkpoint.id} className="settings-audit-item">
+                      <div className="settings-audit-meta">
+                        <strong>{projectName}</strong>
+                        <span>{formatPlatformLabel(checkpoint.platform)} • {formatAuditTime(checkpoint.timestamp)}</span>
+                      </div>
+                      <div className="settings-audit-summary">
+                        {checkpoint.summary || 'Exported project snapshot'}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                'No AI exports yet. Each time you click copy, Memephant saves a checkpoint before anything is pasted back in.'
+              )}
+            </div>
+          </div>
+          <span className="setting-badge">{totalCheckpoints} checkpoint{totalCheckpoints === 1 ? '' : 's'}</span>
+        </div>
+
         <div className="setting-row">
           <div className="setting-info">
             <div className="setting-label">Clear all data</div>
             <div className="setting-description">
-              Delete all projects from this device — cannot be undone
+              Delete all projects from this device. This cannot be undone.
             </div>
           </div>
           <button

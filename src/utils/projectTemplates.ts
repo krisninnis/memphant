@@ -10,7 +10,7 @@ export interface ProjectTemplate {
   label: string;
   emoji: string;
   description: string;
-  build: (name: string) => Omit<ProjectMemory, 'id' | 'changelog' | 'platformState'>;
+  build: (name: string) => Omit<ProjectMemory, 'id' | 'changelog' | 'platformState' | 'checkpoints'>;
 }
 
 export const PROJECT_TEMPLATES: ProjectTemplate[] = [

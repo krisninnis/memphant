@@ -28,7 +28,6 @@ jobs:
 
       - name: Lint
         run: npx eslint src --ext .ts,.tsx --max-warnings 0
-        continue-on-error: true   # warn only until eslint dep is stabilised
 
   rust-check:
     name: Rust check

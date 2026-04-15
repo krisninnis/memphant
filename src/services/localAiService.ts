@@ -17,6 +17,15 @@ export interface LocalAiExtractionResult {
   notes: string[];
 }
 
+export type LocalAiAction = 'clean_response' | 'explain_changes' | 'improve_summary';
+
+export interface LocalAiActionInput {
+  text: string;
+  projectName?: string;
+  projectSummary?: string;
+  diffSummary?: string;
+}
+
 type LocalAiSettings = {
   enabled: boolean;
   provider: 'ollama';
@@ -28,6 +37,10 @@ const OLLAMA_PING_TIMEOUT_MS = 1200;
 const OLLAMA_GENERATE_TIMEOUT_MS = 12_000;
 const OLLAMA_MAX_INPUT_CHARS = 18_000;
 const OLLAMA_CACHE_TTL_MS = 10_000;
+const OLLAMA_PULL_TIMEOUT_MS = 600_000;
+
+export const DEFAULT_OLLAMA_ENDPOINT = 'http://127.0.0.1:11434';
+export const DEFAULT_OLLAMA_MODEL = 'llama3.1:8b';
 
 let ollamaAvailabilityCache: { endpoint: string; ok: boolean; checkedAt: number } | null = null;
 
@@ -272,36 +285,103 @@ export async function checkOllamaAvailability(endpoint: string): Promise<boolean
 }
 
 export async function checkModelExists(endpoint: string, model: string): Promise<boolean> {
+  const models = await listOllamaModels(endpoint);
+  const target = model.trim().toLowerCase();
+  if (!target) return false;
+
+  return models.some((name) => {
+    const lower = name.toLowerCase();
+    if (lower === target) return true;
+    if (!target.includes(':')) {
+      return (lower.split(':')[0] ?? '') === target;
+    }
+    return false;
+  });
+}
+
+export async function listOllamaModels(endpoint: string): Promise<string[]> {
+  const normalized = normalizeEndpoint(endpoint);
+  if (!normalized) return [];
+
+  try {
+    type TagsResponse = { models?: Array<{ name?: string; model?: string }> };
+    const res = await fetchWithTimeout(
+      `${normalized}/api/tags`,
+      { method: 'GET' },
+      OLLAMA_PING_TIMEOUT_MS,
+    );
+    if (!res.ok) return [];
+
+    const data = (await res.json()) as TagsResponse;
+    const models = (data.models ?? [])
+      .map((entry) => (entry.name ?? entry.model ?? '').trim())
+      .filter(Boolean);
+
+    return dedupeStrings(models);
+  } catch (err) {
+    console.error('[Ollama] Model list failed:', err);
+    return [];
+  }
+}
+
+export function chooseBestOllamaModel(
+  models: string[],
+  preferred = DEFAULT_OLLAMA_MODEL,
+): string {
+  if (models.length === 0) return preferred;
+
+  const normalized = dedupeStrings(models);
+  const lowerMap = new Map(normalized.map((name) => [name.toLowerCase(), name]));
+  const preferredLower = preferred.toLowerCase();
+
+  if (lowerMap.has(preferredLower)) {
+    return lowerMap.get(preferredLower)!;
+  }
+
+  const basePreferred = preferredLower.split(':')[0] ?? preferredLower;
+  const baseMatch = normalized.find((name) => {
+    const base = name.toLowerCase().split(':')[0] ?? '';
+    return base === basePreferred;
+  });
+  if (baseMatch) return baseMatch;
+
+  const rankedPrefixes = [
+    'llama3.1:8b',
+    'llama3.1',
+    'llama3.2:3b',
+    'llama3.2',
+    'qwen2.5',
+    'mistral',
+    'phi3',
+  ];
+
+  for (const prefix of rankedPrefixes) {
+    const match = normalized.find((name) => name.toLowerCase().startsWith(prefix));
+    if (match) return match;
+  }
+
+  return normalized[0] ?? preferred;
+}
+
+export async function pullOllamaModel(endpoint: string, model: string): Promise<boolean> {
   const normalized = normalizeEndpoint(endpoint);
   const target = model.trim();
   if (!normalized || !target) return false;
 
   try {
-    type TagsResponse = { models?: Array<{ name?: string }> };
-    const res = await fetch(`${normalized}/api/tags`, { method: 'GET' });
-    if (!res.ok) return false;
+    const res = await fetchWithTimeout(
+      `${normalized}/api/pull`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: target, stream: false }),
+      },
+      OLLAMA_PULL_TIMEOUT_MS,
+    );
 
-    const data = (await res.json()) as TagsResponse;
-    const models = data.models ?? [];
-    const targetLower = target.toLowerCase();
-    const targetHasTag = target.includes(':');
-
-    for (const m of models) {
-      const name = (m?.name ?? '').trim();
-      if (!name) continue;
-      const lower = name.toLowerCase();
-      if (lower === targetLower) return true;
-
-      // If user entered "llama3.1" match "llama3.1:8b" etc.
-      if (!targetHasTag) {
-        const baseName = lower.split(':')[0] ?? '';
-        if (baseName === targetLower) return true;
-      }
-    }
-
-    return false;
+    return res.ok;
   } catch (err) {
-    console.error('[Ollama] Model tag check failed:', err);
+    console.error('[Ollama] Model pull failed:', err);
     return false;
   }
 }
@@ -319,6 +399,121 @@ function buildOllamaPrompt(text: string): { system: string; prompt: string } {
     text;
 
   return { system, prompt };
+}
+
+function getConfiguredOllamaSettings(): LocalAiSettings {
+  const settings = getLocalAiSettings();
+
+  if (!settings?.enabled || settings.provider !== 'ollama') {
+    throw new Error('Private Mode is disabled.');
+  }
+
+  const endpoint = normalizeEndpoint(settings.endpoint || '');
+  const model = (settings.model || '').trim();
+
+  if (!endpoint) {
+    throw new Error('Set an Ollama endpoint first.');
+  }
+
+  if (!model) {
+    throw new Error('Choose an Ollama model first.');
+  }
+
+  return {
+    ...settings,
+    endpoint,
+    model,
+  };
+}
+
+async function generateOllamaText(
+  settings: LocalAiSettings,
+  system: string,
+  prompt: string,
+  timeoutMs = OLLAMA_GENERATE_TIMEOUT_MS,
+): Promise<string> {
+  const reachable = await pingOllama(settings.endpoint);
+  if (!reachable) {
+    throw new Error('Ollama is not installed or not running.');
+  }
+
+  const modelExists = await checkModelExists(settings.endpoint, settings.model);
+  if (!modelExists) {
+    throw new Error(`Model not found: ${settings.model}`);
+  }
+
+  const response = await fetchWithTimeout(
+    `${settings.endpoint}/api/generate`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: settings.model,
+        system,
+        prompt,
+        stream: false,
+        options: {
+          temperature: 0.1,
+        },
+      }),
+    },
+    timeoutMs,
+  );
+
+  if (!response.ok) {
+    throw new Error(`Ollama request failed (${response.status})`);
+  }
+
+  const data = (await response.json()) as { response?: unknown };
+  const text = typeof data.response === 'string' ? data.response.trim() : '';
+  if (!text) {
+    throw new Error('Ollama returned an empty response.');
+  }
+
+  return text;
+}
+
+function buildLocalAiActionPrompt(
+  action: LocalAiAction,
+  input: LocalAiActionInput,
+): { system: string; prompt: string } {
+  const cleanText = input.text.trim();
+  const contextLines = [
+    input.projectName ? `Project: ${input.projectName}` : '',
+    input.projectSummary ? `Current summary: ${input.projectSummary}` : '',
+    input.diffSummary ? `Detected changes: ${input.diffSummary}` : '',
+  ].filter(Boolean);
+
+  if (action === 'clean_response') {
+    return {
+      system:
+        'You clean pasted AI responses for downstream parsing. Return only cleaned plain text. Remove markdown fences, filler, and conversational framing while preserving facts.',
+      prompt: `${contextLines.join('\n')}\n\nPasted AI response:\n${cleanText}`.trim(),
+    };
+  }
+
+  if (action === 'explain_changes') {
+    return {
+      system:
+        'You explain project changes clearly for a product user. Return only short plain text bullets. Be specific and concise.',
+      prompt: `${contextLines.join('\n')}\n\nExplain the important changes described below:\n${cleanText}`.trim(),
+    };
+  }
+
+  return {
+    system:
+      'You improve project summaries. Return only a concise polished summary in plain text, suitable for a project memory tool.',
+    prompt: `${contextLines.join('\n')}\n\nWrite a better project summary using this context:\n${cleanText}`.trim(),
+  };
+}
+
+export async function runLocalAiAction(
+  action: LocalAiAction,
+  input: LocalAiActionInput,
+): Promise<string> {
+  const settings = getConfiguredOllamaSettings();
+  const { system, prompt } = buildLocalAiActionPrompt(action, input);
+  return generateOllamaText(settings, system, prompt);
 }
 
 async function tryExtractWithOllama(text: string, settings: LocalAiSettings): Promise<LocalAiExtractionResult> {

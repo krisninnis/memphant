@@ -3,7 +3,7 @@ import type { ProjectMemory, Platform, AppSettings } from '../types/memphant-typ
 import { DEFAULT_SETTINGS } from '../types/memphant-types';
 import type { CloudUser } from '../services/cloudSync';
 
-export type SyncStatus = 'idle' | 'syncing' | 'error';
+export type SyncStatus = 'saved_local' | 'pending' | 'syncing' | 'synced' | 'error';
 export type SubscriptionTier = 'free' | 'pro' | 'team';
 export type SubscriptionStatus = 'none' | 'active' | 'trialing' | 'past_due' | 'canceled';
 
@@ -68,6 +68,7 @@ interface ProjectStore {
 
   // Cloud sync state
   cloudUser: CloudUser | null;
+  cloudDisconnecting: boolean;
   syncStatus: SyncStatus;
   lastSyncedAt: string | null;
 
@@ -102,8 +103,10 @@ interface ProjectStore {
 
   // Cloud sync actions
   setCloudUser: (user: CloudUser | null) => void;
+  setCloudDisconnecting: (disconnecting: boolean) => void;
   setSyncStatus: (status: SyncStatus) => void;
   setLastSyncedAt: (at: string) => void;
+  resetCloudState: () => void;
 
   // Subscription actions
   setSubscriptionTier: (tier: SubscriptionTier) => void;
@@ -141,7 +144,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
   // Cloud sync state
   cloudUser: null,
-  syncStatus: 'idle' as SyncStatus,
+  cloudDisconnecting: false,
+  syncStatus: 'saved_local' as SyncStatus,
   lastSyncedAt: null,
 
   // Subscription state
@@ -181,8 +185,19 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
   // Cloud sync actions
   setCloudUser: (user) => set({ cloudUser: user }),
+  setCloudDisconnecting: (disconnecting) => set({ cloudDisconnecting: disconnecting }),
   setSyncStatus: (status) => set({ syncStatus: status }),
   setLastSyncedAt: (at) => set({ lastSyncedAt: at }),
+  resetCloudState: () =>
+    set({
+      cloudUser: null,
+      cloudDisconnecting: false,
+      syncStatus: 'saved_local',
+      lastSyncedAt: null,
+      subscriptionTier: 'free',
+      subscriptionStatus: 'none',
+      isAdmin: false,
+    }),
 
   // Subscription actions
   setSubscriptionTier: (tier) => set({ subscriptionTier: tier }),
@@ -199,7 +214,13 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   updateProject: (id, updates) =>
     set((state) => ({
       projects: state.projects.map((p) =>
-        p.id === id ? { ...p, ...updates } : p
+        p.id === id
+          ? {
+              ...p,
+              ...updates,
+              updatedAt: updates.updatedAt ?? new Date().toISOString(),
+            }
+          : p
       ),
     })),
 
