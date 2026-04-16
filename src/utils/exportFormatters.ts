@@ -73,11 +73,16 @@ function decisionsBlock(decisions: ProjectMemory['decisions'], indent = '  '): s
     .join('\n');
 }
 
+// Current protocol version — increment MAJOR for breaking schema changes,
+// MINOR for new optional fields, PATCH for doc-only fixes.
+export const MEMPHANT_UPDATE_SCHEMA_VERSION = '1.0.0';
+
 const RESPONSE_FORMAT = `
 When you finish, include a project update block at the end of your response like this:
 
 memphant_update
 {
+  "schemaVersion": "1.0.0",
   "summary": "one-sentence summary of the project",
   "currentState": "what is true right now after your work",
   "goals": ["any new goals to add"],

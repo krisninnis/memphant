@@ -68,7 +68,9 @@ export function ExportButtons() {
   const lastSeenAt = selectedProject?.platformState?.[selectedPlatform.id]?.lastSeenAt;
   const recentChanges = selectedProject ? getChangesSince(selectedProject, lastSeenAt) : [];
 
-  const quickPlatforms = enabledPlatforms.slice(0, 3);
+  const chatPlatforms = enabledPlatforms.filter((p) => p.category === 'chat');
+  const devPlatforms = enabledPlatforms.filter((p) => p.category === 'dev');
+  const localPlatforms = enabledPlatforms.filter((p) => p.category === 'local');
   const selectedPlatformState = selectedProject?.platformState?.[selectedPlatform.id];
   const syncLabel = selectedPlatformState?.lastExportedAt
     ? formatSyncAge(selectedPlatformState.lastExportedAt)
@@ -126,79 +128,77 @@ export function ExportButtons() {
     showToast,
   ]);
 
+  const renderPillGroup = (platforms: typeof enabledPlatforms) =>
+    platforms.map((platform) => {
+      const isActive = selectedPlatform.id === platform.id;
+      const state = activeProject?.platformState?.[platform.id];
+      const age = state?.lastExportedAt ? formatSyncAge(state.lastExportedAt) : null;
+
+      return (
+        <button
+          key={platform.id}
+          type="button"
+          className={`export-pill${isActive ? ' export-pill--active' : ''}`}
+          style={{ '--pill-color': platform.color ?? '#64748b' } as CSSProperties}
+          onClick={() => handleSelectPlatform(platform.id)}
+          title={age ? `${platform.name} — last copied ${age}` : `Select ${platform.name}`}
+          aria-pressed={isActive}
+        >
+          <span className="export-pill__icon">{platform.icon ?? '🧩'}</span>
+          <span className="export-pill__label">{platform.name}</span>
+          {age && <span className="export-pill__age">{age}</span>}
+        </button>
+      );
+    });
+
   return (
     <div className="export-controls" data-tour="export">
-      <div className="export-select-row">
-        <button
-          type="button"
-          className={`export-copy-btn${copied ? ' export-copy-btn--copied' : ''}`}
-          style={{ '--pill-color': selectedPlatform.color ?? '#64748b' } as CSSProperties}
-          onClick={() => void handleCopy()}
-          disabled={!activeProject}
-          title={
-            syncLabel
-              ? `Last copied for ${selectedPlatform.name}: ${syncLabel}`
-              : `Copy project context for ${selectedPlatform.name}`
-          }
-        >
-          {copied ? (
-            <>
-              <span className="export-copy-btn__icon">OK</span>
-              <span className="export-copy-btn__text">Copied. Paste into {selectedPlatform.name}.</span>
-            </>
-          ) : (
-            <>
-              <span className="export-copy-btn__icon">{selectedPlatform.icon ?? '🧩'}</span>
-              <span className="export-copy-btn__text">
-                Copy for AI
-                <span className="export-copy-btn__target">{selectedPlatform.name}</span>
-                {syncLabel && <span className="export-copy-btn__age">{syncLabel}</span>}
-              </span>
-            </>
-          )}
-        </button>
+      <button
+        type="button"
+        className={`export-copy-btn${copied ? ' export-copy-btn--copied' : ''}`}
+        style={{ '--pill-color': selectedPlatform.color ?? '#64748b' } as CSSProperties}
+        onClick={() => void handleCopy()}
+        disabled={!activeProject}
+        title={
+          syncLabel
+            ? `Last copied for ${selectedPlatform.name}: ${syncLabel}`
+            : `Copy project context for ${selectedPlatform.name}`
+        }
+      >
+        {copied ? (
+          <>
+            <span className="export-copy-btn__icon">OK</span>
+            <span className="export-copy-btn__text">Copied. Paste into {selectedPlatform.name}.</span>
+          </>
+        ) : (
+          <>
+            <span className="export-copy-btn__icon">{selectedPlatform.icon ?? '🧩'}</span>
+            <span className="export-copy-btn__text">
+              Copy for AI
+              <span className="export-copy-btn__target">{selectedPlatform.name}</span>
+              {syncLabel && <span className="export-copy-btn__age">{syncLabel}</span>}
+            </span>
+          </>
+        )}
+      </button>
 
-        <select
-          className="export-platform-select"
-          value={selectedPlatform.id}
-          onChange={(e) => handleSelectPlatform(e.target.value)}
-          aria-label="Choose AI platform"
-        >
-          {enabledPlatforms.map((platform) => (
-            <option key={platform.id} value={platform.id}>
-              {platform.name}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="export-quick-list" role="tablist" aria-label="Quick AI platforms">
-        {quickPlatforms.map((platform) => {
-          const isActive = selectedPlatform.id === platform.id;
-          const state = activeProject?.platformState?.[platform.id];
-          const age = state?.lastExportedAt ? formatSyncAge(state.lastExportedAt) : null;
-
-          return (
-            <button
-              key={platform.id}
-              type="button"
-              className={`export-pill${isActive ? ' export-pill--active' : ''}`}
-              style={{ '--pill-color': platform.color ?? '#64748b' } as CSSProperties}
-              onClick={() => handleSelectPlatform(platform.id)}
-              title={age ? `${platform.name} - last copied ${age}` : `Select ${platform.name}`}
-              aria-pressed={isActive}
-            >
-              <span className="export-pill__icon">{platform.icon ?? '🧩'}</span>
-              <span className="export-pill__label">{platform.name}</span>
-              {age && <span className="export-pill__age">{age}</span>}
-            </button>
-          );
-        })}
-
-        {enabledPlatforms.length > quickPlatforms.length && (
-          <span className="export-quick-list__hint">
-            {enabledPlatforms.length - quickPlatforms.length} more in the dropdown
-          </span>
+      <div className="export-platform-pills" role="tablist" aria-label="Choose AI platform">
+        {chatPlatforms.length > 0 && (
+          <div className="export-pill-group">
+            {renderPillGroup(chatPlatforms)}
+          </div>
+        )}
+        {devPlatforms.length > 0 && (
+          <div className="export-pill-group export-pill-group--dev">
+            <span className="export-pill-group__label">Dev tools</span>
+            {renderPillGroup(devPlatforms)}
+          </div>
+        )}
+        {localPlatforms.length > 0 && (
+          <div className="export-pill-group export-pill-group--local">
+            <span className="export-pill-group__label">Local AI</span>
+            {renderPillGroup(localPlatforms)}
+          </div>
         )}
       </div>
 

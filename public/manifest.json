@@ -6,12 +6,25 @@
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "orientation": "portrait-primary",
+  "display_override": ["window-controls-overlay", "standalone", "browser"],
+  "orientation": "any",
   "background_color": "#1a1a2e",
   "theme_color": "#1a1a2e",
   "lang": "en",
   "categories": ["productivity", "utilities"],
   "icons": [
+    {
+      "src": "/icons/icon-180-v2.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-180-maskable-v2.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
     {
       "src": "/icons/icon-72.png",
       "sizes": "72x72",

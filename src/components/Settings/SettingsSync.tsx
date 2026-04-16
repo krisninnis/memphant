@@ -290,7 +290,7 @@ export function SettingsSync() {
     try {
       const projectsToSync = useProjectStore.getState().projects;
 
-      const { merged, changed } = await withUiTimeout(
+      const { merged, changed, conflicts } = await withUiTimeout(
         runCloudSyncCycle(projectsToSync, 'signin', user.id),
         30000,
         'Cloud sync timed out - server may be waking up. Try syncing again.',
@@ -304,7 +304,15 @@ export function SettingsSync() {
       setLastSyncedAt(new Date().toISOString());
       setSyncStatus('synced');
       setSyncErrorDetails('');
-      showToast('Signed in. Cloud backup is now synced.');
+
+      if (conflicts.length > 0) {
+        showToast(
+          `Signed in. Cloud updated ${conflicts.length} project${conflicts.length === 1 ? '' : 's'} from a newer cloud version.`,
+          'info',
+        );
+      } else {
+        showToast('Signed in. Cloud backup is now synced.');
+      }
     } catch (err) {
       const message = errorMessage(err, 'Cloud sync failed.');
       setSyncStatus('error');
@@ -361,7 +369,7 @@ VITE_SUPABASE_ANON_KEY=your-anon-key`}</pre>
     const slowTimer = window.setTimeout(() => setSyncSlow(true), 8000);
 
     try {
-      const { merged, changed } = await withUiTimeout(
+      const { merged, changed, conflicts } = await withUiTimeout(
         runCloudSyncCycle(projects, 'manual', cloudUser?.id),
         30000,
         'Cloud sync timed out - server may be waking up. Try again in a moment.',
@@ -370,6 +378,13 @@ VITE_SUPABASE_ANON_KEY=your-anon-key`}</pre>
 
       if (changed) {
         setProjects(merged);
+      }
+
+      if (conflicts.length > 0) {
+        showToast(
+          `Sync complete. ${conflicts.length} project${conflicts.length === 1 ? '' : 's'} updated from a newer cloud version.`,
+          'info',
+        );
       }
 
       window.clearTimeout(slowTimer);

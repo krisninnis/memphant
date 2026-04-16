@@ -667,7 +667,11 @@ export async function signUp(email: string, password: string): Promise<CloudUser
 
 export async function signOut(): Promise<void> {
   if (!supabase) return
-  const { error } = await supabase.auth.signOut({ scope: 'local' })
+  // Use 'global' scope to invalidate the server-side refresh token.
+  // 'local' only clears local storage — on mobile WebViews, Google OAuth can
+  // silently re-authenticate using cached browser cookies, and a still-valid
+  // server-side refresh token lets that succeed without any user interaction.
+  const { error } = await supabase.auth.signOut({ scope: 'global' })
   if (error) throw new Error(error.message)
 }
 
@@ -699,9 +703,30 @@ function clearSupabaseAuthStorage(): { clearedKeys: string[] } {
   if (typeof window !== 'undefined') {
     clearFromStorage(window.localStorage)
     clearFromStorage(window.sessionStorage)
+    // Also purge IndexedDB auth databases.
+    // Supabase v2 can fall back to IndexedDB on mobile WebViews where
+    // localStorage quota is restricted (common on iOS Safari PWA).
+    void clearSupabaseIndexedDB()
   }
 
   return { clearedKeys: Array.from(clearedKeys).sort() }
+}
+
+async function clearSupabaseIndexedDB(): Promise<void> {
+  if (typeof indexedDB === 'undefined') return
+  try {
+    // indexedDB.databases() lists all open databases — not available in every env.
+    if (typeof indexedDB.databases === 'function') {
+      const dbs = await indexedDB.databases()
+      for (const db of dbs) {
+        if (db.name && (db.name.startsWith('sb-') || /supabase|gotrue/i.test(db.name))) {
+          indexedDB.deleteDatabase(db.name)
+        }
+      }
+    }
+  } catch {
+    // Silent fail — IndexedDB.databases() not supported everywhere; localStorage already cleared above.
+  }
 }
 
 export async function disconnectCloud(): Promise<{ clearedKeys: string[] }> {
@@ -973,7 +998,7 @@ async function pullAndMerge(
   localProjects: ProjectMemory[],
   userId: string,
   reason: SyncReason,
-): Promise<{ merged: ProjectMemory[]; changed: boolean }> {
+): Promise<{ merged: ProjectMemory[]; changed: boolean; conflicts: string[] }> {
   const requestId = nextRequestId('pull')
 
   if (!supabase) {
@@ -999,6 +1024,9 @@ async function pullAndMerge(
 
   const localMap = new Map(localProjects.map((p) => [p.id, p]))
   let changed = false
+  // Track projects where remote was newer and overwrote local — surfaced as a
+  // toast notification so users know their local copy was updated from the cloud.
+  const conflicts: string[] = []
 
   for (const row of remoteRows) {
     const remoteProject = row.data as ProjectMemory
@@ -1015,16 +1043,20 @@ async function pullAndMerge(
         projectId: remoteProject.id,
       })
     } else {
-      // Both exist — last-write-wins by updatedAt
+      // Both exist — last-write-wins by updatedAt.
+      // Policy: remote wins when its timestamp is strictly newer.
+      // Tie (equal timestamps): local wins (local-first bias).
       const localTs = localUpdatedAt(local)
       const remoteTs = row.updated_at ?? localUpdatedAt(remoteProject)
       if (remoteTs > localTs) {
         localMap.set(remoteProject.id, remoteProject)
         changed = true
+        conflicts.push(remoteProject.name || remoteProject.id)
         logSync('pull', 'updated_from_remote', {
           reason,
           requestId,
           projectId: remoteProject.id,
+          projectName: remoteProject.name,
           localTs,
           remoteTs,
         })
@@ -1033,8 +1065,8 @@ async function pullAndMerge(
   }
 
   const merged = Array.from(localMap.values())
-  logSync('pull', 'merge_complete', { reason, requestId, changed, mergedCount: merged.length })
-  return { merged, changed }
+  logSync('pull', 'merge_complete', { reason, requestId, changed, mergedCount: merged.length, conflictCount: conflicts.length })
+  return { merged, changed, conflicts }
 }
 
 // ─── Drain offline queue ──────────────────────────────────────────────────────
@@ -1142,7 +1174,7 @@ async function _runCycle(
   localProjects: ProjectMemory[],
   reason: SyncReason,
   userId: string,
-): Promise<{ merged: ProjectMemory[]; changed: boolean }> {
+): Promise<{ merged: ProjectMemory[]; changed: boolean; conflicts: string[] }> {
   const cycleId = nextRequestId('cycle')
   logSync('cycle', 'cycle_start', { reason, cycleId, userId, localCount: localProjects.length })
 
@@ -1168,6 +1200,7 @@ async function _runCycle(
       userId,
       changed: result.changed,
       mergedCount: result.merged.length,
+      conflictCount: result.conflicts.length,
     })
 
     return result
@@ -1181,9 +1214,9 @@ export async function runCloudSyncCycle(
   localProjects: ProjectMemory[],
   reason: SyncReason,
   knownUserId?: string,
-): Promise<{ merged: ProjectMemory[]; changed: boolean }> {
+): Promise<{ merged: ProjectMemory[]; changed: boolean; conflicts: string[] }> {
   if (!supabase) {
-    return { merged: localProjects, changed: false }
+    return { merged: localProjects, changed: false, conflicts: [] }
   }
 
   // Deduplicate concurrent calls — all callers share one in-flight cycle
@@ -1202,7 +1235,7 @@ export async function runCloudSyncCycle(
       const { user } = await getAuthUser(reason, 'cycle')
       if (!user) {
         logSync('cycle', 'auth_no_user', { reason })
-        return { merged: localProjects, changed: false }
+        return { merged: localProjects, changed: false, conflicts: [] }
       }
       userId = user.id
     }

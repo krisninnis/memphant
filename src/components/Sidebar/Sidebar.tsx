@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useProjectStore } from '../../store/projectStore';
 import {
   createProject,
@@ -45,6 +45,16 @@ export function Sidebar({ onNavigate }: SidebarProps) {
   const [createMode, setCreateMode] = useState<CreateMode>('none');
   const [newName, setNewName] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  // Debounced value used for the actual filter — avoids re-running the filter
+  // on every keystroke when the project list is large (100+ projects).
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchQuery(value);
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => setDebouncedSearch(value), 120);
+  }, []);
   const [selectedTemplate, setSelectedTemplate] = useState<ProjectTemplate | null>(null);
   const [templateName, setTemplateName] = useState('');
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
@@ -55,21 +65,23 @@ export function Sidebar({ onNavigate }: SidebarProps) {
   const nameInputRef = useRef<HTMLInputElement>(null);
   const templateNameRef = useRef<HTMLInputElement>(null);
 
-  const filteredProjects = searchQuery.trim()
-    ? projects.filter((p) => {
-        const q = searchQuery.toLowerCase();
-        return (
-          p.name.toLowerCase().includes(q) ||
-          p.summary?.toLowerCase().includes(q) ||
-          p.currentState?.toLowerCase().includes(q) ||
-          p.goals?.some((g) => g.toLowerCase().includes(q)) ||
-          p.nextSteps?.some((s) => s.toLowerCase().includes(q)) ||
-          p.decisions?.some((d) =>
-            (typeof d === 'string' ? d : d.decision).toLowerCase().includes(q),
-          )
-        );
-      })
-    : projects;
+  // Memoised filter — only re-runs when projects array or the debounced search
+  // value changes. For 100+ projects this keeps keystroke latency imperceptible.
+  const filteredProjects = useMemo(() => {
+    const q = debouncedSearch.trim().toLowerCase();
+    if (!q) return projects;
+    return projects.filter(
+      (p) =>
+        p.name.toLowerCase().includes(q) ||
+        p.summary?.toLowerCase().includes(q) ||
+        p.currentState?.toLowerCase().includes(q) ||
+        p.goals?.some((g) => g.toLowerCase().includes(q)) ||
+        p.nextSteps?.some((s) => s.toLowerCase().includes(q)) ||
+        p.decisions?.some((d) =>
+          (typeof d === 'string' ? d : d.decision).toLowerCase().includes(q),
+        ),
+    );
+  }, [projects, debouncedSearch]);
 
   const resetCreate = () => {
     setCreateMode('none');
@@ -280,12 +292,12 @@ export function Sidebar({ onNavigate }: SidebarProps) {
             className="sidebar-search-input"
             placeholder="Search projects..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => handleSearchChange(e.target.value)}
           />
           {searchQuery && (
             <button
               className="sidebar-search-clear"
-              onClick={() => setSearchQuery('')}
+              onClick={() => { handleSearchChange(''); setDebouncedSearch(''); }}
               aria-label="Clear search"
             >
               ×

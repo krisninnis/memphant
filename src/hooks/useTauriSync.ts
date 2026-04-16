@@ -158,7 +158,7 @@ export function useTauriSync() {
 
             try {
               const projectsToSync = useProjectStore.getState().projects;
-              const { merged, changed } = await withUiTimeout(
+              const { merged, changed, conflicts } = await withUiTimeout(
                 runCloudSyncCycle(projectsToSync, 'startup', incomingUser.id),
                 30000,
                 'Cloud restore timed out.',
@@ -167,6 +167,15 @@ export function useTauriSync() {
 
               if (changed) {
                 store.setProjects(merged);
+              }
+
+              if (conflicts.length > 0) {
+                // Remote was newer — inform the user that their local copy was
+                // updated from the cloud (not a destructive conflict, just visibility).
+                store.showToast(
+                  `Cloud updated ${conflicts.length} project${conflicts.length === 1 ? '' : 's'} from a newer cloud version.`,
+                  'info',
+                );
               }
 
               store.setLastSyncedAt(new Date().toISOString());

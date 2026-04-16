@@ -94,6 +94,34 @@ function hasProjectFields(obj: unknown): obj is DetectedUpdate {
   );
 }
 
+// Supported schemaVersion MAJOR — anything higher than this is a breaking change
+// and should be rejected gracefully rather than parsed incorrectly.
+const SUPPORTED_SCHEMA_MAJOR = 1;
+
+/**
+ * Parse and validate the schemaVersion field (if present).
+ * Returns false if the version is present but represents an incompatible major version.
+ * Missing schemaVersion is accepted (pre-1.0.0 blocks stay compatible).
+ */
+function isSchemaVersionCompatible(parsed: Record<string, unknown>): boolean {
+  const raw = parsed.schemaVersion;
+  if (raw === undefined || raw === null) return true; // legacy block — accept
+  if (typeof raw !== 'string') return true; // malformed field — ignore and accept
+
+  const major = parseInt(raw.split('.')[0] ?? '1', 10);
+  if (isNaN(major)) return true;
+
+  if (major > SUPPORTED_SCHEMA_MAJOR) {
+    console.warn(
+      `[memphant] memphant_update block has schemaVersion "${raw}" — ` +
+        `this app only understands major version ${SUPPORTED_SCHEMA_MAJOR}. ` +
+        `Please update Memephant to read this update.`,
+    );
+    return false;
+  }
+  return true;
+}
+
 function parseCandidateJson(candidate: string): DetectedUpdate | null {
   const trimmed = candidate.trim();
 
@@ -104,6 +132,7 @@ function parseCandidateJson(candidate: string): DetectedUpdate | null {
   try {
     const parsed = JSON.parse(trimmed) as Record<string, unknown>;
     if (!hasProjectFields(parsed)) return null;
+    if (!isSchemaVersionCompatible(parsed)) return null;
 
     const normalised: DetectedUpdate = {};
 

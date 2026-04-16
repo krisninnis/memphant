@@ -1823,17 +1823,19 @@ select {
     display: none;
   }
 
-  .export-buttons {
-    width: 100%;
-    justify-content: flex-start;
+  .export-platform-pills {
+    gap: 8px;
+  }
+
+  .export-pill-group {
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .export-pill {
-    flex: 1 1 calc(50% - 8px);
-  }
-
-  .export-select-row {
-    grid-template-columns: 1fr;
+    width: 100%;
+    flex-direction: row;
+    justify-content: flex-start;
   }
 
   .list-item {
@@ -1880,28 +1882,6 @@ select {
   flex-direction: column;
   gap: 8px;
   width: 100%;
-}
-
-.export-select-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 180px;
-  gap: 8px;
-  width: 100%;
-}
-
-.export-platform-select {
-  width: 100%;
-  min-height: 44px;
-  padding: 0 12px;
-  border-radius: 10px;
-  border: 1px solid #2a2a3e;
-  background: #12121f;
-  color: #e0e0f0;
-}
-
-.export-platform-select:focus {
-  outline: none;
-  border-color: #d97706;
 }
 
 .export-copy-btn {
@@ -1998,17 +1978,33 @@ select {
   line-height: 1.5;
 }
 
-.export-quick-list {
+.export-platform-pills {
   display: flex;
-  gap: 8px;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.export-pill-group {
+  display: flex;
   flex-wrap: wrap;
+  gap: 6px;
   align-items: center;
 }
 
-.export-quick-list__hint {
-  font-size: 11px;
-  color: #7b7b98;
-  padding: 0 2px;
+.export-pill-group--dev,
+.export-pill-group--local {
+  padding-top: 4px;
+  border-top: 1px solid #1e2a40;
+}
+
+.export-pill-group__label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #4a5a78;
+  width: 100%;
+  padding-bottom: 2px;
 }
 
 /* ── Export quality indicator ───────────────────────────────────────────── */
@@ -2139,17 +2135,6 @@ select {
     scroll-margin-bottom: 120px;
   }
 
-  /* Export pills — 2-up grid on narrow screens */
-  .export-buttons {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 6px;
-  }
-
-  .export-pill {
-    flex: unset;
-  }
-
   .export-trust-card__row {
     flex-direction: column;
     gap: 4px;
@@ -2157,10 +2142,6 @@ select {
 
   .export-trust-card__value {
     text-align: left;
-  }
-
-  .export-select-row {
-    grid-template-columns: 1fr;
   }
 
   /* Decision cards — full width */
@@ -2210,10 +2191,6 @@ select {
   .workspace-main {
     padding: 12px;
     padding-bottom: calc(96px + env(safe-area-inset-bottom));
-  }
-
-  .export-buttons {
-    grid-template-columns: 1fr;
   }
 
   .mobile-bottom-bar__label {
