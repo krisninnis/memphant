@@ -11,6 +11,8 @@ async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Prom
   return invoke<T>(cmd, args);
 }
 
+const appVersion = import.meta.env.VITE_APP_VERSION || 'dev';
+
 export function SettingsGeneral() {
   const settings = useProjectStore((s) => s.settings);
   const updateSettings = useProjectStore((s) => s.updateSettings);
@@ -177,7 +179,7 @@ export function SettingsGeneral() {
         <div className="setting-row">
           <div className="setting-info">
             <div className="setting-label">App version</div>
-            <div className="setting-description">0.1.0</div>
+            <div className="setting-description">{appVersion}</div>
           </div>
           <button
             className="setting-btn"

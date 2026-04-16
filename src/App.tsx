@@ -1,6 +1,7 @@
 import { Component, type ReactNode, type ErrorInfo } from 'react';
 import AppShell from './components/Layout/AppShell';
 import { PWAUpdatePrompt } from './components/PWAUpdatePrompt';
+import { PWAProvider } from './hooks/usePWA';
 import './styles/app-shell.css';
 
 interface ErrorBoundaryState {
@@ -19,7 +20,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryStat
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error('[Memphant] Uncaught error:', error, info.componentStack);
+    console.error('[Memephant] Uncaught error:', error, info.componentStack);
   }
 
   handleReset = () => {
@@ -94,8 +95,10 @@ class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryStat
 function App() {
   return (
     <ErrorBoundary>
-      <AppShell />
-      <PWAUpdatePrompt />
+      <PWAProvider>
+        <AppShell />
+        <PWAUpdatePrompt />
+      </PWAProvider>
     </ErrorBoundary>
   );
 }

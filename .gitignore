@@ -33,3 +33,4 @@ src-tauri/target/
 *.key
 *.key.pub
 ~/.tauri/
+*.tsbuildinfo

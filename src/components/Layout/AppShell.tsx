@@ -14,6 +14,7 @@ import SettingsPage from '../Settings/SettingsPage';
 import TourOverlay from '../Tour/TourOverlay';
 import { IntroModal } from './IntroModal';
 import { CommandPalette } from '../CommandPalette/CommandPalette';
+import { PWAInstallButton } from '../PWAInstallButton';
 
 export function AppShell() {
   useTauriSync();
@@ -30,7 +31,7 @@ export function AppShell() {
   if (isLoading) {
     return (
       <div className="app-shell app-shell--loading">
-        <p className="app-shell__loading-text">Loading projects…</p>
+        <p className="app-shell__loading-text">Loading projects...</p>
       </div>
     );
   }
@@ -58,14 +59,26 @@ export function AppShell() {
       )}
 
       <main className="workspace">
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'flex-end',
+            alignItems: 'center',
+            padding: '0.75rem 1rem 0',
+            flexShrink: 0,
+          }}
+        >
+          <PWAInstallButton variant="header" />
+        </div>
+
         {currentView === 'settings' ? (
           <SettingsPage />
         ) : showWelcome ? (
           <WelcomeScreen />
         ) : (
-          <>
+          <div className="workspace-scroll">
             <ActionBar />
-            <div className="workspace-scroll">
+            <div className="workspace-main">
               {activeProject && <WorkflowGuide />}
               <PasteZone />
               {activeProject ? (
@@ -77,7 +90,7 @@ export function AppShell() {
               )}
             </div>
             <TrustFooter />
-          </>
+          </div>
         )}
       </main>
 
@@ -87,7 +100,9 @@ export function AppShell() {
           className={`mobile-bottom-bar__btn${mobileDrawerOpen ? ' mobile-bottom-bar__btn--active' : ''}`}
           onClick={() => setMobileDrawerOpen((open) => !open)}
         >
-          <span className="mobile-bottom-bar__icon">📁</span>
+          <span className="mobile-bottom-bar__icon" aria-hidden="true">
+            📁
+          </span>
           <span className="mobile-bottom-bar__label">
             Projects{projects.length > 0 ? ` (${projects.length})` : ''}
           </span>
@@ -101,7 +116,9 @@ export function AppShell() {
             closeMobileDrawer();
           }}
         >
-          <span className="mobile-bottom-bar__icon">⚙️</span>
+          <span className="mobile-bottom-bar__icon" aria-hidden="true">
+            ⚙️
+          </span>
           <span className="mobile-bottom-bar__label">Settings</span>
         </button>
 
@@ -113,7 +130,9 @@ export function AppShell() {
             closeMobileDrawer();
           }}
         >
-          <span className="mobile-bottom-bar__icon">🐘</span>
+          <span className="mobile-bottom-bar__icon" aria-hidden="true">
+            🐘
+          </span>
           <span className="mobile-bottom-bar__label">Workspace</span>
         </button>
       </div>
@@ -126,7 +145,7 @@ export function AppShell() {
           aria-label="Open projects"
           title="Open projects"
         >
-          📁
+          <span aria-hidden="true">📁</span>
         </button>
       )}
 

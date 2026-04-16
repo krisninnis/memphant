@@ -1055,10 +1055,7 @@ const sub = await fetchSubscription(cloudUser.id);
       }
       const cloudUserObj = { id: user.id, email: user.email };
       setCloudUser(cloudUserObj);
-      const sub = await fetchSubscription(user.id);
-      setSubscriptionTier(sub.tier);
-      setSubscriptionStatus(sub.status);
-      showToast(`Signed in as ${user.email}`);
+      await finishCloudSignIn(cloudUserObj);
     } catch {
       setFormError('Could not detect session. Try again.');
     } finally {

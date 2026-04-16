@@ -1,13 +1,16 @@
 import { useState } from 'react';
 import { useProjectStore } from '../../store/projectStore';
 import { useActiveProject } from '../../hooks/useActiveProject';
-import { linkFolder, rescanLinkedFolder, exportActiveProjectAsMarkdown } from '../../services/tauriActions';
+import {
+  linkFolder,
+  rescanLinkedFolder,
+  exportActiveProjectAsMarkdown,
+} from '../../services/tauriActions';
 import ExportButtons from './ExportButtons';
 import TaskField from './TaskField';
 
 /** The prompt users paste into their AI to activate the memphant_update protocol */
-const ACTIVATION_PROMPT =
-  `After every response, please include a project update block at the end so I can sync your changes back to my Memephant app:
+const ACTIVATION_PROMPT = `After every response, please include a project update block at the end so I can sync your changes back to my Memephant app:
 
 memphant_update
 {
@@ -44,7 +47,7 @@ export function ActionBar() {
     try {
       await navigator.clipboard.writeText(ACTIVATION_PROMPT);
       setActivationCopied(true);
-      showToast('Copied — paste this into your AI at the start of a session');
+      showToast('Copied - paste this into your AI at the start of a session');
       setTimeout(() => setActivationCopied(false), 3000);
     } catch {
       showToast('Could not copy to clipboard', 'error');
@@ -70,20 +73,18 @@ export function ActionBar() {
       <TaskField />
 
       <div className="action-bar__secondary">
-        {/* Activate update loop */}
         <button
           type="button"
           className={`action-bar__btn action-bar__btn--activation${activationCopied ? ' action-bar__btn--copied' : ''}`}
           onClick={() => void handleCopyActivation()}
           title="Copy a setup prompt to paste into your AI so it sends updates back automatically"
         >
-          {activationCopied ? '✅ Activation copied' : '🔗 Activate update loop'}
+          {activationCopied ? 'Activation copied' : 'Activate update loop'}
         </button>
 
-        {/* Folder link / rescan */}
         {!hasLinkedFolder ? (
           <button type="button" className="action-bar__btn" onClick={() => void linkFolder()}>
-            📁 Link project folder
+            Link project folder
           </button>
         ) : (
           <button
@@ -91,28 +92,26 @@ export function ActionBar() {
             className="action-bar__btn"
             onClick={() => void rescanLinkedFolder()}
           >
-            🔄 Rescan linked folder
+            Rescan linked folder
           </button>
         )}
 
-        {/* Save as markdown file */}
         <button
           type="button"
           className="action-bar__btn"
           onClick={() => void exportActiveProjectAsMarkdown()}
           title="Save a readable snapshot of this project as a .md file"
         >
-          📄 Save as file
+          Save as file
         </button>
 
-        {/* Rollback */}
         {preAiBackup && (
           <button
             type="button"
             className="action-bar__btn action-bar__btn--undo"
             onClick={handleRollback}
           >
-            ↩️ Undo last AI update
+            Undo last AI update
           </button>
         )}
       </div>

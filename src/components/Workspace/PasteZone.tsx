@@ -29,6 +29,12 @@ const LOCAL_AI_HIGH_CONFIDENCE = 0.75;
 const AUTO_ANALYSE_DEBOUNCE_MS = 800;
 const AUTO_ANALYSE_MIN_LENGTH = 50;
 
+function scrollFieldIntoView(target: HTMLElement) {
+  window.setTimeout(() => {
+    target.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, 150);
+}
+
 export function PasteZone() {
   const [pasteText, setPasteText] = useState('');
   const [state, setState] = useState<PasteState>('idle');
@@ -463,6 +469,9 @@ const recentChanges = activeProject
 
     requestAnimationFrame(() => {
       textareaRef.current?.focus();
+      if (textareaRef.current) {
+        scrollFieldIntoView(textareaRef.current);
+      }
     });
   };
 
@@ -537,6 +546,7 @@ const recentChanges = activeProject
                 className="paste-zone-textarea"
                 value={pasteText}
                 onChange={(e) => handleTextChange(e.target.value)}
+                onFocus={(e) => scrollFieldIntoView(e.currentTarget)}
                 placeholder="Paste your AI&apos;s response here…"
                 rows={6}
               />

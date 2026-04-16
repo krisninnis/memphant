@@ -83,14 +83,14 @@ export function useTauriSync() {
         const { invoke } = await import('@tauri-apps/api/core');
         await invoke(general.runOnStartup ? 'enable_autostart' : 'disable_autostart');
       } catch (err) {
-        console.warn('[Memphant] Autostart sync failed:', err);
+        console.warn('[Memephant] Autostart sync failed:', err);
       }
 
       try {
         const { invoke } = await import('@tauri-apps/api/core');
         await invoke('toggle_tray_mode', { enabled: general.systemTray });
       } catch (err) {
-        console.warn('[Memphant] Tray-mode sync failed:', err);
+        console.warn('[Memephant] Tray-mode sync failed:', err);
       }
     })();
   }, [general.runOnStartup, general.systemTray]);

@@ -912,12 +912,16 @@ export async function fetchSubscription(userId: string): Promise<SubscriptionInf
       const { data, error } = await supabase
         .from('subscriptions')
         .select('tier, status')
-        .eq("user_id", userId)
-        .limit(500)
-        .single()
+        .eq('user_id', userId)
+        .maybeSingle()
 
-      if (error || !data) {
-        logSync('subscription', 'fetch_not_found', { userId, requestId })
+      if (error) {
+        logSyncError('subscription', 'fetch_failed', error, { userId, requestId })
+        return defaultInfo
+      }
+
+      if (!data) {
+        logSync('subscription', 'fetch_default_free', { userId, requestId })
         return defaultInfo
       }
 
