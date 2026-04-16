@@ -40,6 +40,7 @@ type CloudSyncStage =
 
 type SyncReason = 'manual' | 'signin' | 'startup' | 'autosave' | 'unknown'
 const SUPABASE_WRITE_TIMEOUT_MS = 15000
+const SUBSCRIPTION_FETCH_TIMEOUT_MS = 6000
 // signOut() makes a live network call. Cap it so logout can never hang the UI.
 const LOGOUT_SIGNOUT_TIMEOUT_MS = 5000
 const PROJECTS_TABLE = 'projects'
@@ -1027,23 +1028,40 @@ export async function fetchSubscription(userId: string): Promise<SubscriptionInf
   const requestId = nextRequestId('subscription')
   logSync('subscription', 'fetch_start', { userId, requestId })
 
-  const promise = runExclusiveAuthOp('subscription', 'fetch_subscription', async (): Promise<SubscriptionInfo> => {
-  try {
+  const promise = (async (): Promise<SubscriptionInfo> => {
     const sb = getSupabase()
+    const startedAt = Date.now()
 
-    const { data, error } = await sb
-      .from('subscriptions')
-      .select('tier, status')
-      .eq('user_id', userId)
-      .maybeSingle()
+    try {
+      const { data, error } = await Promise.race([
+        sb
+          .from('subscriptions')
+          .select('tier, status')
+          .eq('user_id', userId)
+          .maybeSingle(),
+        new Promise<never>((_, reject) =>
+          window.setTimeout(
+            () => reject(new Error(`Subscription lookup timed out after ${Math.round(SUBSCRIPTION_FETCH_TIMEOUT_MS / 1000)} s`)),
+            SUBSCRIPTION_FETCH_TIMEOUT_MS,
+          ),
+        ),
+      ])
 
       if (error) {
-        logSyncError('subscription', 'fetch_failed', error, { userId, requestId })
+        logSyncError('subscription', 'fetch_failed', error, {
+          userId,
+          requestId,
+          durationMs: Date.now() - startedAt,
+        })
         return defaultInfo
       }
 
       if (!data) {
-        logSync('subscription', 'fetch_default_free', { userId, requestId })
+        logSync('subscription', 'fetch_default_free', {
+          userId,
+          requestId,
+          durationMs: Date.now() - startedAt,
+        })
         return defaultInfo
       }
 
@@ -1054,15 +1072,35 @@ export async function fetchSubscription(userId: string): Promise<SubscriptionInf
           : 'none'
       ) as SubscriptionStatus
 
-      logSync('subscription', 'fetch_success', { userId, requestId, tier, status })
+      logSync('subscription', 'fetch_success', {
+        userId,
+        requestId,
+        tier,
+        status,
+        durationMs: Date.now() - startedAt,
+      })
       return { tier, status }
     } catch (err) {
-      logSyncError('subscription', 'fetch_exception', err, { userId, requestId })
+      if (err instanceof Error && err.message.includes('Subscription lookup timed out')) {
+        logSync('subscription', 'fetch_timeout', {
+          userId,
+          requestId,
+          timeoutMs: SUBSCRIPTION_FETCH_TIMEOUT_MS,
+          durationMs: Date.now() - startedAt,
+        })
+        return defaultInfo
+      }
+
+      logSyncError('subscription', 'fetch_exception', err, {
+        userId,
+        requestId,
+        durationMs: Date.now() - startedAt,
+      })
       return defaultInfo
     } finally {
       subscriptionLookupInFlight.delete(userId)
     }
-  }, { userId, requestId })
+  })()
 
   subscriptionLookupInFlight.set(userId, promise)
   return promise
@@ -1256,19 +1294,36 @@ async function _runCycle(
 
   try {
     // 1. Ensure JWT is fresh before any writes (prevents internal auto-refresh hang)
+    logSync('cycle', 'before_ensure_session_fresh', { reason, cycleId, userId })
     await ensureSessionFresh(reason)
+    logSync('cycle', 'after_ensure_session_fresh', { reason, cycleId, userId })
 
     // 2. Fast reachability check — surfaces paused free-tier projects quickly
+    logSync('cycle', 'before_ensure_supabase_reachable', { reason, cycleId, userId })
     await ensureSupabaseReachable()
+    logSync('cycle', 'after_ensure_supabase_reachable', { reason, cycleId, userId })
 
     // 3. Drain any offline-queued projects first
+    logSync('cycle', 'before_drain_queue', { reason, cycleId, userId })
     await drainQueue(userId, reason)
+    logSync('cycle', 'after_drain_queue', { reason, cycleId, userId })
 
     // 4. Push all local projects to cloud (upsert)
+    logSync('cycle', 'before_push_all', { reason, cycleId, userId, localCount: localProjects.length })
     await pushAll(localProjects, userId, reason)
+    logSync('cycle', 'after_push_all', { reason, cycleId, userId, localCount: localProjects.length })
 
     // 5. Pull remote and merge
+    logSync('cycle', 'before_pull_and_merge', { reason, cycleId, userId, localCount: localProjects.length })
     const result = await pullAndMerge(localProjects, userId, reason)
+    logSync('cycle', 'after_pull_and_merge', {
+      reason,
+      cycleId,
+      userId,
+      changed: result.changed,
+      mergedCount: result.merged.length,
+      conflictCount: result.conflicts.length,
+    })
 
     logSync('cycle', 'cycle_complete', {
       reason,
