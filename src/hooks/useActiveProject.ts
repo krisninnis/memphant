@@ -12,7 +12,8 @@
  */
 import { useMemo } from 'react';
 import { useProjectStore } from '../store/projectStore';
-import type { ProjectMemory } from '../types/memphant-types';
+import type { Platform, ProjectMemory } from '../types/memphant-types';
+import { getEnabledPlatforms } from '../utils/platformRegistry';
 
 export function useActiveProject(): ProjectMemory | null {
   const activeProjectId = useProjectStore((s) => s.activeProjectId);
@@ -25,9 +26,9 @@ export function useActiveProject(): ProjectMemory | null {
 
 /** Stable hook for the list of enabled platforms (avoids new-array-every-render). */
 export function useEnabledPlatforms() {
-  const enabled = useProjectStore((s) => s.settings.platforms.enabled);
+  const settingsPlatforms = useProjectStore((s) => s.settings.platforms);
   return useMemo(
-    () => (Object.keys(enabled) as Array<keyof typeof enabled>).filter((p) => enabled[p]),
-    [enabled]
+    () => getEnabledPlatforms(settingsPlatforms).map((platform) => platform.id as Platform),
+    [settingsPlatforms]
   );
 }

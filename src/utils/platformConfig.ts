@@ -1,9 +1,24 @@
 import type { Platform } from '../types/memphant-types';
+import { getBuiltInPlatforms } from './platformRegistry';
 
-export const PLATFORM_CONFIG: Record<Platform, { name: string; color: string; icon: string }> = {
-  chatgpt: { name: 'ChatGPT', color: '#10a37f', icon: '🤖' },
-  claude:  { name: 'Claude',  color: '#d97706', icon: '🎯' },
-  grok:    { name: 'Grok',    color: '#1d9bf0', icon: '⚡' },
-  perplexity: { name: 'Perplexity', color: '#20808d', icon: '🔍' },
-  gemini:  { name: 'Gemini',  color: '#8b5cf6', icon: '✨' },
-};
+export const PLATFORM_CONFIG: Record<string, { name: string; color: string; icon: string }> =
+  Object.fromEntries(
+    getBuiltInPlatforms().map((platform) => [
+      platform.id,
+      {
+        name: platform.name,
+        color: platform.color ?? '#64748b',
+        icon: platform.icon ?? '🧩',
+      },
+    ]),
+  );
+
+export function getPlatformVisual(platformId: Platform): { name: string; color: string; icon: string } {
+  return (
+    PLATFORM_CONFIG[platformId] ?? {
+      name: platformId,
+      color: '#64748b',
+      icon: '🧩',
+    }
+  );
+}

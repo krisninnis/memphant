@@ -233,6 +233,17 @@
   color: #fff;
 }
 
+.setting-btn--primary {
+  background: #d97706;
+  border-color: #d97706;
+  color: #fff;
+}
+
+.setting-btn--primary:hover {
+  background: #b45309;
+  border-color: #b45309;
+}
+
 .setting-btn--danger {
   border-color: #5a1a1a;
   color: #e74c3c;
@@ -313,6 +324,61 @@
   height: 10px;
   border-radius: 50%;
   flex-shrink: 0;
+}
+
+.settings-platform-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.settings-platform-actions--form {
+  margin-top: 12px;
+}
+
+.settings-platform-form {
+  margin-top: 18px;
+  padding: 16px;
+  border: 1px solid #1e3a5f;
+  border-radius: 12px;
+  background: #0f1a2e;
+}
+
+.settings-platform-form__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #d0e8ff;
+  margin-bottom: 12px;
+}
+
+.settings-platform-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.settings-platform-field {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  color: #8ca2c7;
+}
+
+.settings-platform-field--full {
+  margin-top: 12px;
+}
+
+.settings-platform-input,
+.settings-platform-textarea {
+  width: 100%;
+  min-width: 0;
+}
+
+.settings-platform-textarea {
+  min-height: 96px;
+  resize: vertical;
+  padding: 12px;
 }
 
 .settings-link {
@@ -404,6 +470,14 @@
 
   .settings-nav {
     display: none;
+  }
+
+  .settings-platform-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-platform-actions {
+    width: 100%;
   }
 }
 

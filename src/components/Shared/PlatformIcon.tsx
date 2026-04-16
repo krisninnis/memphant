@@ -1,5 +1,6 @@
 import type { Platform } from '../../types/memphant-types';
-import { PLATFORM_CONFIG } from '../../utils/platformConfig';
+import { useProjectStore } from '../../store/projectStore';
+import { getPlatformConfig } from '../../utils/platformRegistry';
 
 interface PlatformIconProps {
   platform: Platform;
@@ -7,7 +8,8 @@ interface PlatformIconProps {
 }
 
 export function PlatformIcon({ platform, size = 16 }: PlatformIconProps) {
-  const config = PLATFORM_CONFIG[platform];
+  const settingsPlatforms = useProjectStore((s) => s.settings.platforms);
+  const config = getPlatformConfig(platform, settingsPlatforms);
   return (
     <span
       style={{ fontSize: size, lineHeight: 1 }}

@@ -10,6 +10,7 @@ import {
   DEFAULT_OLLAMA_ENDPOINT,
   DEFAULT_OLLAMA_MODEL,
 } from '../../services/localAiService';
+import { getPlatformConfig } from '../../utils/platformRegistry';
 import ConfirmDialog from '../Shared/ConfirmDialog';
 import Toggle from '../Shared/Toggle';
 import '../Shared/Toggle.css';
@@ -46,21 +47,14 @@ function formatAuditTime(isoString: string): string {
   });
 }
 
-function formatPlatformLabel(platform: string): string {
-  switch (platform) {
-    case 'chatgpt':
-      return 'ChatGPT';
-    case 'claude':
-      return 'Claude';
-    case 'grok':
-      return 'Grok';
-    case 'perplexity':
-      return 'Perplexity';
-    case 'gemini':
-      return 'Gemini';
-    default:
-      return platform;
-  }
+function formatPlatformLabel(
+  platform: string,
+  settingsPlatforms?: ReturnType<typeof useProjectStore.getState>['settings']['platforms'],
+): string {
+  return getPlatformConfig(
+    platform,
+    settingsPlatforms ?? useProjectStore.getState().settings.platforms,
+  ).name;
 }
 
 export function SettingsPrivacy() {

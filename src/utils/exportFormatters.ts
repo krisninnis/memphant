@@ -3,7 +3,8 @@
  * Each formatter takes a ProjectMemory + optional task + mode and returns a string.
  * CRITICAL: linkedFolder.path is NEVER included in any output.
  */
-import type { ProjectMemory, Platform, ExportMode } from '../types/memphant-types';
+import type { AIPlatformConfig, ProjectMemory, Platform, ExportMode } from '../types/memphant-types';
+import { getPlatformConfig } from './platformRegistry';
 
 const STANDARD_PATTERNS = [
   /sk-[A-Za-z0-9]{20,}/g,
@@ -362,6 +363,80 @@ function formatForGemini(project: ProjectMemory, task?: string): string {
   return lines.join('\n');
 }
 
+function formatGenericForPlatform(
+  project: ProjectMemory,
+  platform: Platform,
+  task?: string,
+  platformConfig?: AIPlatformConfig,
+): string {
+  const config = platformConfig ?? getPlatformConfig(platform);
+  const lines: string[] = [];
+
+  lines.push(`${config.name} project handoff`);
+  lines.push('');
+  lines.push(config.promptPrefix);
+  lines.push('');
+  lines.push(`Project: ${sanitize(project.name)}`);
+  lines.push(`Summary: ${sanitize(project.summary || '(no summary yet)')}`);
+  lines.push(`Current state: ${sanitize(project.currentState || '(not set)')}`);
+  lines.push('');
+
+  if (project.githubRepo) {
+    lines.push(`Public repo: ${project.githubRepo}`);
+  }
+  if (project.detectedStack && project.detectedStack.length > 0) {
+    lines.push(`Tech stack: ${sanitize(project.detectedStack.join(', '))}`);
+  }
+  if (project.githubRepo || (project.detectedStack && project.detectedStack.length > 0)) {
+    lines.push('');
+  }
+
+  if (config.exportStyle === 'code-heavy') {
+    lines.push('Implementation context:');
+    lines.push(`- Goals: ${sanitizeList(project.goals).join(', ') || '(none)'}`);
+    lines.push(`- Next steps: ${sanitizeList(project.nextSteps).join(', ') || '(none)'}`);
+    lines.push(`- Important assets: ${sanitizeList(project.importantAssets).join(', ') || '(none)'}`);
+    lines.push('');
+  } else if (config.exportStyle === 'compact') {
+    lines.push('Goals:');
+    lines.push(bulletList(project.goals));
+    lines.push('');
+    lines.push('Next steps:');
+    lines.push(bulletList(project.nextSteps));
+    lines.push('');
+  } else {
+    lines.push('Goals:');
+    lines.push(numberedList(project.goals));
+    lines.push('');
+    lines.push('Rules:');
+    lines.push(bulletList(project.rules));
+    lines.push('');
+    lines.push('Key decisions:');
+    lines.push(decisionsBlock(project.decisions, ''));
+    lines.push('');
+    lines.push('Next steps:');
+    lines.push(numberedList(project.nextSteps));
+    lines.push('');
+    lines.push('Open questions:');
+    lines.push(bulletList(project.openQuestions));
+    lines.push('');
+  }
+
+  if (task && task.trim()) {
+    lines.push(`Active task: ${sanitize(task)}`);
+    lines.push('');
+  }
+
+  if (project.aiInstructions) {
+    lines.push(`Project instructions: ${sanitize(project.aiInstructions)}`);
+    lines.push('');
+  }
+
+  lines.push(RESPONSE_FORMAT);
+
+  return lines.join('\n');
+}
+
 // ─── Smart export (context distillation) ────────────────────────────────────
 
 /**
@@ -403,7 +478,12 @@ function distillProject(project: ProjectMemory): ProjectMemory {
   };
 }
 
-function formatSmartExport(project: ProjectMemory, platform: Platform, task?: string): string {
+function formatSmartExport(
+  project: ProjectMemory,
+  platform: Platform,
+  task?: string,
+  platformConfig?: AIPlatformConfig,
+): string {
   const condensed = distillProject(project);
 
   const dropped = {
@@ -426,7 +506,7 @@ function formatSmartExport(project: ProjectMemory, platform: Platform, task?: st
     case 'grok':        body = formatForGrok(condensed, task); break;
     case 'perplexity':  body = formatForPerplexity(condensed, task); break;
     case 'gemini':      body = formatForGemini(condensed, task); break;
-    default:            body = formatForChatGPT(condensed, task);
+    default:            body = formatGenericForPlatform(condensed, platform, task, platformConfig);
   }
 
   return header + body;
@@ -500,10 +580,11 @@ export function formatForPlatform(
   platform: Platform,
   task?: string,
   mode: ExportMode = 'full',
+  platformConfig?: AIPlatformConfig,
 ): string {
   if (mode === 'delta') return formatDelta(project, task);
   if (mode === 'specialist') return formatSpecialist(project, task);
-  if (mode === 'smart') return formatSmartExport(project, platform, task);
+  if (mode === 'smart') return formatSmartExport(project, platform, task, platformConfig);
 
   switch (platform) {
     case 'claude':
@@ -517,6 +598,6 @@ export function formatForPlatform(
     case 'gemini':
       return formatForGemini(project, task);
     default:
-      return formatForChatGPT(project, task);
+      return formatGenericForPlatform(project, platform, task, platformConfig);
   }
 }

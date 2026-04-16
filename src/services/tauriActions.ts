@@ -237,11 +237,7 @@ export function normalizeOldProject(raw: Record<string, unknown>): ProjectMemory
             return {
               id: typeof candidate.id === 'string' ? candidate.id : crypto.randomUUID(),
               platform:
-                candidate.platform === 'chatgpt' ||
-                candidate.platform === 'claude' ||
-                candidate.platform === 'grok' ||
-                candidate.platform === 'perplexity' ||
-                candidate.platform === 'gemini'
+                typeof candidate.platform === 'string' && candidate.platform.trim()
                   ? candidate.platform
                   : 'claude',
               timestamp:

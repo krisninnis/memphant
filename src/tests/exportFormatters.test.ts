@@ -175,6 +175,32 @@ describe('gemini format', () => {
   });
 });
 
+describe('custom platform format', () => {
+  it('uses the selected platform config for custom platforms', () => {
+    const output = formatForPlatform(
+      makeProject(),
+      'custom-team-ai',
+      'Review the onboarding flow',
+      'full',
+      {
+        id: 'custom-team-ai',
+        name: 'Team AI',
+        category: 'custom',
+        exportStyle: 'code-heavy',
+        promptPrefix: 'Use this team handoff and stay grounded in the project state.',
+        enabled: true,
+        builtIn: false,
+        icon: '🧩',
+        color: '#64748b',
+      },
+    );
+
+    expect(output).toContain('Team AI project handoff');
+    expect(output).toContain('Use this team handoff');
+    expect(output).toContain('Review the onboarding flow');
+  });
+});
+
 // ─── Export modes ─────────────────────────────────────────────────────────────
 
 describe('delta mode', () => {

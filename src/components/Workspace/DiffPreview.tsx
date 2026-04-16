@@ -3,7 +3,9 @@
  * Shown in the Paste Zone after detecting a valid update.
  */
 import type { DiffResult } from '../../types/memphant-types';
+import { useProjectStore } from '../../store/projectStore';
 import { fieldLabel } from '../../utils/diffEngine';
+import { getPlatformConfig } from '../../utils/platformRegistry';
 
 const labelMap: Record<string, string> = {
   strict_json: 'Structured',
@@ -159,6 +161,8 @@ export function DiffPreview({
   onApplyAll,
   onDiscard,
 }: DiffPreviewProps) {
+  const settingsPlatforms = useProjectStore((s) => s.settings.platforms);
+
   if (diffs.length === 0) {
     return (
       <div className="diff-preview diff-preview--empty">
@@ -178,6 +182,9 @@ export function DiffPreview({
   const summaryChips = buildSummaryChips(diffs);
   const riskyDiffs = diffs.filter((diff) => diff.riskyOverwrite);
   const safeDiffCount = diffs.length - riskyDiffs.length;
+  const checkpointPlatformName = checkpoint
+    ? getPlatformConfig(checkpoint.platform, settingsPlatforms).name
+    : '';
 
   return (
     <div className="diff-preview">
@@ -196,7 +203,7 @@ export function DiffPreview({
       {checkpoint && (
         <div className="diff-preview__summary" aria-label="Checkpoint summary">
           <p className="diff-preview__summary-text">
-            Comparing this AI response against the last {checkpoint.platform} checkpoint from{' '}
+            Comparing this AI response against the last {checkpointPlatformName} checkpoint from{' '}
             {formatCheckpointTime(checkpoint.timestamp)}.
           </p>
           {checkpoint.summary && (

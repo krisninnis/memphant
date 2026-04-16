@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { ProjectMemory, Platform, AppSettings } from '../types/memphant-types';
 import { DEFAULT_SETTINGS } from '../types/memphant-types';
 import type { CloudUser } from '../services/cloudSync';
+import { ensureValidPlatformId } from '../utils/platformRegistry';
 
 export type SyncStatus = 'saved_local' | 'pending' | 'syncing' | 'synced' | 'error';
 export type SubscriptionTier = 'free' | 'pro' | 'team';
@@ -16,9 +17,12 @@ function mergeSettings(raw: unknown): AppSettings {
   const localAi = (candidate.localAi as Partial<AppSettings['localAi']> | undefined) ?? {};
   const projects = (candidate.projects as Partial<AppSettings['projects']> | undefined) ?? {};
   const platforms =
-    (candidate.platforms as { enabled?: Partial<AppSettings['platforms']['enabled']> } | undefined) ?? {};
+    (candidate.platforms as {
+      enabled?: Partial<AppSettings['platforms']['enabled']>;
+      custom?: AppSettings['platforms']['custom'];
+    } | undefined) ?? {};
 
-  return {
+  const merged: AppSettings = {
     ...DEFAULT_SETTINGS,
     ...candidate,
     general: { ...DEFAULT_SETTINGS.general, ...general },
@@ -26,12 +30,22 @@ function mergeSettings(raw: unknown): AppSettings {
     localAi: { ...DEFAULT_SETTINGS.localAi, ...localAi },
     projects: { ...DEFAULT_SETTINGS.projects, ...projects },
     platforms: {
-      enabled: {
-        ...DEFAULT_SETTINGS.platforms.enabled,
-        ...(platforms.enabled ?? {}),
-      },
+      enabled: Object.fromEntries(
+        Object.entries({
+          ...DEFAULT_SETTINGS.platforms.enabled,
+          ...(platforms.enabled ?? {}),
+        }).map(([key, value]) => [key, Boolean(value)]),
+      ),
+      custom: Array.isArray(platforms.custom) ? platforms.custom : [],
     },
   };
+
+  merged.general.defaultPlatform = ensureValidPlatformId(
+    merged.general.defaultPlatform,
+    merged.platforms,
+  );
+
+  return merged;
 }
 
 function loadSettingsFromStorage(): AppSettings {
@@ -56,6 +70,8 @@ function persistSettingsToStorage(settings: AppSettings): void {
     console.warn('[Memphant] Failed to persist settings:', err);
   }
 }
+
+const INITIAL_SETTINGS = loadSettingsFromStorage();
 
 interface ProjectStore {
   // State
@@ -140,11 +156,14 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   projects: [],
   activeProjectId: null,
   currentTask: '',
-  targetPlatform: 'claude',
+  targetPlatform: ensureValidPlatformId(
+    INITIAL_SETTINGS.general.defaultPlatform,
+    INITIAL_SETTINGS.platforms,
+  ),
   isLoading: false,
   toastMessage: null,
   toastType: 'success',
-  settings: loadSettingsFromStorage(),
+  settings: INITIAL_SETTINGS,
   currentView: 'projects',
   preAiBackup: null,
 
@@ -171,7 +190,10 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   setProjects: (projects) => set({ projects }),
   setActiveProject: (id) => set({ activeProjectId: id }),
   setCurrentTask: (task) => set({ currentTask: task }),
-  setTargetPlatform: (platform) => set({ targetPlatform: platform }),
+  setTargetPlatform: (platform) =>
+    set((state) => ({
+      targetPlatform: ensureValidPlatformId(platform, state.settings.platforms),
+    })),
   setLoading: (loading) => set({ isLoading: loading }),
   showToast: (message, type = 'success') => {
     set({ toastMessage: message, toastType: type });
@@ -183,7 +205,10 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     set((state) => {
       const next = mergeSettings({ ...state.settings, ...updates });
       persistSettingsToStorage(next);
-      return { settings: next };
+      return {
+        settings: next,
+        targetPlatform: ensureValidPlatformId(state.targetPlatform, next.platforms, next.general.defaultPlatform),
+      };
     }),
 
   // Rollback

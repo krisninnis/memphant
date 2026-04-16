@@ -1,4 +1,5 @@
 import { useProjectStore } from '../../store/projectStore';
+import { resolvePlatformRegistry } from '../../utils/platformRegistry';
 import Toggle from '../Shared/Toggle';
 import '../Shared/Toggle.css';
 
@@ -21,6 +22,7 @@ export function SettingsGeneral() {
 
   const g = settings.general;
   const desktop = isTauri();
+  const availablePlatforms = resolvePlatformRegistry(settings.platforms).filter((platform) => platform.enabled);
 
   const update = (updates: Partial<typeof g>) => {
     updateSettings({ general: { ...g, ...updates } });
@@ -67,11 +69,11 @@ export function SettingsGeneral() {
             value={g.defaultPlatform}
             onChange={(e) => update({ defaultPlatform: e.target.value as typeof g.defaultPlatform })}
           >
-            <option value="claude">Claude</option>
-            <option value="chatgpt">ChatGPT</option>
-            <option value="grok">Grok</option>
-            <option value="perplexity">Perplexity</option>
-            <option value="gemini">Gemini</option>
+            {availablePlatforms.map((platform) => (
+              <option key={platform.id} value={platform.id}>
+                {platform.icon ? `${platform.icon} ` : ''}{platform.name}
+              </option>
+            ))}
           </select>
         </div>
       </div>

@@ -1,5 +1,45 @@
-export type Platform = 'chatgpt' | 'claude' | 'grok' | 'perplexity' | 'gemini';
+export type BuiltInPlatformId =
+  | 'chatgpt'
+  | 'claude'
+  | 'gemini'
+  | 'perplexity'
+  | 'grok'
+  | 'cursor'
+  | 'github-copilot'
+  | 'phind'
+  | 'ollama'
+  | 'lm-studio'
+  | 'jan'
+  | 'localai'
+  | 'anythingllm';
+
+export type Platform = string;
 export type ExportMode = 'full' | 'delta' | 'specialist' | 'smart';
+export type PlatformCategory = 'chat' | 'dev' | 'local' | 'custom';
+export type PlatformExportStyle = 'structured' | 'compact' | 'code-heavy';
+
+export interface AIPlatformConfig {
+  id: Platform;
+  name: string;
+  category: PlatformCategory;
+  exportStyle: PlatformExportStyle;
+  promptPrefix: string;
+  enabled: boolean;
+  builtIn: boolean;
+  icon?: string;
+  color?: string;
+  description?: string;
+}
+
+export interface CustomPlatformConfig {
+  id: Platform;
+  name: string;
+  category: PlatformCategory;
+  exportStyle: PlatformExportStyle;
+  promptPrefix: string;
+  icon?: string;
+  color?: string;
+}
 
 export interface Decision {
   decision: string;
@@ -137,7 +177,8 @@ export interface AppSettings {
     defaultExportMode: ExportMode;
   };
   platforms: {
-    enabled: Record<Platform, boolean>;
+    enabled: Record<string, boolean>;
+    custom: CustomPlatformConfig[];
   };
 }
 
@@ -168,10 +209,19 @@ export const DEFAULT_SETTINGS: AppSettings = {
     enabled: {
       chatgpt: true,
       claude: true,
-      grok: true,
-      perplexity: true,
       gemini: true,
+      perplexity: true,
+      grok: true,
+      cursor: false,
+      'github-copilot': false,
+      phind: false,
+      ollama: false,
+      'lm-studio': false,
+      jan: false,
+      localai: false,
+      anythingllm: false,
     },
+    custom: [],
   },
 };
 
