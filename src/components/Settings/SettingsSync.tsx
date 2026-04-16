@@ -1168,7 +1168,7 @@ VITE_SUPABASE_ANON_KEY=your-anon-key`}</pre>
         </>
       )}
 
-      <p className="settings-description sync-hint">
+          <p className="settings-description sync-hint">
         Your data is stored locally first. Cloud backup is optional and encrypted in transit.
       </p>
     </section>
