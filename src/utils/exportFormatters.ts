@@ -130,7 +130,14 @@ memphant_update
 }
 \`\`\`
 
-Omit inProgress, lastSessionSummary, or openQuestion if they are not applicable.`;
+Rules for the memphant_update block:
+- Only include fields you are confident changed based on the project context provided.
+- Do not invent roadmap items, goals, decisions, or next steps that are not supported by the provided context.
+- If something is uncertain, omit it rather than guess.
+- inProgress replaces the current in-progress list only when you are explicitly confident it changed.
+- lastSessionSummary should be a short factual recap of the work just completed in this response.
+- openQuestion should contain only the single most relevant current question if one is clearly present.
+- Omit inProgress, lastSessionSummary, or openQuestion if they are not applicable.`;
 
 function formatForClaude(project: ProjectMemory, task?: string): string {
   const lines: string[] = [];
@@ -337,11 +344,7 @@ function formatForGrok(project: ProjectMemory, task?: string): string {
   }
 
   lines.push('');
-  lines.push(`When done, include a memphant_update block using fenced JSON like this:`);
-  lines.push(`memphant_update`);
-  lines.push('```json');
-  lines.push(`{"summary":"...","goals":[...],"currentState":"...","nextSteps":[...]}`);
-  lines.push('```');
+  lines.push(RESPONSE_FORMAT);
 
   return lines.join('\n');
 }

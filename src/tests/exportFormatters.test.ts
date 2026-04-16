@@ -319,7 +319,27 @@ describe('custom platform format', () => {
     expect(output).toContain('Review the onboarding flow');
   });
 });
+describe('response format guardrails', () => {
+  it('tells AIs to omit uncertain fields rather than guess', () => {
+    const output = formatForPlatform(makeProject(), 'chatgpt');
 
+    expect(output).toContain('Only include fields you are confident changed');
+    expect(output).toContain('Do not invent roadmap items, goals, decisions, or next steps');
+    expect(output).toContain('If something is uncertain, omit it rather than guess');
+  });
+
+  it('uses schemaVersion 1.1.0 in the response format example', () => {
+    const output = formatForPlatform(makeProject(), 'claude');
+    expect(output).toContain('"schemaVersion": "1.1.0"');
+  });
+
+  it('includes continuity fields in the response format example', () => {
+    const output = formatForPlatform(makeProject(), 'gemini');
+    expect(output).toContain('"inProgress"');
+    expect(output).toContain('"lastSessionSummary"');
+    expect(output).toContain('"openQuestion"');
+  });
+});
 // ─── Export modes ─────────────────────────────────────────────────────────────
 
 describe('delta mode', () => {
