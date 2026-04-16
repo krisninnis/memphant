@@ -1,6 +1,7 @@
-import "react";
+import 'react';
+import type { HTMLAttributes } from 'react';
 
-declare module "react" {
+declare module 'react' {
   interface InputHTMLAttributes<T> extends HTMLAttributes<T> {
     webkitdirectory?: string;
     directory?: string;

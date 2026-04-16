@@ -31,24 +31,20 @@ export function ProjectEditor() {
   const [scanError, setScanError] = useState<string>('');
   const [restoringId, setRestoringId] = useState<string | null>(null);
 
-  if (!activeProject) {
-    return (
-      <div className="project-editor project-editor--empty">
-        <p>Select a project from the sidebar to get started.</p>
-      </div>
-    );
-  }
-
   const project = activeProject;
-  const recentRestorePoints = [...(project.restorePoints ?? [])]
-    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-    .slice(0, 5);
+  const recentRestorePoints = project
+    ? [...(project.restorePoints ?? [])]
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+        .slice(0, 5)
+    : [];
 
-  const update = (field: string, value: unknown) =>
+  const update = (field: string, value: unknown) => {
+    if (!project) return;
     updateProject(project.id, { [field]: value } as Parameters<typeof updateProject>[1]);
+  };
 
   const handleScan = useCallback(async () => {
-    if (!project.githubRepo) return;
+    if (!project?.githubRepo) return;
     setScanState('scanning');
     setScanError('');
     setScanResult(null);
@@ -60,10 +56,10 @@ export function ProjectEditor() {
       setScanError(err instanceof Error ? err.message : 'Scan failed - please try again.');
       setScanState('error');
     }
-  }, [project.githubRepo]);
+  }, [project?.githubRepo]);
 
   const handleScanAccept = useCallback(() => {
-    if (!scanResult) return;
+    if (!project || !scanResult) return;
     const merged = mergeScanResult(project, scanResult);
     updateProject(project.id, {
       summary: merged.summary,
@@ -88,6 +84,7 @@ export function ProjectEditor() {
   }, []);
 
   function handleSuggest(field: 'summary' | 'currentState' | 'goals') {
+    if (!project) return;
     const suggestions = generateSuggestions(project);
     const suggested = suggestions[field];
 
@@ -113,6 +110,7 @@ export function ProjectEditor() {
 
   const handleRestore = useCallback(
     async (restorePointId: string) => {
+      if (!project) return;
       setRestoringId(restorePointId);
 
       try {
@@ -121,8 +119,16 @@ export function ProjectEditor() {
         setRestoringId((current) => (current === restorePointId ? null : current));
       }
     },
-    [project.id],
+    [project],
   );
+
+  if (!project) {
+    return (
+      <div className="project-editor project-editor--empty">
+        <p>Select a project from the sidebar to get started.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="project-editor" data-tour="editor">

@@ -62,47 +62,13 @@ export function PWAProvider({ children }: { children: ReactNode }) {
     updateServiceWorker,
   } = useRegisterSW({
     onNeedRefresh() {
-      console.log('[PWA] Update available: waiting service worker detected');
       setUpdateMessage(null);
     },
-    onOfflineReady() {
-      console.log('[PWA] Offline cache ready');
-    },
+    onOfflineReady() {},
     onRegisteredSW(_swUrl, registration) {
       registrationRef.current = registration || null;
-      console.log('[PWA] Service worker registered', {
-        hasRegistration: Boolean(registration),
-        hasInstallingWorker: Boolean(registration?.installing),
-        hasWaitingWorker: Boolean(registration?.waiting),
-        hasActiveWorker: Boolean(registration?.active),
-      });
 
       if (isTauri() || !registration) return;
-
-      const logWorkerState = (label: string, worker: ServiceWorker | null) => {
-        if (!worker) return;
-        console.log(`[PWA] ${label}`, {
-          state: worker.state,
-          scriptURL: worker.scriptURL,
-        });
-      };
-
-      logWorkerState('registration.waiting', registration.waiting);
-      logWorkerState('registration.installing', registration.installing);
-      logWorkerState('registration.active', registration.active);
-
-      registration.addEventListener('updatefound', () => {
-        console.log('[PWA] updatefound fired');
-        const installingWorker = registration.installing;
-        logWorkerState('registration.installing', installingWorker);
-
-        installingWorker?.addEventListener('statechange', () => {
-          console.log('[PWA] installing worker state changed', {
-            state: installingWorker.state,
-            hasWaitingWorker: Boolean(registration.waiting),
-          });
-        });
-      });
 
       if (updateIntervalRef.current) {
         window.clearInterval(updateIntervalRef.current);
@@ -129,7 +95,6 @@ export function PWAProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     updateAvailableRef.current = updateAvailable;
-    console.log('[PWA] needRefresh changed', { updateAvailable });
   }, [updateAvailable]);
 
   useEffect(() => {
@@ -140,14 +105,12 @@ export function PWAProvider({ children }: { children: ReactNode }) {
       e.preventDefault();
       deferredPromptRef.current = e;
       setIsInstallable(true);
-      console.log('[PWA] Install prompt available');
     };
 
     const handleAppInstalled = () => {
       setIsInstalled(true);
       setIsInstallable(false);
       deferredPromptRef.current = null;
-      console.log('[PWA] App installed');
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstall);
@@ -206,20 +169,12 @@ export function PWAProvider({ children }: { children: ReactNode }) {
     if (isTauri() || !registrationRef.current) return false;
 
     setIsChecking(true);
-    console.log('[PWA] checkForUpdates start', {
-      hasWaitingWorker: Boolean(registrationRef.current.waiting),
-    });
 
     try {
       await registrationRef.current.update();
       setLastChecked(new Date());
 
       await new Promise((resolve) => window.setTimeout(resolve, 1200));
-
-      console.log('[PWA] checkForUpdates complete', {
-        updateAvailable: updateAvailableRef.current,
-        hasWaitingWorker: Boolean(registrationRef.current?.waiting),
-      });
 
       return updateAvailableRef.current;
     } catch (err) {
@@ -231,12 +186,6 @@ export function PWAProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const applyUpdate = useCallback(async () => {
-    console.log('[PWA] applyUpdate clicked', {
-      hasRegistration: Boolean(registrationRef.current),
-      hasWaitingWorker: Boolean(registrationRef.current?.waiting),
-      hasActiveWorker: Boolean(registrationRef.current?.active),
-    });
-
     if (isTauri()) {
       console.warn('[PWA] applyUpdate ignored in Tauri environment');
       setIsApplyingUpdate(false);
@@ -258,7 +207,6 @@ export function PWAProvider({ children }: { children: ReactNode }) {
 
     try {
       if (!registration.waiting) {
-        console.log('[PWA] No waiting worker; requesting registration.update()');
         await registration.update();
         setLastChecked(new Date());
         await new Promise((resolve) => window.setTimeout(resolve, 1200));
@@ -273,11 +221,6 @@ export function PWAProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      console.log('[PWA] Waiting worker found; triggering activation', {
-        state: waitingWorker.state,
-        scriptURL: waitingWorker.scriptURL,
-      });
-
       const controllerChangeTimeout = window.setTimeout(() => {
         console.warn('[PWA] controllerchange timeout while applying update');
         setIsApplyingUpdate(false);
@@ -286,7 +229,6 @@ export function PWAProvider({ children }: { children: ReactNode }) {
 
       const handleControllerChange = () => {
         window.clearTimeout(controllerChangeTimeout);
-        console.log('[PWA] controllerchange fired, refreshing page');
         window.location.reload();
       };
 
@@ -295,11 +237,9 @@ export function PWAProvider({ children }: { children: ReactNode }) {
       });
 
       await updateServiceWorker(true);
-      console.log('[PWA] updateServiceWorker(true) called');
 
       if (registration.waiting) {
         registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-        console.log('[PWA] SKIP_WAITING message posted to waiting worker');
       }
     } catch (error) {
       console.error('[PWA] applyUpdate failed:', error);
@@ -309,7 +249,6 @@ export function PWAProvider({ children }: { children: ReactNode }) {
   }, [updateServiceWorker]);
 
   const dismissUpdate = useCallback(() => {
-    console.log('[PWA] Update prompt dismissed');
     setUpdateMessage(null);
     setIsApplyingUpdate(false);
     setUpdateAvailable(false);

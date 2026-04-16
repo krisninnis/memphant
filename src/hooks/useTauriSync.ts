@@ -35,7 +35,6 @@ function withUiTimeout<T>(
         }
         settled = true
         window.clearTimeout(timeoutId)
-        console.log('[useTauriSync] ui_timeout_resolved', { label, timeoutMs })
         resolve(value)
       },
       (error) => {
@@ -159,10 +158,6 @@ export function useTauriSync() {
 
             try {
               const projectsToSync = useProjectStore.getState().projects;
-              console.log('[useTauriSync] initial_session sync_start', {
-                projectCount: projectsToSync.length,
-                userId: incomingUser.id,
-              })
               const { merged, changed } = await withUiTimeout(
                 runCloudSyncCycle(projectsToSync, 'startup', incomingUser.id),
                 30000,

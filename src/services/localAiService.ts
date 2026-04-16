@@ -33,6 +33,8 @@ type LocalAiSettings = {
   endpoint: string;
 };
 
+type FetchRequestInit = globalThis.RequestInit;
+
 const OLLAMA_PING_TIMEOUT_MS = 1200;
 const OLLAMA_GENERATE_TIMEOUT_MS = 12_000;
 const OLLAMA_MAX_INPUT_CHARS = 18_000;
@@ -227,7 +229,7 @@ function normalizeEndpoint(endpoint: string): string {
 
 async function fetchWithTimeout(
   url: string,
-  init: RequestInit | undefined,
+  init: FetchRequestInit | undefined,
   timeoutMs: number,
 ): Promise<Response> {
   const controller = new AbortController();
@@ -271,11 +273,7 @@ export async function checkOllamaAvailability(endpoint: string): Promise<boolean
   const normalized = normalizeEndpoint(endpoint);
 
   try {
-    console.log('[Ollama] Checking endpoint:', normalized);
-
     const res = await fetch(`${normalized}/api/tags`, { method: 'GET' });
-
-    console.log('[Ollama] Response status:', res.status);
 
     return res.ok;
   } catch (err) {

@@ -18,8 +18,8 @@ const STRICT_EXTRA_PATTERNS = [
   /(postgres|mysql|mongodb|redis):\/\/[^\s"']+/gi,
   /password\s*[=:]\s*\S+/gi,
   /secret\s*[=:]\s*\S+/gi,
-  /token\s*[=:]\s*["']?[A-Za-z0-9_\-]{20,}["']?/gi,
-  /api[_-]?key\s*[=:]\s*["']?[A-Za-z0-9_\-]{16,}["']?/gi,
+  /token\s*[=:]\s*["']?[A-Za-z0-9_-]{20,}["']?/gi,
+  /api[_-]?key\s*[=:]\s*["']?[A-Za-z0-9_-]{16,}["']?/gi,
 ];
 
 let scannerLevel: 'standard' | 'strict' = 'standard';

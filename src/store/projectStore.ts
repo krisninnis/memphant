@@ -10,19 +10,25 @@ export type SubscriptionStatus = 'none' | 'active' | 'trialing' | 'past_due' | '
 const SETTINGS_STORAGE_KEY = 'mph_settings_v1';
 
 function mergeSettings(raw: unknown): AppSettings {
-  const candidate = (raw && typeof raw === 'object' ? (raw as Record<string, any>) : null) ?? {};
+  const candidate = (raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : null) ?? {};
+  const general = (candidate.general as Partial<AppSettings['general']> | undefined) ?? {};
+  const privacy = (candidate.privacy as Partial<AppSettings['privacy']> | undefined) ?? {};
+  const localAi = (candidate.localAi as Partial<AppSettings['localAi']> | undefined) ?? {};
+  const projects = (candidate.projects as Partial<AppSettings['projects']> | undefined) ?? {};
+  const platforms =
+    (candidate.platforms as { enabled?: Partial<AppSettings['platforms']['enabled']> } | undefined) ?? {};
 
   return {
     ...DEFAULT_SETTINGS,
     ...candidate,
-    general: { ...DEFAULT_SETTINGS.general, ...(candidate.general ?? {}) },
-    privacy: { ...DEFAULT_SETTINGS.privacy, ...(candidate.privacy ?? {}) },
-    localAi: { ...DEFAULT_SETTINGS.localAi, ...(candidate.localAi ?? {}) },
-    projects: { ...DEFAULT_SETTINGS.projects, ...(candidate.projects ?? {}) },
+    general: { ...DEFAULT_SETTINGS.general, ...general },
+    privacy: { ...DEFAULT_SETTINGS.privacy, ...privacy },
+    localAi: { ...DEFAULT_SETTINGS.localAi, ...localAi },
+    projects: { ...DEFAULT_SETTINGS.projects, ...projects },
     platforms: {
       enabled: {
         ...DEFAULT_SETTINGS.platforms.enabled,
-        ...((candidate.platforms ?? {})?.enabled ?? {}),
+        ...(platforms.enabled ?? {}),
       },
     },
   };

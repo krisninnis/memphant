@@ -77,13 +77,21 @@ const subscriptionLookupInFlight = new Map<string, Promise<SubscriptionInfo>>()
 let cloudConnectionGeneration = 0
 let cloudDisconnectInProgress = false
 
+type CloudSyncEnv = {
+  VITE_APP_URL?: string
+  VITE_API_URL?: string
+  VITE_SUPABASE_URL?: string
+  VITE_SUPABASE_ANON_KEY?: string
+}
+
 // ─── Auth callback URL ────────────────────────────────────────────────────────
 
+const cloudSyncEnv = import.meta.env as CloudSyncEnv
 const AUTH_CALLBACK_URL =
-  (import.meta as any).env?.VITE_APP_URL
-    ? `${(import.meta as any).env.VITE_APP_URL}/auth/callback`
-    : (import.meta as any).env?.VITE_API_URL
-      ? `${(import.meta as any).env.VITE_API_URL}/auth/callback`
+  cloudSyncEnv.VITE_APP_URL
+    ? `${cloudSyncEnv.VITE_APP_URL}/auth/callback`
+    : cloudSyncEnv.VITE_API_URL
+      ? `${cloudSyncEnv.VITE_API_URL}/auth/callback`
       : 'https://memephant.com/auth/callback'
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
@@ -128,7 +136,9 @@ function classifyError(
 }
 
 function logSync(stage: CloudSyncStage, event: string, meta: SyncLogMeta = {}): void {
-  console.log(`[CloudSync][${stage}] ${event}`, meta)
+  if (import.meta.env.DEV) {
+    console.warn(`[CloudSync][${stage}] ${event}`, meta)
+  }
 }
 
 function logSyncError(
@@ -334,8 +344,8 @@ let lastHealthResult: 'ok' | 'paused' | 'unreachable' | null = null
 const HEALTH_CHECK_CACHE_MS = 30_000 // don't re-ping within 30 s
 
 async function ensureSupabaseReachable(): Promise<void> {
-  const url = (import.meta as any).env?.VITE_SUPABASE_URL as string | undefined
-  const key = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY as string | undefined
+  const url = cloudSyncEnv.VITE_SUPABASE_URL
+  const key = cloudSyncEnv.VITE_SUPABASE_ANON_KEY
   if (!url || !key) return // no config — let the actual request fail naturally
 
   const now = Date.now()

@@ -189,7 +189,6 @@ export function SettingsPrivacy() {
   }, [inTauri, localAi.enabled, localAi.endpoint, localAi.model, updateSettings]);
 
   const handleTestLocalAi = async () => {
-    console.log('[LocalAI] Test clicked');
     if (!localAi.enabled) return;
     if (!inTauri) {
       showToast('Local AI testing is available in the desktop app', 'info');
@@ -197,7 +196,6 @@ export function SettingsPrivacy() {
     }
 
     const endpoint = localAi.endpoint?.trim();
-    console.log('[LocalAI] Endpoint:', endpoint);
     if (!endpoint) {
       showToast('Checking Ollama...', 'info');
       showToast('Set an Ollama endpoint first', 'error');
@@ -209,7 +207,6 @@ export function SettingsPrivacy() {
     showToast('Checking Ollama...', 'info');
 
     const ok = await checkOllamaAvailability(endpoint);
-    console.log('[LocalAI] Result:', ok);
 
     // If the user changed config while we were checking, don't show a stale result.
     const latestEndpoint =

@@ -5,11 +5,9 @@ export function SettingsProjects() {
   const settings = useProjectStore((s) => s.settings);
   const updateSettings = useProjectStore((s) => s.updateSettings);
   const showToast = useProjectStore((s) => s.showToast);
-  const subscriptionTier = useProjectStore((s) => s.subscriptionTier);
-
-  const isPro = subscriptionTier === 'pro' || subscriptionTier === 'team';
 
   const p = settings.projects;
+  const isPro = true;
   const update = (updates: Partial<typeof p>) => {
     updateSettings({ projects: { ...p, ...updates } });
     showToast('Setting saved');
@@ -80,6 +78,9 @@ export function SettingsProjects() {
             <option value="specialist">Specialist task</option>
           </select>
         </div>
+        <p className="settings-description" style={{ marginTop: 12 }}>
+          Free during early access. Pro features are coming soon.
+        </p>
       </div>
     </div>
   );

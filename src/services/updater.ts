@@ -40,8 +40,8 @@ export async function getInstalledVersion(): Promise<string> {
   if (!isTauri()) return '—';
   try {
     // @tauri-apps/api/app is part of @tauri-apps/api core — always available
-    const { getVersion } = await import(/* @vite-ignore */ '@tauri-apps/api/app' as any);
-    return (await getVersion()) as string;
+    const { getVersion } = await import(/* @vite-ignore */ '@tauri-apps/api/app');
+    return await getVersion();
   } catch {
     return '—';
   }
@@ -57,8 +57,7 @@ export async function getInstalledVersion(): Promise<string> {
 export async function checkForUpdate(): Promise<UpdateInfo | null> {
   if (!isTauri()) return null;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const updaterModule = await import(/* @vite-ignore */ '@tauri-apps/plugin-updater' as any);
+  const updaterModule = await import(/* @vite-ignore */ '@tauri-apps/plugin-updater');
   const update = await updaterModule.check();
 
   if (!update?.available) return null;
@@ -83,16 +82,19 @@ export async function downloadAndInstall(
 ): Promise<void> {
   if (!isTauri()) return;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const updaterModule = await import(/* @vite-ignore */ '@tauri-apps/plugin-updater' as any);
+  type UpdaterProgressEvent =
+    | { event: 'Started'; data: { contentLength?: number } }
+    | { event: 'Progress'; data: { chunkLength?: number } }
+    | { event: 'Finished' };
+
+  const updaterModule = await import(/* @vite-ignore */ '@tauri-apps/plugin-updater');
   const update = await updaterModule.check();
   if (!update?.available) return;
 
   let downloaded = 0;
   let total = 0;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await update.downloadAndInstall((event: any) => {
+  await update.downloadAndInstall((event: UpdaterProgressEvent) => {
     switch (event.event) {
       case 'Started':
         total = event.data.contentLength ?? 0;
@@ -121,7 +123,7 @@ export async function relaunch(): Promise<void> {
   if (!isTauri()) return;
   try {
     // @tauri-apps/plugin-process provides relaunch()
-    const processModule = await import(/* @vite-ignore */ '@tauri-apps/plugin-process' as any);
+    const processModule = await import(/* @vite-ignore */ '@tauri-apps/plugin-process');
     await processModule.relaunch();
   } catch {
     // Plugin might not be registered — fall back to a hard reload

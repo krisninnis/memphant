@@ -10,6 +10,7 @@
  *  - One clear CTA: "Add to my project"
  */
 
+import type { ReactNode } from 'react';
 import type { GitHubScanResult } from '../../services/githubScanner';
 
 // ─── Stack chip colours ───────────────────────────────────────────────────────
@@ -55,7 +56,7 @@ function formatDate(iso: string): string {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function SectionHeader({ children }: { children: React.ReactNode }) {
+function SectionHeader({ children }: { children: ReactNode }) {
   return <div className="scan-preview__section-title">{children}</div>;
 }
 

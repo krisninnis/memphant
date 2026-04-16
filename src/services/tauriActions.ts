@@ -6,14 +6,20 @@
  * all Tauri invoke() calls fall back to localStorage so the app remains usable.
  */
 import { useProjectStore } from '../store/projectStore';
-import type { ProjectMemory, Platform, ProjectCheckpoint, ProjectRestorePoint } from '../types/memphant-types';
+import type {
+  ChangelogEntry,
+  PlatformState,
+  ProjectMemory,
+  Platform,
+  ProjectCheckpoint,
+  ProjectRestorePoint,
+} from '../types/memphant-types';
 import { cloneCheckpointSnapshot, hashProjectState } from '../types/memphant-types';
 import { pushProject, deleteCloudProject } from './cloudSync';
 import { suggestEmptyFields } from '../utils/autoSuggest';
 import type { ProjectTemplate } from '../utils/projectTemplates';
 
 // â”€â”€â”€ Free tier limit â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-const FREE_TIER_LIMIT = 3;
 const MAX_RESTORE_POINTS = 5;
 
 // â”€â”€â”€ Tauri detection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -34,7 +40,7 @@ function canonicalTauriFileStem(projectId: string): string {
   const trimmed = projectId.trim();
   const safe = trimmed
     .replace(/\s+/g, '_')
-    .replace(/[^A-Za-z0-9_\-]/g, '_')
+    .replace(/[^A-Za-z0-9_-]/g, '_')
     .slice(0, 100);
   return safe || 'project';
 }
@@ -90,8 +96,6 @@ async function openFolderDialog(): Promise<string | null> {
     const { open } = await import('@tauri-apps/plugin-dialog');
     const selected = await open({ directory: true, multiple: false });
 
-    console.log('Selected folder:', selected);
-
     return typeof selected === 'string' ? selected : null;
   } catch (err) {
     console.error('Dialog failed:', err);
@@ -101,20 +105,73 @@ async function openFolderDialog(): Promise<string | null> {
 
 // â”€â”€â”€ Old â†” New format conversion â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-export function normalizeOldProject(raw: Record<string, any>): ProjectMemory {
+type LegacyLinkedFolder = {
+  path?: string;
+  scanHash?: string;
+  lastScannedAt?: string;
+};
+
+type LegacyCheckpoint = Partial<ProjectCheckpoint> & {
+  snapshot?: Record<string, unknown>;
+};
+
+type LegacyRestorePoint = Partial<ProjectRestorePoint> & {
+  snapshot?: Record<string, unknown>;
+};
+
+type LegacyPlatformState = Partial<PlatformState> & {
+  lastSentSnapshotId?: string;
+};
+
+type LegacyProject = Record<string, unknown> & {
+  id?: string;
+  projectName?: string;
+  name?: string;
+  updatedAt?: string;
+  lastModified?: string;
+  summary?: string;
+  goals?: unknown;
+  rules?: unknown;
+  decisions?: unknown;
+  currentState?: string;
+  nextSteps?: unknown;
+  openQuestions?: unknown;
+  importantAssets?: unknown;
+  aiInstructions?: string | { focus?: string };
+  linkedFolder?: LegacyLinkedFolder;
+  changelog?: unknown;
+  checkpoints?: unknown;
+  restorePoints?: unknown;
+  platformState?: Record<string, unknown>;
+};
+
+export function normalizeOldProject(raw: Record<string, unknown>): ProjectMemory {
+  const legacy = raw as LegacyProject;
   const normalizedChangelog = Array.isArray(raw.changelog)
-    ? raw.changelog.map((entry: any) => ({
-        timestamp: entry.date || entry.timestamp || new Date().toISOString(),
-        field: entry.field || 'general',
-        action: entry.action || ('updated' as const),
-        summary: entry.description || entry.summary || '',
-        source: entry.source,
-      }))
+    ? raw.changelog.map((entry): ChangelogEntry => {
+        const candidate = (entry && typeof entry === 'object' ? entry : {}) as Record<string, unknown>;
+        return {
+          timestamp:
+            (typeof candidate.date === 'string' && candidate.date) ||
+            (typeof candidate.timestamp === 'string' && candidate.timestamp) ||
+            new Date().toISOString(),
+          field: typeof candidate.field === 'string' ? candidate.field : 'general',
+          action:
+            candidate.action === 'added' || candidate.action === 'removed' || candidate.action === 'updated'
+              ? candidate.action
+              : 'updated',
+          summary:
+            (typeof candidate.description === 'string' && candidate.description) ||
+            (typeof candidate.summary === 'string' && candidate.summary) ||
+            '',
+          source: typeof candidate.source === 'string' ? candidate.source : undefined,
+        };
+      })
     : [];
 
   const derivedUpdatedAt =
-    (typeof raw.updatedAt === 'string' && raw.updatedAt) ||
-    (typeof raw.lastModified === 'string' && raw.lastModified) ||
+    (typeof legacy.updatedAt === 'string' && legacy.updatedAt) ||
+    (typeof legacy.lastModified === 'string' && legacy.lastModified) ||
     (() => {
       const sorted = normalizedChangelog.map((entry) => entry.timestamp).sort();
       return sorted[sorted.length - 1];
@@ -123,67 +180,84 @@ export function normalizeOldProject(raw: Record<string, any>): ProjectMemory {
 
   return {
     schema_version: 1,
-    id: raw.id || raw.projectName?.replace(/\s+/g, '_').toLowerCase() || crypto.randomUUID(),
-    name: raw.projectName || raw.name || 'Untitled',
+    id:
+      (typeof legacy.id === 'string' && legacy.id) ||
+      (typeof legacy.projectName === 'string' && legacy.projectName.replace(/\s+/g, '_').toLowerCase()) ||
+      crypto.randomUUID(),
+    name:
+      (typeof legacy.projectName === 'string' && legacy.projectName) ||
+      (typeof legacy.name === 'string' && legacy.name) ||
+      'Untitled',
     updatedAt: derivedUpdatedAt,
-    summary: raw.summary || '',
+    summary: typeof legacy.summary === 'string' ? legacy.summary : '',
     goals: Array.isArray(raw.goals) ? raw.goals : [],
     rules: Array.isArray(raw.rules) ? raw.rules : [],
     decisions: Array.isArray(raw.decisions)
-      ? raw.decisions.map((d: any) =>
-          typeof d === 'string' ? { decision: d } : d
-        )
+      ? raw.decisions
+          .map((d: unknown) => {
+            if (typeof d === 'string') {
+              return { decision: d };
+            }
+            if (d && typeof d === 'object' && typeof (d as { decision?: unknown }).decision === 'string') {
+              return d as ProjectMemory['decisions'][number];
+            }
+            return null;
+          })
+          .filter((decision): decision is ProjectMemory['decisions'][number] => decision !== null)
       : [],
-    currentState: raw.currentState || '',
+    currentState: typeof legacy.currentState === 'string' ? legacy.currentState : '',
     nextSteps: Array.isArray(raw.nextSteps) ? raw.nextSteps : [],
     openQuestions: Array.isArray(raw.openQuestions) ? raw.openQuestions : [],
     importantAssets: Array.isArray(raw.importantAssets) ? raw.importantAssets : [],
     aiInstructions:
-      typeof raw.aiInstructions === 'string'
-        ? raw.aiInstructions
-        : raw.aiInstructions?.focus || '',
-    linkedFolder: raw.linkedFolder
+      typeof legacy.aiInstructions === 'string'
+        ? legacy.aiInstructions
+        : typeof legacy.aiInstructions === 'object' && legacy.aiInstructions && typeof legacy.aiInstructions.focus === 'string'
+          ? legacy.aiInstructions.focus
+          : '',
+    linkedFolder: legacy.linkedFolder
       ? {
-          path: raw.linkedFolder.path,
-          scanHash: raw.linkedFolder.scanHash,
-          lastScannedAt: raw.linkedFolder.lastScannedAt,
+          path: legacy.linkedFolder.path ?? '',
+          scanHash: legacy.linkedFolder.scanHash,
+          lastScannedAt: legacy.linkedFolder.lastScannedAt,
         }
       : undefined,
     changelog: normalizedChangelog,
     checkpoints: Array.isArray(raw.checkpoints)
       ? raw.checkpoints
-          .map((checkpoint: any): ProjectCheckpoint | null => {
+          .map((checkpoint: unknown): ProjectCheckpoint | null => {
             if (!checkpoint || typeof checkpoint !== 'object') return null;
-            if (!checkpoint.snapshot || typeof checkpoint.snapshot !== 'object') return null;
+            const candidate = checkpoint as LegacyCheckpoint;
+            if (!candidate.snapshot || typeof candidate.snapshot !== 'object') return null;
 
             const normalizedSnapshot = cloneCheckpointSnapshot(
-              normalizeOldProject(checkpoint.snapshot),
+              normalizeOldProject(candidate.snapshot),
             );
 
             return {
-              id: typeof checkpoint.id === 'string' ? checkpoint.id : crypto.randomUUID(),
+              id: typeof candidate.id === 'string' ? candidate.id : crypto.randomUUID(),
               platform:
-                checkpoint.platform === 'chatgpt' ||
-                checkpoint.platform === 'claude' ||
-                checkpoint.platform === 'grok' ||
-                checkpoint.platform === 'perplexity' ||
-                checkpoint.platform === 'gemini'
-                  ? checkpoint.platform
+                candidate.platform === 'chatgpt' ||
+                candidate.platform === 'claude' ||
+                candidate.platform === 'grok' ||
+                candidate.platform === 'perplexity' ||
+                candidate.platform === 'gemini'
+                  ? candidate.platform
                   : 'claude',
               timestamp:
-                typeof checkpoint.timestamp === 'string'
-                  ? checkpoint.timestamp
+                typeof candidate.timestamp === 'string'
+                  ? candidate.timestamp
                   : new Date().toISOString(),
               summary:
-                typeof checkpoint.summary === 'string'
-                  ? checkpoint.summary
-                  : typeof checkpoint.snapshot.summary === 'string'
-                    ? checkpoint.snapshot.summary
+                typeof candidate.summary === 'string'
+                  ? candidate.summary
+                  : typeof candidate.snapshot.summary === 'string'
+                    ? candidate.snapshot.summary
                     : 'Export checkpoint',
               snapshot: normalizedSnapshot,
               hash:
-                typeof checkpoint.hash === 'string'
-                  ? checkpoint.hash
+                typeof candidate.hash === 'string'
+                  ? candidate.hash
                   : hashProjectState(normalizedSnapshot),
             };
           })
@@ -191,48 +265,52 @@ export function normalizeOldProject(raw: Record<string, any>): ProjectMemory {
       : [],
     restorePoints: Array.isArray(raw.restorePoints)
       ? raw.restorePoints
-          .map((restorePoint: any): ProjectRestorePoint | null => {
+          .map((restorePoint: unknown): ProjectRestorePoint | null => {
             if (!restorePoint || typeof restorePoint !== 'object') return null;
-            if (!restorePoint.snapshot || typeof restorePoint.snapshot !== 'object') return null;
+            const candidate = restorePoint as LegacyRestorePoint;
+            if (!candidate.snapshot || typeof candidate.snapshot !== 'object') return null;
 
             return {
-              id: typeof restorePoint.id === 'string' ? restorePoint.id : crypto.randomUUID(),
+              id: typeof candidate.id === 'string' ? candidate.id : crypto.randomUUID(),
               timestamp:
-                typeof restorePoint.timestamp === 'string'
-                  ? restorePoint.timestamp
+                typeof candidate.timestamp === 'string'
+                  ? candidate.timestamp
                   : new Date().toISOString(),
               reason:
-                restorePoint.reason === 'rescan'
+                candidate.reason === 'rescan'
                   ? 'rescan'
                   : 'ai_apply',
               summary:
-                typeof restorePoint.summary === 'string'
-                  ? restorePoint.summary
+                typeof candidate.summary === 'string'
+                  ? candidate.summary
                   : 'Restore point',
-              snapshot: cloneCheckpointSnapshot(normalizeOldProject(restorePoint.snapshot)),
+              snapshot: cloneCheckpointSnapshot(normalizeOldProject(candidate.snapshot)),
             };
           })
           .filter((restorePoint): restorePoint is ProjectRestorePoint => restorePoint !== null)
       : [],
     platformState: raw.platformState
       ? Object.fromEntries(
-          Object.entries(raw.platformState).map(([platform, state]: [string, any]) => [
-            platform,
-            {
-              lastExportHash: state?.lastExportHash || state?.lastSentSnapshotId,
-              lastExportedAt: state?.lastExportedAt || state?.lastReplyAt,
-              lastSeenAt: state?.lastSeenAt,
-              lastReplyAt: state?.lastReplyAt,
-              lastSessionNote: state?.lastSessionNote,
-              exportCount: state?.exportCount,
-            },
-          ])
+          Object.entries(raw.platformState).map(([platform, state]) => {
+            const platformState = (state && typeof state === 'object' ? state : {}) as LegacyPlatformState;
+            return [
+              platform,
+              {
+                lastExportHash: platformState.lastExportHash || platformState.lastSentSnapshotId,
+                lastExportedAt: platformState.lastExportedAt || platformState.lastReplyAt,
+                lastSeenAt: platformState.lastSeenAt,
+                lastReplyAt: platformState.lastReplyAt,
+                lastSessionNote: platformState.lastSessionNote,
+                exportCount: platformState.exportCount,
+              },
+            ];
+          })
         )
       : {},
   };
 }
 
-export function toOldFormat(project: ProjectMemory): Record<string, any> {
+export function toOldFormat(project: ProjectMemory): Record<string, unknown> {
   const updatedAt = project.updatedAt || projectUpdatedAt(project) || new Date().toISOString();
 
   return {
@@ -491,12 +569,6 @@ export async function saveToDisk(project: ProjectMemory): Promise<void> {
     void (async () => {
       const latestStore = store();
       if (!latestStore.cloudUser || latestStore.cloudDisconnecting || !latestStore.settings.privacy.cloudSyncEnabled) {
-        if (latestStore.cloudDisconnecting) {
-          console.log('[Memphant] Skipping autosave cloud push while disconnecting cloud.');
-        }
-        if (!latestStore.settings.privacy.cloudSyncEnabled) {
-          console.log('[Memphant] Skipping autosave cloud push while cloud backup is disconnected.');
-        }
         return;
       }
 
@@ -615,18 +687,8 @@ export async function loadAllFromDisk(): Promise<ProjectMemory[]> {
 
 const store = () => useProjectStore.getState();
 
-/** Check free tier limit. Returns true if blocked (caller should abort). */
+/** Early access is fully free, so project creation is never blocked here. */
 function checkFreeTierLimit(): boolean {
-  const { cloudUser, projects, setCurrentView, setSettingsTab, showToast } = store();
-  if (!cloudUser && projects.length >= FREE_TIER_LIMIT) {
-    showToast(
-      `Free plan allows up to ${FREE_TIER_LIMIT} projects. Sign in to unlock unlimited.`,
-      'info',
-    );
-    setSettingsTab('sync');
-    setCurrentView('settings');
-    return true;
-  }
   return false;
 }
 

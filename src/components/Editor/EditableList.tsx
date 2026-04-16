@@ -1,5 +1,5 @@
 /** Editable list component — each item is a text input, + add button at bottom */
-import { useRef, useState } from 'react';
+import { useRef, useState, type KeyboardEvent } from 'react';
 
 interface EditableListProps {
   label: string;
@@ -39,7 +39,7 @@ export function EditableList({
     inputRef.current?.focus();
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       handleAdd();

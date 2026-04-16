@@ -5,7 +5,7 @@
  *   1. Landing: choose guided setup, templates, or folder scan
  *   2. Wizard: 3-step guided flow that creates a useful first project
  */
-import { useState } from 'react';
+import { useState, type KeyboardEvent } from 'react';
 import { useProjectStore } from '../../store/projectStore';
 import { createProjectFromFolder, createProjectFromTemplate, saveToDisk } from '../../services/tauriActions';
 import type { ProjectMemory } from '../../types/memphant-types';
@@ -119,7 +119,7 @@ export function WelcomeScreen() {
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       if (step < 3 && (step === 1 ? canAdvanceStep1 : canAdvanceStep2)) handleNext();

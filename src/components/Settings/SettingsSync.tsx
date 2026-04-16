@@ -10,7 +10,11 @@ import {
   fetchSubscription,
   pendingCount,
 } from '../../services/cloudSync';
-import { startCheckoutForCurrentUser, openCustomerPortal } from '../../services/stripe';
+
+type AppEnv = {
+  VITE_APP_URL?: string;
+  VITE_API_URL?: string;
+};
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -52,7 +56,6 @@ function withUiTimeout<T>(
         }
         settled = true;
         window.clearTimeout(timeoutId);
-        console.log('[SettingsSync] ui_timeout_resolved', { label, timeoutMs });
         resolve(value);
       },
       (error) => {
@@ -89,6 +92,21 @@ function errorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
+function getAppEnv(): AppEnv {
+  return import.meta.env as AppEnv;
+}
+
+function getAuthCallbackUrl(): string {
+  const env = getAppEnv();
+  if (env.VITE_APP_URL) {
+    return `${env.VITE_APP_URL}/auth/callback`;
+  }
+  if (env.VITE_API_URL) {
+    return `${env.VITE_API_URL}/auth/callback`;
+  }
+  return 'https://memephant.com/auth/callback';
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 // ─── Delete Account sub-component ────────────────────────────────────────────
@@ -117,7 +135,7 @@ function DeleteAccountSection({
       const token = session?.access_token;
       if (!token) throw new Error('Not signed in.');
 
-      const API_BASE = (import.meta as any).env?.VITE_API_URL ?? '';
+      const API_BASE = getAppEnv().VITE_API_URL ?? '';
       const res = await fetch(`${API_BASE}/api/delete-account`, {
         method: 'POST',
         headers: {
@@ -127,8 +145,8 @@ function DeleteAccountSection({
       });
 
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error((body as any).error ?? 'Deletion failed.');
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(body.error ?? 'Deletion failed.');
       }
 
       onDeleted();
@@ -214,8 +232,6 @@ export function SettingsSync() {
   const showToast = useProjectStore((s) => s.showToast);
   const settings = useProjectStore((s) => s.settings);
   const updateSettings = useProjectStore((s) => s.updateSettings);
-  const subscriptionTier = useProjectStore((s) => s.subscriptionTier);
-  const subscriptionStatus = useProjectStore((s) => s.subscriptionStatus);
   const setSubscriptionTier = useProjectStore((s) => s.setSubscriptionTier);
   const setSubscriptionStatus = useProjectStore((s) => s.setSubscriptionStatus);
 
@@ -226,7 +242,6 @@ export function SettingsSync() {
   const [resetEmail, setResetEmail] = useState('');
   const [sentToEmail, setSentToEmail] = useState('');
   const [busy, setBusy] = useState(false);
-  const [accountBusy, setAccountBusy] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [formError, setFormError] = useState('');
   const [emailNotConfirmed, setEmailNotConfirmed] = useState(false);
@@ -264,11 +279,6 @@ export function SettingsSync() {
 
     try {
       const projectsToSync = useProjectStore.getState().projects;
-
-      console.log('[SettingsSync] finishCloudSignIn sync_start', {
-        projectCount: projectsToSync.length,
-        userId: user.id,
-      });
 
       const { merged, changed } = await withUiTimeout(
         runCloudSyncCycle(projectsToSync, 'signin', user.id),
@@ -333,11 +343,6 @@ VITE_SUPABASE_ANON_KEY=your-anon-key`}</pre>
   async function handleSyncNow() {
     if (syncStatus === 'syncing') return;
 
-    console.log('[SettingsSync] syncNow start', {
-      projectCount: projects.length,
-      hasCloudUser: Boolean(cloudUser),
-    });
-
     setSyncStatus('syncing');
     setSyncSlow(false);
 
@@ -393,7 +398,7 @@ VITE_SUPABASE_ANON_KEY=your-anon-key`}</pre>
     setCloudDisconnecting(true);
 
     try {
-      const result = await disconnectCloud();
+      await disconnectCloud();
       updateSettings({
         privacy: {
           ...settings.privacy,
@@ -403,9 +408,6 @@ VITE_SUPABASE_ANON_KEY=your-anon-key`}</pre>
       setSyncStatus('saved_local');
       setSyncErrorDetails('');
       showToast('Cloud disconnected. Local projects stay on this device.');
-      console.log('[SettingsSync] disconnect_cloud_success', {
-        clearedKeys: result.clearedKeys,
-      });
     } catch (err) {
       const message = errorMessage(err, 'Could not disconnect cloud backup.');
       console.error('[SettingsSync] disconnect_cloud_error:', err);
@@ -450,23 +452,6 @@ VITE_SUPABASE_ANON_KEY=your-anon-key`}</pre>
   }
 
   if (cloudUser) {
-    const statusLabel =
-      syncStatus === 'syncing'
-        ? '⏳ Syncing…'
-        : syncStatus === 'error'
-          ? '⚠️ Sync error'
-          : '✅ Synced';
-
-    const tierLabel =
-      subscriptionTier === 'pro'
-        ? '⭐ Pro'
-        : subscriptionTier === 'team'
-          ? '👥 Team'
-          : '🆓 Free';
-
-    void statusLabel;
-    void tierLabel;
-
     const renderedStatusLabel =
       !cloudSyncEnabled
         ? 'Disconnected - local only'
@@ -480,12 +465,7 @@ VITE_SUPABASE_ANON_KEY=your-anon-key`}</pre>
               ? 'Saved locally - sync failed'
               : 'Synced';
 
-    const renderedTierLabel =
-      subscriptionTier === 'pro'
-        ? 'Pro'
-        : subscriptionTier === 'team'
-          ? 'Team'
-          : 'Free';
+    const renderedTierLabel = 'Free during early access';
 
     const statusBadgeLabel =
       !cloudSyncEnabled
@@ -510,32 +490,6 @@ VITE_SUPABASE_ANON_KEY=your-anon-key`}</pre>
             : syncStatus === 'error'
               ? 'sync-status-badge sync-status-badge--error'
               : 'sync-status-badge';
-
-    const isPastDue = subscriptionStatus === 'past_due';
-
-    async function handleUpgrade(plan: 'pro' | 'team') {
-      setAccountBusy(true);
-      try {
-        await startCheckoutForCurrentUser(plan);
-      } finally {
-        setAccountBusy(false);
-      }
-    }
-
-    async function handleRefreshPlan() {
-      setAccountBusy(true);
-      try {
-        if (!cloudUser) return;
-const sub = await fetchSubscription(cloudUser.id);
-        setSubscriptionTier(sub.tier);
-        setSubscriptionStatus(sub.status);
-        showToast('Plan refreshed.');
-      } catch {
-        showToast('Could not refresh plan.', 'error');
-      } finally {
-        setAccountBusy(false);
-      }
-    }
 
     return (
       <section className="settings-section">
@@ -573,12 +527,6 @@ const sub = await fetchSubscription(cloudUser.id);
             </div>
           )}
         </div>
-
-        {isPastDue && (
-          <div className="sync-notice sync-notice--warning">
-            ⚠️ Your last payment failed. Please update your billing details to keep your plan active.
-          </div>
-        )}
 
         {syncStatus === 'syncing' && syncSlow && (
           <p className="sync-slow-notice" style={{ marginTop: 12, color: '#f59e0b', fontSize: 13 }}>
@@ -650,52 +598,15 @@ const sub = await fetchSubscription(cloudUser.id);
           </p>
         )}
 
-        {subscriptionTier === 'free' && (
-          <div className="sync-upgrade-card">
-            <p className="sync-upgrade-title">Upgrade to Pro</p>
-            <p className="sync-upgrade-desc">
-              Unlimited projects, priority support, and early access to new features.
-            </p>
-            <div className="sync-upgrade-actions">
-            
-
-              <button
-                type="button"
-                className="btn btn-ghost"
-                onClick={() => handleUpgrade('team')}
-                disabled={accountBusy}
-              >
-                Team plan — $20/mo
-              </button>
-            </div>
-          </div>
-        )}
-
-        {subscriptionTier !== 'free' && (
-          <>
-            <div className="sync-actions" style={{ marginTop: 16 }}>
-              <button
-                type="button"
-                className="btn btn-ghost"
-                onClick={() => { setAccountBusy(true); openCustomerPortal().finally(() => setAccountBusy(false)); }}
-                disabled={accountBusy}
-              >
-                Manage subscription
-              </button>
-            </div>
-            <p className="settings-description sync-hint">
-              <button
-                type="button"
-                className="sync-refresh-link"
-                onClick={handleRefreshPlan}
-                disabled={accountBusy}
-              >
-                Refresh plan
-              </button>{' '}
-              if you recently upgraded or changed plans.
-            </p>
-          </>
-        )}
+        <div className="sync-upgrade-card">
+          <p className="sync-upgrade-title">Free during early access</p>
+          <p className="sync-upgrade-desc">
+            Cloud backup and the full app are currently free while we prepare the first paid plans.
+          </p>
+          <p className="settings-description sync-hint" style={{ marginTop: 0 }}>
+            Pro features and billing controls are coming soon.
+          </p>
+        </div>
 
         <p className="settings-description sync-hint">
           Local projects are never removed by disconnecting cloud backup.
@@ -774,12 +685,7 @@ const sub = await fetchSubscription(cloudUser.id);
   async function handleResendConfirmation(targetEmail: string) {
   if (!supabase || !targetEmail) return;
 
-  const AUTH_CALLBACK_URL =
-    (import.meta as any).env?.VITE_APP_URL
-      ? `${(import.meta as any).env.VITE_APP_URL}/auth/callback`
-      : (import.meta as any).env?.VITE_API_URL
-        ? `${(import.meta as any).env.VITE_API_URL}/auth/callback`
-        : 'https://memephant.com/auth/callback';
+  const AUTH_CALLBACK_URL = getAuthCallbackUrl();
 
   setBusy(true);
   try {
@@ -1009,12 +915,12 @@ const sub = await fetchSubscription(cloudUser.id);
       }
 
       const { data, error } = await supabase.auth.signInWithOAuth({
-        provider,
-        options: {
-          redirectTo: `${(import.meta as any).env?.VITE_APP_URL ?? 'https://memephant.com'}/auth/callback`,
-          skipBrowserRedirect: true,
-        },
-      });
+          provider,
+          options: {
+          redirectTo: getAuthCallbackUrl(),
+            skipBrowserRedirect: true,
+          },
+        });
 
       if (error) throw new Error(error.message);
       if (!data.url) throw new Error('No OAuth URL returned.');

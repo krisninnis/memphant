@@ -11,8 +11,6 @@ import type { ProjectTemplate } from '../../utils/projectTemplates';
 import ProjectCard from './ProjectCard';
 import ConfirmDialog from '../Shared/ConfirmDialog';
 
-const FREE_TIER_LIMIT = 3;
-
 interface SidebarProps {
   onNavigate?: () => void;
 }
@@ -39,7 +37,6 @@ export function Sidebar({ onNavigate }: SidebarProps) {
   const projects = useProjectStore((s) => s.projects);
   const cloudUser = useProjectStore((s) => s.cloudUser);
   const activeProjectId = useProjectStore((s) => s.activeProjectId);
-  const subscriptionTier = useProjectStore((s) => s.subscriptionTier);
 
   const setActiveProject = useProjectStore((s) => s.setActiveProject);
   const setCurrentView = useProjectStore((s) => s.setCurrentView);
@@ -57,8 +54,6 @@ export function Sidebar({ onNavigate }: SidebarProps) {
 
   const nameInputRef = useRef<HTMLInputElement>(null);
   const templateNameRef = useRef<HTMLInputElement>(null);
-
-  const atLimit = !cloudUser && projects.length >= FREE_TIER_LIMIT;
 
   const filteredProjects = searchQuery.trim()
     ? projects.filter((p) => {
@@ -98,11 +93,6 @@ export function Sidebar({ onNavigate }: SidebarProps) {
   };
 
   const handleNewProjectClick = () => {
-    if (atLimit) {
-      setSettingsTab('sync');
-      setCurrentView('settings');
-      return;
-    }
     setCreateMode('name');
     setTimeout(() => nameInputRef.current?.focus(), 50);
   };
@@ -117,12 +107,7 @@ export function Sidebar({ onNavigate }: SidebarProps) {
     ? projects.find((p) => p.id === pendingDeleteId)
     : null;
 
-  const planLabel =
-    subscriptionTier === 'pro'
-      ? 'Pro'
-      : subscriptionTier === 'team'
-        ? 'Team'
-        : 'Free';
+  const planLabel = 'Free during early access';
 
   return (
     <div className="sidebar-inner">
@@ -161,11 +146,6 @@ export function Sidebar({ onNavigate }: SidebarProps) {
               type="button"
               className="sidebar-action-btn"
               onClick={() => {
-                if (atLimit) {
-                  setSettingsTab('sync');
-                  setCurrentView('settings');
-                  return;
-                }
                 setCreateMode('templates');
               }}
             >
@@ -269,7 +249,7 @@ export function Sidebar({ onNavigate }: SidebarProps) {
         )}
       </div>
 
-      {!cloudUser && !atLimit && projects.length > 0 && !cloudNudgeDismissed && (
+      {!cloudUser && projects.length > 0 && !cloudNudgeDismissed && (
         <div className="sidebar-cloud-nudge">
           <div className="sidebar-cloud-nudge__text">
             <span>☁️</span>
@@ -291,13 +271,6 @@ export function Sidebar({ onNavigate }: SidebarProps) {
             </button>
           </div>
         </div>
-      )}
-
-      {atLimit && (
-        <button className="sidebar-upgrade-nudge" onClick={openCloudBackup}>
-          <span>🔒 Free plan — 3 projects</span>
-          <span className="sidebar-upgrade-cta">Unlock unlimited →</span>
-        </button>
       )}
 
       {projects.length > 2 && (

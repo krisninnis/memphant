@@ -8,6 +8,7 @@ import type {
   Platform,
   ProjectCheckpoint,
   ProjectCheckpointSnapshot,
+  PlatformState,
   ProjectMemory,
 } from '../types/memphant-types';
 
@@ -578,7 +579,7 @@ export function applyUpdate(
         platform,
         state ? { ...state } : state,
       ]),
-    ) as Partial<Record<Platform, any>>,
+    ) as Partial<Record<Platform, PlatformState>>,
   };
   const allowRiskyOverwrites = options.allowRiskyOverwrites ?? true;
 

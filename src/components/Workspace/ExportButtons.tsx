@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useState, type CSSProperties } from 'react';
 import { useProjectStore } from '../../store/projectStore';
 import { useActiveProject, useEnabledPlatforms } from '../../hooks/useActiveProject';
 import { copyExportToClipboard } from '../../services/tauriActions';
@@ -38,10 +38,7 @@ export function ExportButtons() {
   const showToast = useProjectStore((s) => s.showToast);
   const defaultExportMode = useProjectStore((s) => s.settings.projects.defaultExportMode);
   const secretsScannerLevel = useProjectStore((s) => s.settings.privacy.secretsScannerLevel);
-  const subscriptionTier = useProjectStore((s) => s.subscriptionTier);
-
-  const isPro = subscriptionTier === 'pro' || subscriptionTier === 'team';
-  const effectiveExportMode = defaultExportMode === 'smart' && !isPro ? 'full' : defaultExportMode;
+  const effectiveExportMode = defaultExportMode;
 
   const activeProject = useActiveProject();
   const enabledPlatforms = useEnabledPlatforms();
@@ -122,7 +119,7 @@ export function ExportButtons() {
               key={platform}
               type="button"
               className={`export-pill${isActive ? ' export-pill--active' : ''}`}
-              style={{ '--pill-color': config.color } as React.CSSProperties}
+              style={{ '--pill-color': config.color } as CSSProperties}
               onClick={() => handleSelectPlatform(platform)}
               title={age ? `${config.name} - last copied ${age}` : `Select ${config.name}`}
               aria-pressed={isActive}
@@ -155,7 +152,7 @@ export function ExportButtons() {
       <button
         type="button"
         className={`export-copy-btn${copied ? ' export-copy-btn--copied' : ''}`}
-        style={{ '--pill-color': targetConfig.color } as React.CSSProperties}
+        style={{ '--pill-color': targetConfig.color } as CSSProperties}
         onClick={() => void handleCopy()}
         disabled={!activeProject}
         title={
