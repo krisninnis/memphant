@@ -64,6 +64,8 @@ function statusDescription(phase: UpdatePhase, info: UpdateInfo | null, progress
       return 'Update installed - restart to finish';
     case 'error':
       return 'Could not check for updates - check your connection';
+    default:
+      return '';
   }
 }
 
@@ -91,7 +93,7 @@ export function SettingsAbout() {
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [installedVersion, setInstalledVersion] = useState<string>('...');
 
-  const { isChecking, updateAvailable, checkForUpdates, applyUpdate, lastChecked } = usePWA();
+  const { isChecking, checkForUpdates, applyUpdate, lastChecked } = usePWA();
 
   useEffect(() => {
     if (isTauri()) {
@@ -118,6 +120,9 @@ export function SettingsAbout() {
       if (info) {
         setUpdateInfo(info);
         setPhase('available');
+      } else {
+        setUpdateInfo(null);
+        setPhase('idle');
       }
     } catch {
       // Silent background check.
@@ -134,9 +139,11 @@ export function SettingsAbout() {
         setUpdateInfo(info);
         setPhase('available');
       } else {
+        setUpdateInfo(null);
         setPhase('up-to-date');
       }
     } catch {
+      setUpdateInfo(null);
       setPhase('error');
     }
   };
@@ -238,13 +245,9 @@ export function SettingsAbout() {
 
           <div className="setting-row" style={{ alignItems: 'flex-start', gap: 12 }}>
             <div className="setting-info" style={{ flex: 1 }}>
-              <div className="setting-label">
-                {updateAvailable ? 'Update ready' : 'Check for updates'}
-              </div>
+              <div className="setting-label">Check for updates</div>
               <div className="setting-description">
-                {updateAvailable
-                  ? 'A new version of Memephant is ready. Update now to use the latest version.'
-                  : "Make sure you're using the latest version of Memephant."}
+                Make sure you're using the latest version of Memephant.
               </div>
               {formatLastChecked(lastChecked) && (
                 <div style={{ color: '#777', fontSize: 12, marginTop: 6 }}>
@@ -268,22 +271,8 @@ export function SettingsAbout() {
                 disabled={isChecking}
                 style={{ minWidth: 140 }}
               >
-                {isChecking
-                  ? 'Checking...'
-                  : updateAvailable
-                    ? 'Update now'
-                    : 'Check for updates'}
+                {isChecking ? 'Checking...' : 'Check for updates'}
               </button>
-
-              {updateAvailable && (
-                <button
-                  className="setting-btn setting-btn--primary"
-                  onClick={applyUpdate}
-                  style={{ minWidth: 120 }}
-                >
-                  Update now
-                </button>
-              )}
             </div>
           </div>
 
@@ -350,6 +339,12 @@ export function SettingsAbout() {
               )}
             </div>
           </div>
+
+          {phase === 'up-to-date' && (
+            <div className="settings-trust-box" style={{ marginTop: 12 }}>
+              You’re already on the latest version.
+            </div>
+          )}
 
           {phase === 'downloading' && (
             <div className="about-update-progress">
