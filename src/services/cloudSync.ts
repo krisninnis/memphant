@@ -734,12 +734,23 @@ export async function logoutCloudAccount(): Promise<{ clearedKeys: string[] }> {
   })
 
   try {
-    await signOut()
+    let signOutError: unknown = null
+    try {
+      await signOut()
+    } catch (err) {
+      signOutError = err
+      logSyncError('auth', 'logout_signout_error', err, {
+        clientInstanceId: supabaseClientInstanceId,
+        connectionGeneration: cloudConnectionGeneration,
+      })
+    }
+
     const result = clearSupabaseAuthStorage()
 
     logSync('auth', 'logout_complete', {
       clientInstanceId: supabaseClientInstanceId,
       clearedKeys: result.clearedKeys,
+      hadSignOutError: Boolean(signOutError),
       connectionGeneration: cloudConnectionGeneration,
     })
 

@@ -107,6 +107,16 @@ function getAuthCallbackUrl(): string {
   return 'https://memephant.com/auth/callback';
 }
 
+function clearAuthUrlState(): void {
+  if (typeof window === 'undefined') return;
+
+  const cleanUrl = new URL(window.location.href);
+  cleanUrl.pathname = '/';
+  cleanUrl.search = '';
+  cleanUrl.hash = '';
+  window.history.replaceState({}, document.title, cleanUrl.toString());
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 // ─── Delete Account sub-component ────────────────────────────────────────────
@@ -439,7 +449,16 @@ VITE_SUPABASE_ANON_KEY=your-anon-key`}</pre>
     try {
       await logoutCloudAccount();
       resetCloudState();
+      setMode('signin');
+      setOauthProvider(null);
       setSyncErrorDetails('');
+
+      if (!isTauri) {
+        clearAuthUrlState();
+        window.location.replace('/');
+        return;
+      }
+
       showToast('Logged out.');
     } catch (err) {
       const message = errorMessage(err, 'Could not log out.');

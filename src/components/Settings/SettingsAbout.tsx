@@ -31,6 +31,23 @@ type UpdatePhase =
   | 'ready'
   | 'error';
 
+function formatLastChecked(date: Date | null): string | null {
+  if (!date) return null;
+
+  const diffMs = Date.now() - date.getTime();
+  if (diffMs < 15_000) return 'Last checked just now';
+  if (diffMs < 60_000) return `Last checked ${Math.max(1, Math.floor(diffMs / 1000))} seconds ago`;
+  if (diffMs < 3_600_000) return `Last checked ${Math.max(1, Math.floor(diffMs / 60_000))} minutes ago`;
+
+  return `Last checked ${date.toLocaleDateString([], {
+    month: 'short',
+    day: 'numeric',
+  })} at ${date.toLocaleTimeString([], {
+    hour: 'numeric',
+    minute: '2-digit',
+  })}`;
+}
+
 function statusDescription(phase: UpdatePhase, info: UpdateInfo | null, progress: number): string {
   switch (phase) {
     case 'idle':
@@ -222,16 +239,16 @@ export function SettingsAbout() {
           <div className="setting-row" style={{ alignItems: 'flex-start', gap: 12 }}>
             <div className="setting-info" style={{ flex: 1 }}>
               <div className="setting-label">
-                {updateAvailable ? 'New browser app version available' : 'Browser app version'}
+                {updateAvailable ? 'Update ready' : 'Check for updates'}
               </div>
               <div className="setting-description">
                 {updateAvailable
-                  ? 'A new version is ready. Apply the update to refresh Memephant.'
-                  : 'Check whether a newer PWA version is available.'}
+                  ? 'A new version of Memephant is ready. Update now to use the latest version.'
+                  : "Make sure you're using the latest version of Memephant."}
               </div>
-              {lastChecked && (
+              {formatLastChecked(lastChecked) && (
                 <div style={{ color: '#777', fontSize: 12, marginTop: 6 }}>
-                  Last checked: {lastChecked.toLocaleString()}
+                  {formatLastChecked(lastChecked)}
                 </div>
               )}
             </div>
@@ -254,7 +271,7 @@ export function SettingsAbout() {
                 {isChecking
                   ? 'Checking...'
                   : updateAvailable
-                    ? 'Update available'
+                    ? 'Update now'
                     : 'Check for updates'}
               </button>
 
@@ -264,7 +281,7 @@ export function SettingsAbout() {
                   onClick={applyUpdate}
                   style={{ minWidth: 120 }}
                 >
-                  Apply update
+                  Update now
                 </button>
               )}
             </div>
