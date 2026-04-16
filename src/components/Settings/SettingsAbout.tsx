@@ -35,11 +35,11 @@ function formatLastChecked(date: Date | null): string | null {
   if (!date) return null;
 
   const diffMs = Date.now() - date.getTime();
-  if (diffMs < 15_000) return 'Last checked just now';
-  if (diffMs < 60_000) return `Last checked ${Math.max(1, Math.floor(diffMs / 1000))} seconds ago`;
-  if (diffMs < 3_600_000) return `Last checked ${Math.max(1, Math.floor(diffMs / 60_000))} minutes ago`;
+  if (diffMs < 15_000) return 'Updated just now';
+  if (diffMs < 60_000) return `Updated ${Math.max(1, Math.floor(diffMs / 1000))} seconds ago`;
+  if (diffMs < 3_600_000) return `Updated ${Math.max(1, Math.floor(diffMs / 60_000))} minutes ago`;
 
-  return `Last checked ${date.toLocaleDateString([], {
+  return `Updated ${date.toLocaleDateString([], {
     month: 'short',
     day: 'numeric',
   })} at ${date.toLocaleTimeString([], {
@@ -93,7 +93,7 @@ export function SettingsAbout() {
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [installedVersion, setInstalledVersion] = useState<string>('...');
 
-  const { isChecking, checkForUpdates, lastChecked } = usePWA();
+  const { isChecking, updateAvailable, checkForUpdates, applyUpdate, lastChecked } = usePWA();
 
   useEffect(() => {
     if (isTauri()) {
@@ -111,8 +111,7 @@ export function SettingsAbout() {
     }, 800);
 
     return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [phase]);
 
   const silentCheck = async () => {
     try {
@@ -171,6 +170,26 @@ export function SettingsAbout() {
       window.open(url, '_blank');
     }
   };
+
+  const webUpdateLabel = isChecking
+    ? 'Checking updates'
+    : updateAvailable
+      ? 'Update available'
+      : 'Check for updates';
+
+  const webUpdateDescription = isChecking
+    ? 'Checking for the latest version of Memephant...'
+    : updateAvailable
+      ? 'A newer version is ready. Refresh or reinstall the app to use the latest version.'
+      : lastChecked
+        ? "You're on the latest version."
+        : 'Make sure you’re using the latest version of Memephant.';
+
+  const webUpdateButtonText = isChecking
+    ? 'Checking...'
+    : updateAvailable
+      ? 'Install update'
+      : 'Check for updates';
 
   return (
     <div>
@@ -245,10 +264,8 @@ export function SettingsAbout() {
 
           <div className="setting-row" style={{ alignItems: 'flex-start', gap: 12 }}>
             <div className="setting-info" style={{ flex: 1 }}>
-              <div className="setting-label">Check for updates</div>
-              <div className="setting-description">
-                Make sure you're using the latest version of Memephant.
-              </div>
+              <div className="setting-label">{webUpdateLabel}</div>
+              <div className="setting-description">{webUpdateDescription}</div>
               {formatLastChecked(lastChecked) && (
                 <div style={{ color: '#777', fontSize: 12, marginTop: 6 }}>
                   {formatLastChecked(lastChecked)}
@@ -271,10 +288,26 @@ export function SettingsAbout() {
                 disabled={isChecking}
                 style={{ minWidth: 140 }}
               >
-                {isChecking ? 'Checking...' : 'Check for updates'}
+                {webUpdateButtonText}
               </button>
+
+              {updateAvailable && (
+                <button
+                  className="setting-btn setting-btn--primary"
+                  onClick={() => void applyUpdate()}
+                  style={{ minWidth: 140 }}
+                >
+                  Install update
+                </button>
+              )}
             </div>
           </div>
+
+          {!isChecking && !updateAvailable && lastChecked && (
+            <div className="settings-trust-box" style={{ marginTop: 12 }}>
+              You’re already on the latest version.
+            </div>
+          )}
 
           <div className="setting-row">
             <div className="setting-info">
@@ -374,7 +407,7 @@ export function SettingsAbout() {
 
           {phase === 'error' && (
             <div className="about-update-error">
-              Update check failed. Make sure you're connected to the internet, then try again.{' '}
+              Update check failed. Make sure you're connected to the internet, then try again.{` `}
               <button
                 className="about-update-error-retry"
                 onClick={() => {
