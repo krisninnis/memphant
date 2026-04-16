@@ -413,6 +413,36 @@ export function SettingsPrivacy() {
       </div>
 
       <div className="settings-group">
+        <div className="settings-group-title">Crash reporting</div>
+
+        <div className="setting-row">
+          <div className="setting-info">
+            <div className="setting-label">Send crash reports</div>
+            <div className="setting-description">
+              Help improve Memephant by sending anonymous error reports when the app crashes.
+              Only stack traces are sent — never your project content or personal data.
+              Disabled by default.
+            </div>
+          </div>
+          <Toggle
+            value={p.sendCrashReports ?? false}
+            onChange={async (v) => {
+              update({ sendCrashReports: v });
+              if (v) {
+                const { initialiseSentry } = await import('../../services/sentryService');
+                await initialiseSentry();
+                showToast('Crash reporting enabled. Thank you!');
+              } else {
+                const { teardownSentry } = await import('../../services/sentryService');
+                await teardownSentry();
+                showToast('Crash reporting disabled.');
+              }
+            }}
+          />
+        </div>
+      </div>
+
+      <div className="settings-group">
         <div className="settings-group-title">Security</div>
 
         <div className="setting-row">

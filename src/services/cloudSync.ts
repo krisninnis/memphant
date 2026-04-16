@@ -35,6 +35,8 @@ type CloudSyncStage =
 
 type SyncReason = 'manual' | 'signin' | 'startup' | 'autosave' | 'unknown'
 const SUPABASE_WRITE_TIMEOUT_MS = 15000
+// signOut() makes a live network call. Cap it so logout can never hang the UI.
+const LOGOUT_SIGNOUT_TIMEOUT_MS = 5000
 const PROJECTS_TABLE = 'projects'
 const PROJECTS_ON_CONFLICT = 'user_id,project_id'
 const PROJECTS_EXPECTED_KEYS = ['user_id', 'project_id', 'name', 'data', 'updated_at'] as const
@@ -69,7 +71,7 @@ interface AuthUserResult {
 // ─── In-flight dedup ──────────────────────────────────────────────────────────
 
 // Prevents concurrent sync cycles from stepping on each other.
-let syncCycleInFlight: Promise<{ merged: ProjectMemory[]; changed: boolean }> | null = null
+let syncCycleInFlight: Promise<{ merged: ProjectMemory[]; changed: boolean; conflicts: string[] }> | null = null
 let authLookupInFlight: Promise<AuthUserResult> | null = null
 let authLookupOwnerRequestId: string | null = null
 let authLookupWaiterCount = 0
@@ -761,7 +763,26 @@ export async function logoutCloudAccount(): Promise<{ clearedKeys: string[] }> {
   try {
     let signOutError: unknown = null
     try {
-      await signOut()
+      logSync('auth', 'logout_signout_start', {
+        clientInstanceId: supabaseClientInstanceId,
+        connectionGeneration: cloudConnectionGeneration,
+        timeoutMs: LOGOUT_SIGNOUT_TIMEOUT_MS,
+      })
+
+      await Promise.race([
+        signOut(),
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new Error(`Logout signOut timed out after ${Math.round(LOGOUT_SIGNOUT_TIMEOUT_MS / 1000)} s`)),
+            LOGOUT_SIGNOUT_TIMEOUT_MS,
+          ),
+        ),
+      ])
+
+      logSync('auth', 'logout_signout_success', {
+        clientInstanceId: supabaseClientInstanceId,
+        connectionGeneration: cloudConnectionGeneration,
+      })
     } catch (err) {
       signOutError = err
       logSyncError('auth', 'logout_signout_error', err, {
@@ -1003,7 +1024,7 @@ async function pullAndMerge(
 
   if (!supabase) {
     logSync('pull', 'skipped_no_supabase', { reason, requestId })
-    return { merged: localProjects, changed: false }
+    return { merged: localProjects, changed: false, conflicts: [] }
   }
 
   logSync('pull', 'fetch_start', { reason, requestId, userId })
@@ -1225,7 +1246,7 @@ export async function runCloudSyncCycle(
     return syncCycleInFlight
   }
 
-  const cyclePromise = (async (): Promise<{ merged: ProjectMemory[]; changed: boolean }> => {
+  const cyclePromise = (async (): Promise<{ merged: ProjectMemory[]; changed: boolean; conflicts: string[] }> => {
     let userId: string
 
     if (knownUserId) {

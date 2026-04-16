@@ -164,6 +164,8 @@ export interface AppSettings {
   privacy: {
     cloudSyncEnabled: boolean;
     secretsScannerLevel: 'standard' | 'strict';
+    /** Opt-in crash/error reporting via Sentry. Default: false. */
+    sendCrashReports: boolean;
   };
   localAi: {
     enabled: boolean;
@@ -193,6 +195,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   privacy: {
     cloudSyncEnabled: false,
     secretsScannerLevel: 'standard',
+    sendCrashReports: false,
   },
   localAi: {
     enabled: false,

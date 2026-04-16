@@ -82,6 +82,49 @@ describe('secret sanitisation', () => {
     expect(output).not.toContain('[REDACTED]');
   });
 
+  it('redacts Anthropic API keys', () => {
+    const project = makeProject({
+      summary: 'Key is sk-ant-api03-ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz012345',
+    });
+    const output = formatForPlatform(project, 'claude');
+    expect(output).not.toMatch(/sk-ant-api03-/);
+    expect(output).toContain('[REDACTED]');
+  });
+
+  it('redacts Stripe live secret keys', () => {
+    const project = makeProject({ currentState: 'Stripe key: TEST_STRIPE_SECRET_REDACT_ME' });
+    const output = formatForPlatform(project, 'chatgpt');
+    expect(output).toContain('TEST_STRIPE_SECRET_REDACT_ME');
+    expect(output).toContain('[REDACTED]');
+  });
+
+  it('redacts Google API keys', () => {
+    const project = makeProject({
+      aiInstructions: 'Use AIzaSyABCDEFGHIJKLMNOPQRSTUVWXYZ12345678 for Maps',
+    });
+    const output = formatForPlatform(project, 'gemini');
+    expect(output).not.toMatch(/AIzaSyABCDEFGHIJKLMNOPQ/);
+    expect(output).toContain('[REDACTED]');
+  });
+
+  it('redacts HuggingFace tokens', () => {
+    const project = makeProject({
+      currentState: 'HF token: TEST_HUGGINGFACE_TOKEN_REDACT_ME',
+    });
+    const output = formatForPlatform(project, 'claude');
+    expect(output).not.toMatch(/hf_ABCDEFGHIJ/);
+    expect(output).toContain('[REDACTED]');
+  });
+
+  it('redacts Slack user tokens', () => {
+    const project = makeProject({
+      currentState: 'TEST_SLACK_USER_TOKEN_REDACT_ME',
+    });
+    const output = formatForPlatform(project, 'claude');
+    expect(output).not.toMatch(/xoxp-/);
+    expect(output).toContain('[REDACTED]');
+  });
+
   it('strict mode redacts database connection strings', () => {
     setScannerLevel('strict');
     const project = makeProject({
@@ -89,6 +132,17 @@ describe('secret sanitisation', () => {
     });
     const output = formatForPlatform(project, 'claude');
     expect(output).not.toMatch(/postgres:\/\/user:pass/);
+    expect(output).toContain('[REDACTED]');
+    setScannerLevel('standard');
+  });
+
+  it('strict mode redacts SendGrid API keys', () => {
+    setScannerLevel('strict');
+    const project = makeProject({
+      currentState: 'SG.ABCDEFGHIJKLMNOPQRSTUVwx.ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmn',
+    });
+    const output = formatForPlatform(project, 'claude');
+    expect(output).not.toMatch(/SG\.ABCDEFGH/);
     expect(output).toContain('[REDACTED]');
     setScannerLevel('standard');
   });
