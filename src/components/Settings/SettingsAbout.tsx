@@ -93,7 +93,7 @@ export function SettingsAbout() {
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [installedVersion, setInstalledVersion] = useState<string>('...');
 
-  const { isChecking, checkForUpdates, applyUpdate, lastChecked } = usePWA();
+  const { isChecking, checkForUpdates, lastChecked } = usePWA();
 
   useEffect(() => {
     if (isTauri()) {
