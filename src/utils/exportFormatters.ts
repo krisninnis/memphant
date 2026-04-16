@@ -7,16 +7,41 @@ import type { AIPlatformConfig, ProjectMemory, Platform, ExportMode } from '../t
 import { getPlatformConfig } from './platformRegistry';
 
 const STANDARD_PATTERNS = [
+  // OpenAI
   /sk-[A-Za-z0-9]{20,}/g,
+  // Anthropic (sk-ant-api03-... or any sk-ant- variant)
+  /sk-ant-[A-Za-z0-9_-]{20,}/g,
+  // AWS access key IDs
   /AKIA[0-9A-Z]{16}/g,
+  // GitHub personal access tokens (classic + fine-grained)
   /ghp_[A-Za-z0-9]{36}/g,
+  /github_pat_[A-Za-z0-9_]{82}/g,
+  // Slack bot tokens
   /xoxb-[A-Za-z0-9-]+/g,
+  // Slack user tokens
+  /xoxp-[A-Za-z0-9-]+/g,
+  // Stripe live secret keys (test keys are generally safe, live keys must be redacted)
+  /sk_live_[A-Za-z0-9]{24,}/g,
+  // Google API keys
+  /AIza[0-9A-Za-z_-]{35}/g,
+  // HuggingFace tokens
+  /hf_[A-Za-z0-9]{34,}/g,
+  // PEM private key headers
   /-----BEGIN [A-Z ]+ KEY-----/g,
+  // JWT tokens (base64url header prefix)
   /eyJ[A-Za-z0-9+/=]{20,}/g,
 ];
 
 const STRICT_EXTRA_PATTERNS = [
-  /(postgres|mysql|mongodb|redis):\/\/[^\s"']+/gi,
+  // Database connection strings (any protocol)
+  /(postgres|postgresql|mysql|mongodb|redis|mongodb\+srv):\/\/[^\s"']+/gi,
+  // SendGrid API keys
+  /SG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}/g,
+  // Databricks / Spark tokens
+  /dapi[a-f0-9]{32}/g,
+  // Azure storage / connection strings
+  /DefaultEndpointsProtocol=https;AccountName=[^;]+;AccountKey=[A-Za-z0-9+/=]{44,}/gi,
+  // password= / secret= / token= / api_key= patterns
   /password\s*[=:]\s*\S+/gi,
   /secret\s*[=:]\s*\S+/gi,
   /token\s*[=:]\s*["']?[A-Za-z0-9_-]{20,}["']?/gi,

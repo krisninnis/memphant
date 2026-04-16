@@ -20,8 +20,8 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
 
-    /* Jest Support */
-    "types": ["jest"]
+    /* Type roots: jest for tests, node for Node globals, vite/client for ImportMeta.env */
+    "types": ["jest", "node", "vite/client"]
   },
   "include": ["src"]
 }

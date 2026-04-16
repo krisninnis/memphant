@@ -16,6 +16,7 @@
     "audit:rls": "tsx scripts/audit-rls.ts"
   },
   "dependencies": {
+    "@sentry/react": "^10.48.0",
     "@supabase/supabase-js": "^2.101.1",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-dialog": "^2.6.0",

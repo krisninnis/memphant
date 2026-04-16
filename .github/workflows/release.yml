@@ -9,8 +9,34 @@ permissions:
   contents: write
 
 jobs:
+  # Run tests before building release artifacts — fail fast before spending CI time on builds.
+  test:
+    name: Test & type-check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript check
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npx eslint src --ext .ts,.tsx --max-warnings 0
+
+      - name: Unit tests
+        run: npm test -- --passWithNoTests
+
   build:
     name: Build — ${{ matrix.platform }}
+    needs: test          # Don't build unless tests pass
     strategy:
       fail-fast: false
       matrix:
@@ -48,6 +74,23 @@ jobs:
             librsvg2-dev \
             patchelf
 
+      - name: Import macOS signing certificate
+        if: matrix.platform == 'macos-latest'
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          # Create a temporary keychain for this build
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          # Import the Developer ID certificate
+          echo "$APPLE_CERTIFICATE" | base64 --decode > certificate.p12
+          security import certificate.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+          rm certificate.p12
+
       - name: Install frontend deps
         run: npm ci
 
@@ -55,14 +98,17 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Tauri updater signing — required for auto-update to work
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          # APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          # APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          # APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          # APPLE_ID: ${{ secrets.APPLE_ID }}
-          # APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          # APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # macOS code signing + notarization
+          # Set these secrets in GitHub → Settings → Secrets → Actions to enable
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'Memephant ${{ github.ref_name }}'
@@ -85,3 +131,25 @@ jobs:
           releaseDraft: false
           prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') || contains(github.ref_name, 'rc') }}
           args: --target ${{ matrix.target }}
+
+  # Verify the GitHub release was created with all expected assets
+  verify-release:
+    name: Verify release assets
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check release assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG=${{ github.ref_name }}
+          echo "Verifying release assets for $TAG..."
+          RELEASE=$(gh api repos/${{ github.repository }}/releases/tags/$TAG)
+          ASSET_COUNT=$(echo "$RELEASE" | jq '.assets | length')
+          echo "Found $ASSET_COUNT release assets"
+          # Expect at least 3 platform artifacts + update manifests
+          if [ "$ASSET_COUNT" -lt 3 ]; then
+            echo "ERROR: Expected at least 3 release assets, found $ASSET_COUNT"
+            exit 1
+          fi
+          echo "✅ Release $TAG looks complete"
