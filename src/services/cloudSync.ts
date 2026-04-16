@@ -148,9 +148,7 @@ function classifyError(
 }
 
 function logSync(stage: CloudSyncStage, event: string, meta: SyncLogMeta = {}): void {
-  if (import.meta.env.DEV) {
-    console.warn(`[CloudSync][${stage}] ${event}`, meta)
-  }
+  console.warn(`[CloudSync][${stage}] ${event}`, meta)
 }
 
 function logSyncError(
