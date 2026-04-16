@@ -121,7 +121,10 @@ function clearAuthUrlState(): void {
 
 // ─── Delete Account sub-component ────────────────────────────────────────────
 
-interface CloudUserRef { id: string; email: string; }
+interface CloudUserRef {
+  id: string;
+  email: string;
+}
 
 function DeleteAccountSection({
   cloudUser,
@@ -141,7 +144,9 @@ function DeleteAccountSection({
     setError('');
 
     try {
-      const { data: { session } } = await (await import('../../services/supabaseClient')).supabase!.auth.getSession();
+      const {
+        data: { session },
+      } = await (await import('../../services/supabaseClient')).supabase!.auth.getSession();
       const token = session?.access_token;
       if (!token) throw new Error('Not signed in.');
 
@@ -150,7 +155,7 @@ function DeleteAccountSection({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
         },
       });
 
@@ -171,11 +176,7 @@ function DeleteAccountSection({
     return (
       <div className="sync-delete-zone">
         <p className="sync-delete-label">Danger zone</p>
-        <button
-          type="button"
-          className="btn sync-delete-btn"
-          onClick={() => setOpen(true)}
-        >
+        <button type="button" className="btn sync-delete-btn" onClick={() => setOpen(true)}>
           Delete my account
         </button>
       </div>
@@ -186,7 +187,8 @@ function DeleteAccountSection({
     <div className="sync-delete-zone sync-delete-zone--open">
       <p className="sync-delete-label">Delete account</p>
       <p className="sync-delete-desc">
-        This permanently deletes <strong>{cloudUser.email}</strong>, all your cloud projects, and cancels any active subscription. Your local projects on this device are not affected.
+        This permanently deletes <strong>{cloudUser.email}</strong>, all your cloud projects, and
+        cancels any active subscription. Your local projects on this device are not affected.
       </p>
       <p className="sync-delete-desc" style={{ marginTop: 10 }}>
         Type <strong>DELETE</strong> to confirm:
@@ -200,7 +202,11 @@ function DeleteAccountSection({
         autoComplete="off"
         spellCheck={false}
       />
-      {error && <p className="sync-form-error" style={{ marginTop: 6 }}>{error}</p>}
+      {error && (
+        <p className="sync-form-error" style={{ marginTop: 6 }}>
+          {error}
+        </p>
+      )}
       <div className="sync-delete-actions">
         <button
           type="button"
@@ -213,7 +219,11 @@ function DeleteAccountSection({
         <button
           type="button"
           className="btn btn-ghost"
-          onClick={() => { setOpen(false); setConfirmText(''); setError(''); }}
+          onClick={() => {
+            setOpen(false);
+            setConfirmText('');
+            setError('');
+          }}
           disabled={busy}
         >
           Cancel
@@ -292,8 +302,8 @@ export function SettingsSync() {
 
       const { merged, changed, conflicts } = await withUiTimeout(
         runCloudSyncCycle(projectsToSync, 'signin', user.id),
-        30000,
-        'Cloud sync timed out - server may be waking up. Try syncing again.',
+        45000,
+        'Cloud sync is taking longer than expected - the server may be waking up. Try syncing again.',
         'settings.signin_sync_cycle',
       );
 
@@ -331,7 +341,10 @@ export function SettingsSync() {
     };
     void poll();
     const id = setInterval(poll, 5000);
-    return () => { active = false; clearInterval(id); };
+    return () => {
+      active = false;
+      clearInterval(id);
+    };
   }, []);
 
   // ── Not configured ──────────────────────────────────────────────────────────
@@ -369,22 +382,15 @@ VITE_SUPABASE_ANON_KEY=your-anon-key`}</pre>
     const slowTimer = window.setTimeout(() => setSyncSlow(true), 8000);
 
     try {
-      const { merged, changed, conflicts } = await withUiTimeout(
+      const { merged, changed } = await withUiTimeout(
         runCloudSyncCycle(projects, 'manual', cloudUser?.id),
-        30000,
-        'Cloud sync timed out - server may be waking up. Try again in a moment.',
+        45000,
+        'Cloud sync is taking longer than expected - the server may be waking up. Try again in a moment.',
         'settings.manual_sync_cycle',
       );
 
       if (changed) {
         setProjects(merged);
-      }
-
-      if (conflicts.length > 0) {
-        showToast(
-          `Sync complete. ${conflicts.length} project${conflicts.length === 1 ? '' : 's'} updated from a newer cloud version.`,
-          'info',
-        );
       }
 
       window.clearTimeout(slowTimer);
@@ -490,14 +496,14 @@ VITE_SUPABASE_ANON_KEY=your-anon-key`}</pre>
       !cloudSyncEnabled
         ? 'Disconnected - local only'
         : syncStatus === 'syncing'
-        ? 'Syncing...'
-        : syncStatus === 'pending'
-          ? 'Saved locally - sync pending'
-          : syncStatus === 'saved_local'
-            ? 'Saved locally'
-            : syncStatus === 'error'
-              ? 'Saved locally - sync failed'
-              : 'Synced';
+          ? 'Syncing...'
+          : syncStatus === 'pending'
+            ? 'Saved locally - sync pending'
+            : syncStatus === 'saved_local'
+              ? 'Saved locally'
+              : syncStatus === 'error'
+                ? 'Saved locally - sync failed'
+                : 'Synced';
 
     const renderedTierLabel = 'Free during early access';
 
@@ -564,7 +570,7 @@ VITE_SUPABASE_ANON_KEY=your-anon-key`}</pre>
 
         {syncStatus === 'syncing' && syncSlow && (
           <p className="sync-slow-notice" style={{ marginTop: 12, color: '#f59e0b', fontSize: 13 }}>
-            ⏳ Waking up cloud server — this can take up to 30 seconds after a period of inactivity…
+            ⏳ Waking up cloud server — this can take up to 45 seconds after a period of inactivity…
           </p>
         )}
 
@@ -601,7 +607,12 @@ VITE_SUPABASE_ANON_KEY=your-anon-key`}</pre>
             </button>
           )}
 
-          <button type="button" className="btn btn-ghost" onClick={() => void handleLogout()} disabled={cloudDisconnecting || loggingOut}>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => void handleLogout()}
+            disabled={cloudDisconnecting || loggingOut}
+          >
             {loggingOut ? 'Logging out...' : 'Log out'}
           </button>
         </div>
@@ -647,13 +658,13 @@ VITE_SUPABASE_ANON_KEY=your-anon-key`}</pre>
         </p>
 
         {/* ── Delete account ─────────────────────────────────────── */}
-          <DeleteAccountSection
-            cloudUser={cloudUser}
-            onDeleted={() => {
-              resetCloudState();
-              showToast('Your account has been deleted.');
-            }}
-          />
+        <DeleteAccountSection
+          cloudUser={cloudUser}
+          onDeleted={() => {
+            resetCloudState();
+            showToast('Your account has been deleted.');
+          }}
+        />
       </section>
     );
   }
@@ -677,15 +688,15 @@ VITE_SUPABASE_ANON_KEY=your-anon-key`}</pre>
       if (mode === 'signin') {
         user = await withUiTimeout(
           signIn(email.trim(), password),
-          10000,
-          'Sign-in timed out. Please try again.',
+          20000,
+          'Sign-in is taking longer than expected. Please wait a moment and try again.',
           'settings.signin_submit',
         );
       } else {
         await withUiTimeout(
           signUp(email.trim(), password),
-          10000,
-          'Account creation timed out. Please try again.',
+          20000,
+          'Account creation is taking longer than expected. Please wait a moment and try again.',
           'settings.signup_submit',
         );
         setSentToEmail(email.trim());
@@ -697,7 +708,6 @@ VITE_SUPABASE_ANON_KEY=your-anon-key`}</pre>
       void finishCloudSignIn(user);
 
       return;
-
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Something went wrong.';
       // Supabase returns "Email not confirmed" when the user hasn't clicked the link
@@ -717,30 +727,30 @@ VITE_SUPABASE_ANON_KEY=your-anon-key`}</pre>
   }
 
   async function handleResendConfirmation(targetEmail: string) {
-  if (!supabase || !targetEmail) return;
+    if (!supabase || !targetEmail) return;
 
-  const AUTH_CALLBACK_URL = getAuthCallbackUrl();
+    const AUTH_CALLBACK_URL = getAuthCallbackUrl();
 
-  setBusy(true);
-  try {
-    const { error } = await supabase.auth.resend({
-      type: 'signup',
-      email: targetEmail,
-      options: {
-        emailRedirectTo: AUTH_CALLBACK_URL,
-      },
-    });
+    setBusy(true);
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: targetEmail,
+        options: {
+          emailRedirectTo: AUTH_CALLBACK_URL,
+        },
+      });
 
-    if (error) throw new Error(error.message);
+      if (error) throw new Error(error.message);
 
-    showToast(`Confirmation email resent to ${targetEmail}`);
-    setEmailNotConfirmed(false);
-  } catch (err) {
-    showToast(err instanceof Error ? err.message : 'Could not resend email.', 'error');
-  } finally {
-    setBusy(false);
+      showToast(`Confirmation email resent to ${targetEmail}`);
+      setEmailNotConfirmed(false);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Could not resend email.', 'error');
+    } finally {
+      setBusy(false);
+    }
   }
-}
 
   // ── Forgot password ─────────────────────────────────────────────────────────
 
@@ -949,12 +959,12 @@ VITE_SUPABASE_ANON_KEY=your-anon-key`}</pre>
       }
 
       const { data, error } = await supabase.auth.signInWithOAuth({
-          provider,
-          options: {
+        provider,
+        options: {
           redirectTo: getAuthCallbackUrl(),
-            skipBrowserRedirect: true,
-          },
-        });
+          skipBrowserRedirect: true,
+        },
+      });
 
       if (error) throw new Error(error.message);
       if (!data.url) throw new Error('No OAuth URL returned.');
@@ -1097,8 +1107,12 @@ VITE_SUPABASE_ANON_KEY=your-anon-key`}</pre>
 
         <button className="btn btn-primary sync-submit" type="submit" disabled={busy}>
           {busy
-            ? mode === 'signin' ? 'Signing in…' : 'Creating account…'
-            : mode === 'signin' ? 'Sign in' : 'Create account'}
+            ? mode === 'signin'
+              ? 'Signing in…'
+              : 'Creating account…'
+            : mode === 'signin'
+              ? 'Sign in'
+              : 'Create account'}
         </button>
       </form>
 
@@ -1122,10 +1136,10 @@ VITE_SUPABASE_ANON_KEY=your-anon-key`}</pre>
               disabled={busy}
             >
               <svg width="18" height="18" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M47.5 24.5c0-1.6-.1-3.2-.4-4.7H24v8.9h13.2c-.6 3-2.3 5.5-4.9 7.2v6h7.9c4.6-4.3 7.3-10.6 7.3-17.4z" fill="#4285F4"/>
-                <path d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.9-6c-2.1 1.4-4.8 2.3-8 2.3-6.1 0-11.3-4.1-13.1-9.7H2.8v6.2C6.8 42.7 14.8 48 24 48z" fill="#34A853"/>
-                <path d="M10.9 28.8c-.5-1.4-.7-2.9-.7-4.4s.2-3 .7-4.4v-6.2H2.8C1 17.5 0 20.6 0 24s1 6.5 2.8 9.2l8.1-4.4z" fill="#FBBC05"/>
-                <path d="M24 9.5c3.4 0 6.5 1.2 8.9 3.5l6.7-6.7C35.9 2.5 30.4 0 24 0 14.8 0 6.8 5.3 2.8 13.2l8.1 4.4C12.7 13.6 17.9 9.5 24 9.5z" fill="#EA4335"/>
+                <path d="M47.5 24.5c0-1.6-.1-3.2-.4-4.7H24v8.9h13.2c-.6 3-2.3 5.5-4.9 7.2v6h7.9c4.6-4.3 7.3-10.6 7.3-17.4z" fill="#4285F4" />
+                <path d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.9-6c-2.1 1.4-4.8 2.3-8 2.3-6.1 0-11.3-4.1-13.1-9.7H2.8v6.2C6.8 42.7 14.8 48 24 48z" fill="#34A853" />
+                <path d="M10.9 28.8c-.5-1.4-.7-2.9-.7-4.4s.2-3 .7-4.4v-6.2H2.8C1 17.5 0 20.6 0 24s1 6.5 2.8 9.2l8.1-4.4z" fill="#FBBC05" />
+                <path d="M24 9.5c3.4 0 6.5 1.2 8.9 3.5l6.7-6.7C35.9 2.5 30.4 0 24 0 14.8 0 6.8 5.3 2.8 13.2l8.1 4.4C12.7 13.6 17.9 9.5 24 9.5z" fill="#EA4335" />
               </svg>
               Sign in with Google
             </button>
@@ -1137,7 +1151,7 @@ VITE_SUPABASE_ANON_KEY=your-anon-key`}</pre>
               disabled={busy}
             >
               <svg width="16" height="18" viewBox="0 0 814 1000" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                <path d="M788.1 340.9c-5.8 4.5-108.2 62.2-108.2 190.5 0 148.4 130.3 200.9 134.2 202.2-.6 3.2-20.7 71.9-68.7 141.9-42.8 61.6-87.5 123.1-155.5 123.1s-85.5-39.5-164-39.5c-76 0-103.7 40.8-165.9 40.8s-105-43.4-150.3-104.9C93.5 800.7 50 710.6 50 621.7c0-197.3 152.2-302.3 302.8-302.3 89.2 0 163.5 40.7 220.4 40.7 54.4 0 140.4-42.8 211.3-42.8zm-262-161.1c31.1-36.9 53.1-88.1 53.1-139.3 0-7.1-.6-14.3-1.9-20.1-50.6 1.9-110.8 33.7-147.1 75.8-28.5 32.4-55.1 83.6-55.1 135.5 0 7.8 1.3 15.6 1.9 18.1 3.2.6 8.4 1.3 13.6 1.3 45.4 0 102.5-30.4 135.5-71.3z"/>
+                <path d="M788.1 340.9c-5.8 4.5-108.2 62.2-108.2 190.5 0 148.4 130.3 200.9 134.2 202.2-.6 3.2-20.7 71.9-68.7 141.9-42.8 61.6-87.5 123.1-155.5 123.1s-85.5-39.5-164-39.5c-76 0-103.7 40.8-165.9 40.8s-105-43.4-150.3-104.9C93.5 800.7 50 710.6 50 621.7c0-197.3 152.2-302.3 302.8-302.3 89.2 0 163.5 40.7 220.4 40.7 54.4 0 140.4-42.8 211.3-42.8zm-262-161.1c31.1-36.9 53.1-88.1 53.1-139.3 0-7.1-.6-14.3-1.9-20.1-50.6 1.9-110.8 33.7-147.1 75.8-28.5 32.4-55.1 83.6-55.1 135.5 0 7.8 1.3 15.6 1.9 18.1 3.2.6 8.4 1.3 13.6 1.3 45.4 0 102.5-30.4 135.5-71.3z" />
               </svg>
               Sign in with Apple
             </button>
