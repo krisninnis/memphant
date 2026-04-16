@@ -24,7 +24,12 @@ import type { SubscriptionTier, SubscriptionStatus } from '../store/projectStore
 import { enqueue, dequeue, getAll as getQueued } from './syncQueue'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
+function getSupabase() {
+  if (!supabase) {
+    throw new Error('Supabase client not initialised')
+  }
+  return supabase
+}
 type CloudSyncStage =
   | 'auth'
   | 'queue'
@@ -78,6 +83,11 @@ let authLookupWaiterCount = 0
 const subscriptionLookupInFlight = new Map<string, Promise<SubscriptionInfo>>()
 let cloudConnectionGeneration = 0
 let cloudDisconnectInProgress = false
+
+// Supabase auth/session operations can fight over the internal auth-token lock
+// if we allow them to overlap (getSession/getUser/refreshSession/signOut/etc).
+// Serialize them through one shared queue.
+let authOpQueue: Promise<void> = Promise.resolve()
 
 type CloudSyncEnv = {
   VITE_APP_URL?: string
@@ -154,6 +164,31 @@ function logSyncError(
     kind: classifyError(err),
     error: normalizeError(err),
   })
+}
+
+async function runExclusiveAuthOp<T>(
+  stage: CloudSyncStage,
+  event: string,
+  fn: () => Promise<T>,
+  meta: SyncLogMeta = {},
+): Promise<T> {
+  const previous = authOpQueue.catch(() => undefined)
+
+  let release!: () => void
+  authOpQueue = new Promise<void>((resolve) => {
+    release = resolve
+  })
+
+  await previous
+
+  logSync(stage, `${event}_exclusive_start`, meta)
+
+  try {
+    return await fn()
+  } finally {
+    release()
+    logSync(stage, `${event}_exclusive_end`, meta)
+  }
 }
 
 function estimateChars(value: unknown): number {
@@ -394,54 +429,62 @@ const SESSION_EXPIRY_BUFFER_SEC = 120 // refresh if expiring within 2 min
 async function ensureSessionFresh(reason: SyncReason): Promise<void> {
   if (!supabase) return
 
-  // Quick cached read — 500ms max. With autoRefreshToken:false this never hangs.
-  let needsRefresh = false
-  try {
-    const { data } = await Promise.race([
-      supabase.auth.getSession(),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('session quick-check timed out')), 500),
-      ),
-    ])
-    const exp = data?.session?.expires_at ?? 0
-    const nowSec = Math.floor(Date.now() / 1000)
-    const secsLeft = exp - nowSec
-    if (exp === 0 || secsLeft < SESSION_EXPIRY_BUFFER_SEC) {
+  await runExclusiveAuthOp('auth', 'ensure_session_fresh', async () => {
+    // Quick cached read — 500ms max. With autoRefreshToken:false this never hangs.
+    let needsRefresh = false
+    try {
+  const sb = getSupabase()
+
+  const { data } = await Promise.race([
+    sb.auth.getSession(),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('session quick-check timed out')), 500),
+    ),
+  ])
+
+  const exp = data?.session?.expires_at ?? 0
+  const nowSec = Math.floor(Date.now() / 1000)
+  const secsLeft = exp - nowSec
+      if (exp === 0 || secsLeft < SESSION_EXPIRY_BUFFER_SEC) {
+        needsRefresh = true
+        logSync('push', 'session_stale', { reason, secsLeft })
+      } else {
+        logSync('push', 'session_fresh', { reason, secsLeft })
+        return
+      }
+    } catch {
       needsRefresh = true
-      logSync('push', 'session_stale', { reason, secsLeft })
-    } else {
-      logSync('push', 'session_fresh', { reason, secsLeft })
-      return
+      logSync('push', 'session_check_timed_out', { reason })
     }
-  } catch {
-    needsRefresh = true
-    logSync('push', 'session_check_timed_out', { reason })
+
+    if (!needsRefresh) return
+
+    logSync('push', 'session_refresh_start', { reason })
+try {
+  const sb = getSupabase()
+
+  const { data, error } = await Promise.race([
+    sb.auth.refreshSession(),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('session refresh timed out after 6 s')), 6000),
+    ),
+  ])
+
+  if (error) {
+    logSyncError('push', 'session_refresh_error', error, { reason })
+  } else {
+    const newExp = data.session?.expires_at ?? 0
+    logSync('push', 'session_refresh_success', {
+      reason,
+      newSecsLeft: newExp - Math.floor(Date.now() / 1000),
+    })
   }
-
-  if (!needsRefresh) return
-
-  logSync('push', 'session_refresh_start', { reason })
-  try {
-    const { data, error } = await Promise.race([
-      supabase.auth.refreshSession(),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('session refresh timed out after 6 s')), 6000),
-      ),
-    ])
-    if (error) {
-      logSyncError('push', 'session_refresh_error', error, { reason })
-    } else {
-      const newExp = data.session?.expires_at ?? 0
-      logSync('push', 'session_refresh_success', {
-        reason,
-        newSecsLeft: newExp - Math.floor(Date.now() / 1000),
-      })
+} catch (err) {
+      // Timed out or network error. Proceed anyway — upsert will get a fast 401
+      // (with autoRefreshToken:false) rather than hanging indefinitely.
+      logSyncError('push', 'session_refresh_failed', err, { reason })
     }
-  } catch (err) {
-    // Timed out or network error. Proceed anyway — upsert will get a fast 401
-    // (with autoRefreshToken:false) rather than hanging indefinitely.
-    logSyncError('push', 'session_refresh_failed', err, { reason })
-  }
+  }, { reason })
 }
 
 // ─── Retry helper ─────────────────────────────────────────────────────────────
@@ -507,7 +550,7 @@ async function getAuthUser(reason: SyncReason, source: CloudSyncStage): Promise<
   authLookupOwnerRequestId = requestId
   authLookupWaiterCount = 0
 
-  authLookupInFlight = (async () => {
+  authLookupInFlight = runExclusiveAuthOp(source, 'get_auth_user', async () => {
     logSync(source, 'auth_check_start', {
       reason,
       requestId,
@@ -516,96 +559,99 @@ async function getAuthUser(reason: SyncReason, source: CloudSyncStage): Promise<
       anotherAuthInFlight: false,
     })
 
-  // ── Fast path: read cached session from localStorage (no network) ──────────
-  // IMPORTANT: supabase.auth.getSession() can trigger a token refresh internally
-  // if the token is expired, which makes a network request that can hang forever.
-  // We race it against a 3-second timeout so this path is never a blocking hang.
-  try {
-    const t0 = Date.now()
-    const sessionTimeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(
-        () => reject(new Error('getSession timed out — token refresh may be hanging')),
-        3000,
-      ),
-    )
-    const { data: sessionData, error: sessionError } = await Promise.race([
-      supabase.auth.getSession(),
-      sessionTimeoutPromise,
-    ])
-    const sessionMs = Date.now() - t0
+    // ── Fast path: read cached session from localStorage (no network) ──────────
+    // IMPORTANT: supabase.auth.getSession() can trigger a token refresh internally
+    // if the token is expired, which makes a network request that can hang forever.
+    // We race it against a 3-second timeout so this path is never a blocking hang.
+    try {
+      const t0 = Date.now()
+      const sessionTimeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(
+          () => reject(new Error('getSession timed out — token refresh may be hanging')),
+          3000,
+        ),
+      )
+      const sb = getSupabase()
 
-    if (sessionError) {
-      logSyncError(source, 'auth_session_error', sessionError, { reason, requestId, sessionMs })
-      // Don't throw yet — fall through to getUser() below
-    } else if (sessionData.session?.user) {
-      const sessionUser = sessionData.session.user
+const { data: sessionData, error: sessionError } = await Promise.race([
+  sb.auth.getSession(),
+  sessionTimeoutPromise,
+])
+      const sessionMs = Date.now() - t0
 
-      // Check the session hasn't expired (exp is in seconds)
-      const expiry = sessionData.session.expires_at ?? 0
-      const nowSec = Math.floor(Date.now() / 1000)
-      const isExpired = expiry > 0 && nowSec > expiry
+      if (sessionError) {
+        logSyncError(source, 'auth_session_error', sessionError, { reason, requestId, sessionMs })
+        // Don't throw yet — fall through to getUser() below
+      } else if (sessionData.session?.user) {
+        const sessionUser = sessionData.session.user
 
-      if (!isExpired) {
-        logSync(source, 'auth_check_success', {
+        // Check the session hasn't expired (exp is in seconds)
+        const expiry = sessionData.session.expires_at ?? 0
+        const nowSec = Math.floor(Date.now() / 1000)
+        const isExpired = expiry > 0 && nowSec > expiry
+
+        if (!isExpired) {
+          logSync(source, 'auth_check_success', {
+            reason,
+            requestId,
+            sessionMs,
+            method: 'session_cache',
+            userId: sessionUser.id,
+            expiresIn: expiry - nowSec,
+          })
+          return { user: sessionUser, requestId }
+        }
+
+        logSync(source, 'auth_session_expired', {
           reason,
           requestId,
           sessionMs,
-          method: 'session_cache',
-          userId: sessionUser.id,
-          expiresIn: expiry - nowSec,
+          expiredSecondsAgo: nowSec - expiry,
         })
-        return { user: sessionUser, requestId }
+      } else {
+        logSync(source, 'auth_session_empty', { reason, requestId, sessionMs })
+      }
+    } catch (sessionErr) {
+      logSyncError(source, 'auth_session_exception', sessionErr, { reason, requestId })
+    }
+
+    // ── Slow path: verify with server, with explicit 5-second timeout ──────────
+    logSync(source, 'auth_getuser_start', { reason, requestId })
+
+    try {
+      const sb = getSupabase()
+const getUserPromise = sb.auth.getUser()
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(
+          () => reject(new Error('Auth getUser timed out after 5 s — token refresh may be stuck')),
+          5000,
+        ),
+      )
+
+      const t1 = Date.now()
+      const { data, error } = await Promise.race([getUserPromise, timeoutPromise])
+      const getUserMs = Date.now() - t1
+
+      if (error) {
+        logSyncError(source, 'auth_getuser_failed', error, { reason, requestId, getUserMs })
+        throw new Error(error.message)
       }
 
-      logSync(source, 'auth_session_expired', {
+      logSync(source, 'auth_check_success', {
         reason,
         requestId,
-        sessionMs,
-        expiredSecondsAgo: nowSec - expiry,
+        getUserMs,
+        method: 'getUser_network',
+        hasUser: Boolean(data.user),
+        userId: data.user?.id ?? null,
       })
-    } else {
-      logSync(source, 'auth_session_empty', { reason, requestId, sessionMs })
-    }
-  } catch (sessionErr) {
-    logSyncError(source, 'auth_session_exception', sessionErr, { reason, requestId })
-  }
 
-  // ── Slow path: verify with server, with explicit 5-second timeout ──────────
-  logSync(source, 'auth_getuser_start', { reason, requestId })
-
-  try {
-    const getUserPromise = supabase.auth.getUser()
-    const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(
-        () => reject(new Error('Auth getUser timed out after 5 s — token refresh may be stuck')),
-        5000,
-      ),
-    )
-
-    const t1 = Date.now()
-    const { data, error } = await Promise.race([getUserPromise, timeoutPromise])
-    const getUserMs = Date.now() - t1
-
-    if (error) {
-      logSyncError(source, 'auth_getuser_failed', error, { reason, requestId, getUserMs })
-      throw new Error(error.message)
-    }
-
-    logSync(source, 'auth_check_success', {
-      reason,
-      requestId,
-      getUserMs,
-      method: 'getUser_network',
-      hasUser: Boolean(data.user),
-      userId: data.user?.id ?? null,
-    })
-
-    return { user: data.user, requestId }
+      return { user: data.user, requestId }
     } catch (err) {
       logSyncError(source, 'auth_check_exception', err, { reason, requestId })
       throw err
     }
-  })().finally(() => {
+  }, { reason, requestId }).finally(() => {
     logSync(source, 'auth_check_settled', {
       reason,
       requestId,
@@ -645,7 +691,11 @@ export async function signIn(email: string, password: string): Promise<CloudUser
   if (!supabase) throw new Error('Cloud sync not configured.')
   cloudDisconnectInProgress = false
 
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+  const { data, error } = await runExclusiveAuthOp('auth', 'signin', async () => {
+  const sb = getSupabase()
+  return sb.auth.signInWithPassword({ email, password })
+})
+
   if (error) throw new Error(error.message)
   if (!data.user?.email) throw new Error('Sign-in succeeded but no user returned.')
 
@@ -656,11 +706,15 @@ export async function signUp(email: string, password: string): Promise<CloudUser
   if (!supabase) throw new Error('Cloud sync not configured.')
   cloudDisconnectInProgress = false
 
-  const { data, error } = await supabase.auth.signUp({
+  const { data, error } = await runExclusiveAuthOp('auth', 'signup', async () => {
+  const sb = getSupabase()
+  return sb.auth.signUp({
     email,
     password,
     options: { emailRedirectTo: AUTH_CALLBACK_URL },
   })
+})
+
   if (error) throw new Error(error.message)
   if (!data.user) throw new Error('Sign-up succeeded but no user returned.')
 
@@ -669,11 +723,12 @@ export async function signUp(email: string, password: string): Promise<CloudUser
 
 export async function signOut(): Promise<void> {
   if (!supabase) return
-  // Use 'global' scope to invalidate the server-side refresh token.
-  // 'local' only clears local storage — on mobile WebViews, Google OAuth can
-  // silently re-authenticate using cached browser cookies, and a still-valid
-  // server-side refresh token lets that succeed without any user interaction.
-  const { error } = await supabase.auth.signOut({ scope: 'global' })
+
+  const { error } = await runExclusiveAuthOp('auth', 'signout', async () => {
+  const sb = getSupabase()
+  return sb.auth.signOut({ scope: 'global' })
+})
+
   if (error) throw new Error(error.message)
 }
 
@@ -974,13 +1029,15 @@ export async function fetchSubscription(userId: string): Promise<SubscriptionInf
   const requestId = nextRequestId('subscription')
   logSync('subscription', 'fetch_start', { userId, requestId })
 
-  const promise = (async (): Promise<SubscriptionInfo> => {
-    try {
-      const { data, error } = await supabase
-        .from('subscriptions')
-        .select('tier, status')
-        .eq('user_id', userId)
-        .maybeSingle()
+  const promise = runExclusiveAuthOp('subscription', 'fetch_subscription', async (): Promise<SubscriptionInfo> => {
+  try {
+    const sb = getSupabase()
+
+    const { data, error } = await sb
+      .from('subscriptions')
+      .select('tier, status')
+      .eq('user_id', userId)
+      .maybeSingle()
 
       if (error) {
         logSyncError('subscription', 'fetch_failed', error, { userId, requestId })
@@ -1007,7 +1064,7 @@ export async function fetchSubscription(userId: string): Promise<SubscriptionInf
     } finally {
       subscriptionLookupInFlight.delete(userId)
     }
-  })()
+  }, { userId, requestId })
 
   subscriptionLookupInFlight.set(userId, promise)
   return promise
@@ -1209,10 +1266,10 @@ async function _runCycle(
     // 3. Drain any offline-queued projects first
     await drainQueue(userId, reason)
 
-    // 3. Push all local projects to cloud (upsert)
+    // 4. Push all local projects to cloud (upsert)
     await pushAll(localProjects, userId, reason)
 
-    // 4. Pull remote and merge
+    // 5. Pull remote and merge
     const result = await pullAndMerge(localProjects, userId, reason)
 
     logSync('cycle', 'cycle_complete', {
