@@ -39,24 +39,9 @@ export function SettingsGeneral() {
         <div className="setting-row">
           <div className="setting-info">
             <div className="setting-label">App theme</div>
-            <div className="setting-description">How the app looks</div>
+            <div className="setting-description">Dark theme is available during early access</div>
           </div>
-          <select
-            className="setting-select"
-            value={g.theme}
-            onChange={(e) => {
-              const v = e.target.value as 'dark' | 'light' | 'system';
-              if (v !== 'dark') {
-                showToast('Only dark theme is available right now', 'info');
-                return;
-              }
-              update({ theme: v });
-            }}
-          >
-            <option value="dark">Dark</option>
-            <option value="light">Light (coming soon)</option>
-            <option value="system">Match system (coming soon)</option>
-          </select>
+          <span className="setting-badge">Dark</span>
         </div>
 
         <div className="setting-row">

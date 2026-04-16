@@ -1,14 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { openUrl } from '@tauri-apps/plugin-opener';
+import { PWAInstallButton } from '../PWAInstallButton';
+import { usePWA } from '../../hooks/usePWA';
 import {
   checkForUpdate,
   downloadAndInstall,
-  relaunch,
   getInstalledVersion,
+  relaunch,
 } from '../../services/updater';
 import type { UpdateInfo } from '../../services/updater';
-import { usePWA } from '../../hooks/usePWA';
-import { PWAInstallButton } from '../PWAInstallButton';
 
 function isTauri(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -51,13 +51,13 @@ function formatLastChecked(date: Date | null): string | null {
 function statusDescription(phase: UpdatePhase, info: UpdateInfo | null, progress: number): string {
   switch (phase) {
     case 'idle':
-      return 'Check if a newer version is available';
+      return 'Check for the latest version of Memephant.';
     case 'checking':
       return 'Checking for updates...';
     case 'available':
       return `Memephant ${info?.version} is available`;
     case 'up-to-date':
-      return "You're on the latest version";
+      return "You're on the latest version.";
     case 'downloading':
       return `Downloading update... ${progress}%`;
     case 'ready':
@@ -98,19 +98,20 @@ export function SettingsAbout() {
   useEffect(() => {
     if (isTauri()) {
       void getInstalledVersion().then(setInstalledVersion);
-    } else {
-      setInstalledVersion('0.2.0');
+      return;
     }
+
+    setInstalledVersion('0.2.0');
   }, []);
 
   useEffect(() => {
-    if (!isTauri() || phase !== 'idle') return;
+    if (!isTauri() || phase !== 'idle') return undefined;
 
-    const timer = setTimeout(() => {
+    const timer = window.setTimeout(() => {
       void silentCheck();
     }, 800);
 
-    return () => clearTimeout(timer);
+    return () => window.clearTimeout(timer);
   }, [phase]);
 
   const silentCheck = async () => {
@@ -166,9 +167,10 @@ export function SettingsAbout() {
   const openLink = (url: string) => {
     if (isTauri()) {
       void openUrl(url);
-    } else {
-      window.open(url, '_blank');
+      return;
     }
+
+    window.open(url, '_blank');
   };
 
   const webUpdateLabel = isChecking
@@ -181,9 +183,7 @@ export function SettingsAbout() {
     ? 'Checking for the latest version of Memephant...'
     : updateAvailable
       ? 'A newer version is ready. Refresh or reinstall the app to use the latest version.'
-      : lastChecked
-        ? "You're on the latest version."
-        : 'Make sure you’re using the latest version of Memephant.';
+      : 'Make sure you’re using the latest version of Memephant.';
 
   const webUpdateButtonText = isChecking
     ? 'Checking...'
@@ -193,14 +193,10 @@ export function SettingsAbout() {
 
   return (
     <div>
-      <div style={{ textAlign: 'center', marginBottom: 32 }}>
-        <div style={{ fontSize: 52, marginBottom: 12 }}>🐘</div>
-        <h2 className="settings-section-title" style={{ textAlign: 'center' }}>
-          Memephant
-        </h2>
-        <p style={{ color: '#666', fontSize: 13 }}>
-          Keep your project context ready for any AI.
-        </p>
+      <div className="about-header">
+        <div className="about-header__icon">🐘</div>
+        <h2 className="settings-section-title about-header__title">Memephant</h2>
+        <p className="about-header__subtitle">Keep your project context ready for any AI.</p>
       </div>
 
       <div className="settings-group">
@@ -262,31 +258,20 @@ export function SettingsAbout() {
         <div className="settings-group">
           <div className="settings-group-title">App Updates</div>
 
-          <div className="setting-row" style={{ alignItems: 'flex-start', gap: 12 }}>
-            <div className="setting-info" style={{ flex: 1 }}>
+          <div className="setting-row setting-row--update">
+            <div className="setting-info setting-info--grow">
               <div className="setting-label">{webUpdateLabel}</div>
               <div className="setting-description">{webUpdateDescription}</div>
               {formatLastChecked(lastChecked) && (
-                <div style={{ color: '#777', fontSize: 12, marginTop: 6 }}>
-                  {formatLastChecked(lastChecked)}
-                </div>
+                <div className="about-update-timestamp">{formatLastChecked(lastChecked)}</div>
               )}
             </div>
 
-            <div
-              style={{
-                flexShrink: 0,
-                display: 'flex',
-                gap: 8,
-                flexWrap: 'wrap',
-                justifyContent: 'flex-end',
-              }}
-            >
+            <div className="about-update-actions">
               <button
                 className="setting-btn"
                 onClick={() => void checkForUpdates()}
                 disabled={isChecking}
-                style={{ minWidth: 140 }}
               >
                 {webUpdateButtonText}
               </button>
@@ -295,7 +280,6 @@ export function SettingsAbout() {
                 <button
                   className="setting-btn setting-btn--primary"
                   onClick={() => void applyUpdate()}
-                  style={{ minWidth: 140 }}
                 >
                   Install update
                 </button>
@@ -325,38 +309,30 @@ export function SettingsAbout() {
         <div className="settings-group">
           <div className="settings-group-title">Updates</div>
 
-          <div className="setting-row" style={{ alignItems: 'flex-start', gap: 12 }}>
-            <div className="setting-info" style={{ flex: 1 }}>
-              <div
-                className="setting-label"
-                style={{ display: 'flex', alignItems: 'center', gap: 8 }}
-              >
+          <div className="setting-row setting-row--update">
+            <div className="setting-info setting-info--grow">
+              <div className="setting-label about-update-label">
                 {statusIcon(phase) && <span style={{ fontSize: 12 }}>{statusIcon(phase)}</span>}
                 {phase === 'available' && updateInfo
                   ? `Memephant ${updateInfo.version} is available`
                   : phase === 'ready'
                     ? 'Update ready'
-                    : 'App version'}
+                    : 'Check for updates'}
               </div>
               <div className="setting-description">
                 {statusDescription(phase, updateInfo, downloadProgress)}
               </div>
             </div>
 
-            <div style={{ flexShrink: 0 }}>
+            <div className="about-update-actions">
               {phase === 'ready' ? (
-                <button
-                  className="setting-btn setting-btn--primary"
-                  onClick={handleRelaunch}
-                  style={{ minWidth: 120 }}
-                >
+                <button className="setting-btn setting-btn--primary" onClick={handleRelaunch}>
                   Restart now
                 </button>
               ) : phase === 'available' ? (
                 <button
                   className="setting-btn setting-btn--primary"
                   onClick={() => void handleInstallUpdate()}
-                  style={{ minWidth: 120 }}
                 >
                   Install update
                 </button>
@@ -365,7 +341,6 @@ export function SettingsAbout() {
                   className="setting-btn"
                   onClick={() => void handleCheckForUpdates()}
                   disabled={phase === 'checking' || phase === 'downloading'}
-                  style={{ minWidth: 140 }}
                 >
                   {phase === 'checking' ? 'Checking...' : 'Check for updates'}
                 </button>
@@ -393,7 +368,7 @@ export function SettingsAbout() {
 
           {phase === 'available' && updateInfo?.body && (
             <div className="about-release-notes">
-              <div className="about-release-notes__title">What's new</div>
+              <div className="about-release-notes__title">What’s new</div>
               <div className="about-release-notes__body">{updateInfo.body.slice(0, 600)}</div>
             </div>
           )}
@@ -407,7 +382,7 @@ export function SettingsAbout() {
 
           {phase === 'error' && (
             <div className="about-update-error">
-              Update check failed. Make sure you're connected to the internet, then try again.{` `}
+              Update check failed. Make sure you’re connected to the internet, then try again.{` `}
               <button
                 className="about-update-error-retry"
                 onClick={() => {
@@ -445,7 +420,7 @@ export function SettingsAbout() {
         when you explicitly copy them.
       </div>
 
-      <div style={{ textAlign: 'center', marginTop: 24, fontSize: 12, color: '#444' }}>
+      <div className="about-footer-note">
         Memephant is not affiliated with OpenAI, Anthropic, xAI, Perplexity, or Google.
       </div>
     </div>

@@ -14,7 +14,7 @@ import type {
   ProjectCheckpoint,
   ProjectRestorePoint,
 } from '../types/memphant-types';
-import { cloneCheckpointSnapshot, hashProjectState } from '../types/memphant-types';
+import { cloneCheckpointSnapshot, hashProjectState, SCHEMA_VERSION } from '../types/memphant-types';
 import { pushProject, deleteCloudProject } from './cloudSync';
 import { suggestEmptyFields } from '../utils/autoSuggest';
 import type { ProjectTemplate } from '../utils/projectTemplates';
@@ -179,7 +179,10 @@ export function normalizeOldProject(raw: Record<string, unknown>): ProjectMemory
     new Date().toISOString();
 
   return {
-    schema_version: 1,
+    // Stamp current schema version so the project is upgraded on next disk write.
+    // Projects without a schema_version (or with the legacy numeric 1) are treated
+    // as pre-1.1.0 and silently migrated — no field values are changed.
+    schema_version: SCHEMA_VERSION,
     id:
       (typeof legacy.id === 'string' && legacy.id) ||
       (typeof legacy.projectName === 'string' && legacy.projectName.replace(/\s+/g, '_').toLowerCase()) ||
@@ -303,6 +306,19 @@ export function normalizeOldProject(raw: Record<string, unknown>): ProjectMemory
           })
         )
       : {},
+    // ── 1.1.0 optional fields — undefined when not present in raw data ────────
+    inProgress: Array.isArray(raw.inProgress)
+      ? (raw.inProgress as unknown[])
+          .filter((s): s is string => typeof s === 'string' && s.trim().length > 0)
+      : undefined,
+    lastSessionSummary:
+      typeof raw.lastSessionSummary === 'string' && raw.lastSessionSummary.trim()
+        ? raw.lastSessionSummary
+        : undefined,
+    openQuestion:
+      typeof raw.openQuestion === 'string' && raw.openQuestion.trim()
+        ? raw.openQuestion
+        : undefined,
   };
 }
 
@@ -700,7 +716,7 @@ export async function createProject(name: string): Promise<void> {
   const id = name.trim().replace(/\s+/g, '_').toLowerCase() + '_' + Date.now();
 
   const baseProject: ProjectMemory = {
-    schema_version: 1,
+    schema_version: SCHEMA_VERSION,
     id,
     name: name.trim(),
     updatedAt: now,
@@ -815,7 +831,7 @@ export async function createProjectFromFolder(): Promise<void> {
     const id = derivedName.replace(/\s+/g, '_').toLowerCase() + '_' + Date.now();
 
     const project: ProjectMemory = {
-      schema_version: 1,
+      schema_version: SCHEMA_VERSION,
       id,
       name: derivedName,
       updatedAt: now,

@@ -78,8 +78,12 @@ export interface GitHubScanInfo {
   keyFilesFound: string[];  // files successfully fetched during scan
 }
 
+// Human-readable schema version for the project data format.
+// Increment MINOR for new optional fields, MAJOR for breaking changes.
+export const SCHEMA_VERSION = '1.1.0';
+
 export interface ProjectCheckpointSnapshot {
-  schema_version: number;
+  schema_version: number | string;
   id: string;
   name: string;
   updatedAt?: string;
@@ -98,6 +102,12 @@ export interface ProjectCheckpointSnapshot {
   linkedFolder?: LinkedFolder;
   changelog: ChangelogEntry[];
   platformState: Partial<Record<Platform, PlatformState>>;
+  /** Active work-in-flight right now. REPLACE-ALL on AI update. */
+  inProgress?: string[];
+  /** ~2–4 sentence recap of what happened in the last session. REPLACE on AI update. */
+  lastSessionSummary?: string;
+  /** The current decision or question the user wants the AI to focus on. REPLACE on AI update. */
+  openQuestion?: string;
 }
 
 export interface ProjectCheckpoint {
@@ -133,6 +143,12 @@ export interface MemphantUpdate {
   add_nextSteps?: string[];
   add_openQuestions?: string[];
   session_note?: string;
+  /** Replaces the entire inProgress array ([] = clear). */
+  inProgress?: string[];
+  /** Replaces the lastSessionSummary string. */
+  lastSessionSummary?: string;
+  /** Replaces the openQuestion string. */
+  openQuestion?: string;
 }
 
 export interface DiffResult {
@@ -260,6 +276,9 @@ export function cloneCheckpointSnapshot(project: ProjectCheckpointSnapshot): Pro
         state ? { ...state } : state,
       ]),
     ) as Partial<Record<Platform, PlatformState>>,
+    inProgress: project.inProgress ? [...project.inProgress] : undefined,
+    lastSessionSummary: project.lastSessionSummary,
+    openQuestion: project.openQuestion,
   };
 }
 
@@ -272,6 +291,9 @@ export function hashProjectState(project: ProjectCheckpointSnapshot): string {
     project.decisions.map((d) => `${d.decision}::${d.rationale || ''}`).join('|'),
     project.nextSteps.join('|'),
     project.openQuestions.join('|'),
+    (project.inProgress ?? []).join('|'),
+    project.lastSessionSummary ?? '',
+    project.openQuestion ?? '',
   ].join('::');
 
   let hash = 5381;

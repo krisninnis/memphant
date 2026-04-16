@@ -22,7 +22,7 @@ import { supabase, supabaseClientInstanceId } from './supabaseClient'
 import type { ProjectMemory } from '../types/memphant-types'
 import type { SubscriptionTier, SubscriptionStatus } from '../store/projectStore'
 import { enqueue, dequeue, getAll as getQueued } from './syncQueue'
-
+import { getRuntimeEnv } from '../utils/runtimeEnv'
 // ─── Types ────────────────────────────────────────────────────────────────────
 function getSupabase() {
   if (!supabase) {
@@ -99,7 +99,7 @@ type CloudSyncEnv = {
 
 // ─── Auth callback URL ────────────────────────────────────────────────────────
 
-const cloudSyncEnv = import.meta.env as CloudSyncEnv
+const cloudSyncEnv = getRuntimeEnv() as CloudSyncEnv
 const AUTH_CALLBACK_URL =
   cloudSyncEnv.VITE_APP_URL
     ? `${cloudSyncEnv.VITE_APP_URL}/auth/callback`
@@ -1031,21 +1031,18 @@ export async function fetchSubscription(userId: string): Promise<SubscriptionInf
   const promise = (async (): Promise<SubscriptionInfo> => {
     const sb = getSupabase()
     const startedAt = Date.now()
+    const controller = new AbortController()
+    const timeoutId = window.setTimeout(() => {
+      controller.abort()
+    }, SUBSCRIPTION_FETCH_TIMEOUT_MS)
 
     try {
-      const { data, error } = await Promise.race([
-        sb
-          .from('subscriptions')
-          .select('tier, status')
-          .eq('user_id', userId)
-          .maybeSingle(),
-        new Promise<never>((_, reject) =>
-          window.setTimeout(
-            () => reject(new Error(`Subscription lookup timed out after ${Math.round(SUBSCRIPTION_FETCH_TIMEOUT_MS / 1000)} s`)),
-            SUBSCRIPTION_FETCH_TIMEOUT_MS,
-          ),
-        ),
-      ])
+      const { data, error } = await sb
+  .from('subscriptions')
+  .select('tier, status')
+  .eq('user_id', userId)
+  .abortSignal(controller.signal)
+  .maybeSingle()
 
       if (error) {
         logSyncError('subscription', 'fetch_failed', error, {
@@ -1081,7 +1078,11 @@ export async function fetchSubscription(userId: string): Promise<SubscriptionInf
       })
       return { tier, status }
     } catch (err) {
-      if (err instanceof Error && err.message.includes('Subscription lookup timed out')) {
+      const isAbort =
+        (err instanceof DOMException && err.name === 'AbortError') ||
+        (err instanceof Error && err.name === 'AbortError')
+
+      if (isAbort) {
         logSync('subscription', 'fetch_timeout', {
           userId,
           requestId,
@@ -1098,6 +1099,7 @@ export async function fetchSubscription(userId: string): Promise<SubscriptionInf
       })
       return defaultInfo
     } finally {
+      window.clearTimeout(timeoutId)
       subscriptionLookupInFlight.delete(userId)
     }
   })()

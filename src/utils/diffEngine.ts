@@ -22,6 +22,25 @@ export interface DetectedUpdate {
   nextSteps?: string[];
   openQuestions?: string[];
   importantAssets?: string[];
+  /**
+   * REPLACE-ALL merge rule.
+   * When present (including as []), replaces the entire inProgress array.
+   * An empty array [] is a valid value meaning "clear the field".
+   * When absent from the update, existing value is left untouched.
+   */
+  inProgress?: string[];
+  /**
+   * REPLACE merge rule.
+   * When present, replaces the existing lastSessionSummary string.
+   * When absent from the update, existing value is left untouched.
+   */
+  lastSessionSummary?: string;
+  /**
+   * REPLACE merge rule.
+   * When present, replaces the existing openQuestion string.
+   * When absent from the update, existing value is left untouched.
+   */
+  openQuestion?: string;
 }
 
 function isNonEmptyString(value: unknown): value is string {
@@ -90,7 +109,11 @@ function hasProjectFields(obj: unknown): obj is DetectedUpdate {
       o.nextSteps ||
       o.openQuestions ||
       o.rules ||
-      o.importantAssets,
+      o.importantAssets ||
+      // inProgress: undefined means absent; [] (empty array) is a valid "clear" signal
+      o.inProgress !== undefined ||
+      o.lastSessionSummary ||
+      o.openQuestion,
   );
 }
 
@@ -161,6 +184,26 @@ function parseCandidateJson(candidate: string): DetectedUpdate | null {
 
     const decisions = normaliseDecisions(parsed.decisions);
     if (decisions) normalised.decisions = decisions;
+
+    // ── 1.1.0 fields ─────────────────────────────────────────────────────────
+
+    // inProgress: REPLACE-ALL — preserve [] (means "clear"); absent field → not set.
+    if (Array.isArray(parsed.inProgress)) {
+      normalised.inProgress = (parsed.inProgress as unknown[])
+        .filter((item): item is string => typeof item === 'string')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      // Note: if parsed.inProgress was [] or all-blank-strings, normalised.inProgress is [].
+      // This is intentional — an empty array is a valid "clear" instruction.
+    }
+
+    if (isNonEmptyString(parsed.lastSessionSummary)) {
+      normalised.lastSessionSummary = parsed.lastSessionSummary.trim();
+    }
+
+    if (isNonEmptyString(parsed.openQuestion)) {
+      normalised.openQuestion = parsed.openQuestion.trim();
+    }
 
     return hasProjectFields(normalised) ? normalised : null;
   } catch {
@@ -548,6 +591,45 @@ export function computeDiff(
     }
   }
 
+  // ── 1.1.0 fields — REPLACE semantics (not append) ─────────────────────────
+
+  // inProgress: REPLACE-ALL — diff whenever the incoming value differs from current
+  // (including when incoming is [] = clear).
+  if (update.inProgress !== undefined) {
+    const existingInProgress = current.inProgress ?? [];
+    const sameContent = JSON.stringify(existingInProgress.slice().sort()) === JSON.stringify(update.inProgress.slice().sort()) && existingInProgress.length === update.inProgress.length;
+    if (!sameContent) {
+      diffs.push({
+        field: 'inProgress',
+        action:
+          update.inProgress.length === 0
+            ? 'removed'
+            : existingInProgress.length > 0
+            ? 'updated'
+            : 'added',
+        oldValue: existingInProgress,
+        newValue: update.inProgress,
+        checkpointValue: baseline.inProgress ?? [],
+        checkpointId: checkpoint?.id,
+      });
+    }
+  }
+
+  // lastSessionSummary / openQuestion: REPLACE — diff like other scalar fields
+  for (const field of ['lastSessionSummary', 'openQuestion'] as const) {
+    const incoming = update[field];
+    if (isNonEmptyString(incoming) && incoming !== current[field]) {
+      diffs.push({
+        field,
+        action: current[field] ? 'updated' : 'added',
+        oldValue: current[field],
+        newValue: incoming,
+        checkpointValue: baseline[field],
+        checkpointId: checkpoint?.id,
+      });
+    }
+  }
+
   return diffs;
 }
 
@@ -603,6 +685,7 @@ export function applyUpdate(
     rules: [...current.rules],
     nextSteps: [...current.nextSteps],
     openQuestions: [...current.openQuestions],
+    inProgress: current.inProgress ? [...current.inProgress] : undefined,
     platformState: Object.fromEntries(
       Object.entries(current.platformState ?? {}).map(([platform, state]) => [
         platform,
@@ -685,6 +768,64 @@ export function applyUpdate(
         source: options.checkpoint ? `checkpoint:${options.checkpoint.id}` : 'ai',
       });
     }
+  }
+
+  // ── 1.1.0 fields ─────────────────────────────────────────────────────────────
+
+  // inProgress: REPLACE-ALL.
+  // An absent field (undefined) means "leave untouched".
+  // An empty array [] means "clear the field" (still a valid replacement).
+  if (update.inProgress !== undefined) {
+    const existingInProgress = current.inProgress ?? [];
+    const incoming = update.inProgress;
+    const sameContent =
+      incoming.length === existingInProgress.length &&
+      JSON.stringify(incoming.slice().sort()) === JSON.stringify(existingInProgress.slice().sort());
+
+    if (!sameContent) {
+      // Set to [] rather than undefined when clearing — makes the intent explicit.
+      merged.inProgress = [...incoming];
+      changelog.push({
+        timestamp: now,
+        field: 'inProgress',
+        action:
+          incoming.length === 0
+            ? 'removed'
+            : existingInProgress.length > 0
+            ? 'updated'
+            : 'added',
+        summary:
+          incoming.length === 0
+            ? 'In-progress items cleared by AI'
+            : `In-progress replaced by AI (${incoming.length} item${incoming.length === 1 ? '' : 's'})`,
+        source: options.checkpoint ? `checkpoint:${options.checkpoint.id}` : 'ai',
+      });
+    }
+  }
+  // If update.inProgress is absent (undefined), merged.inProgress keeps current value — no change.
+
+  // lastSessionSummary: REPLACE.
+  if (isNonEmptyString(update.lastSessionSummary) && update.lastSessionSummary !== current.lastSessionSummary) {
+    merged.lastSessionSummary = update.lastSessionSummary;
+    changelog.push({
+      timestamp: now,
+      field: 'lastSessionSummary',
+      action: current.lastSessionSummary ? 'updated' : 'added',
+      summary: 'Last session summary updated by AI',
+      source: options.checkpoint ? `checkpoint:${options.checkpoint.id}` : 'ai',
+    });
+  }
+
+  // openQuestion: REPLACE.
+  if (isNonEmptyString(update.openQuestion) && update.openQuestion !== current.openQuestion) {
+    merged.openQuestion = update.openQuestion;
+    changelog.push({
+      timestamp: now,
+      field: 'openQuestion',
+      action: current.openQuestion ? 'updated' : 'added',
+      summary: 'Open question updated by AI',
+      source: options.checkpoint ? `checkpoint:${options.checkpoint.id}` : 'ai',
+    });
   }
 
   if (options.checkpoint) {
