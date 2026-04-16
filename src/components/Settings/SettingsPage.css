@@ -162,8 +162,18 @@
   align-items: flex-start;
 }
 
+.setting-row--update {
+  align-items: flex-start;
+  gap: 12px;
+}
+
 .setting-info {
   flex: 1;
+}
+
+.setting-info--grow {
+  flex: 1;
+  min-width: 0;
 }
 
 .setting-label {
@@ -995,6 +1005,50 @@
   padding: 0 0 12px;
 }
 
+.about-header {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.about-header__icon {
+  font-size: 52px;
+  margin-bottom: 12px;
+}
+
+.about-header__title {
+  text-align: center;
+}
+
+.about-header__subtitle {
+  color: #666;
+  font-size: 13px;
+  margin: 0;
+}
+
+.about-update-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.about-update-actions {
+  flex-shrink: 0;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.about-update-actions .setting-btn {
+  min-width: 140px;
+}
+
+.about-update-timestamp {
+  color: #777;
+  font-size: 12px;
+  margin-top: 6px;
+}
+
 .about-update-progress__track {
   flex: 1;
   height: 6px;
@@ -1088,4 +1142,32 @@
   line-height: 1.7;
   color: #b0b0b0;
   white-space: pre-line;
+}
+
+.about-footer-note {
+  text-align: center;
+  margin-top: 24px;
+  font-size: 12px;
+  color: #444;
+}
+
+@media (max-width: 900px) {
+  .about-header {
+    margin-bottom: 24px;
+  }
+
+  .about-header__icon {
+    font-size: 44px;
+    margin-bottom: 10px;
+  }
+
+  .about-update-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .about-update-actions .setting-btn {
+    width: 100%;
+    min-width: 0;
+  }
 }

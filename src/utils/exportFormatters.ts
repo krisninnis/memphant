@@ -25,7 +25,7 @@ const STANDARD_PATTERNS = [
   // Google API keys
   /AIza[0-9A-Za-z_-]{35}/g,
   // HuggingFace tokens
-  /hf_[A-Za-z0-9]{34,}/g,
+  /hf_[A-Za-z0-9]{30,}/g,
   // PEM private key headers
   /-----BEGIN [A-Z ]+ KEY-----/g,
   // JWT tokens (base64url header prefix)
@@ -36,7 +36,7 @@ const STRICT_EXTRA_PATTERNS = [
   // Database connection strings (any protocol)
   /(postgres|postgresql|mysql|mongodb|redis|mongodb\+srv):\/\/[^\s"']+/gi,
   // SendGrid API keys
-  /SG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}/g,
+  /SG\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{40,}/g,
   // Databricks / Spark tokens
   /dapi[a-f0-9]{32}/g,
   // Azure storage / connection strings
@@ -84,6 +84,16 @@ function numberedList(items: string[], indent = ''): string {
   return items.map((i, idx) => `${indent}${idx + 1}. ${sanitize(i)}`).join('\n');
 }
 
+/** Returns true only if the string is non-null, non-undefined, and non-whitespace. */
+function hasContent(value: string | undefined | null): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+/** Returns true only if the array is non-empty (after filtering blank entries). */
+function hasItems(arr: string[] | undefined | null): arr is string[] {
+  return Array.isArray(arr) && arr.some((s) => typeof s === 'string' && s.trim().length > 0);
+}
+
 function decisionsBlock(decisions: ProjectMemory['decisions'], indent = '  '): string {
   if (!decisions.length) return `${indent}(none)`;
 
@@ -100,20 +110,27 @@ function decisionsBlock(decisions: ProjectMemory['decisions'], indent = '  '): s
 
 // Current protocol version — increment MAJOR for breaking schema changes,
 // MINOR for new optional fields, PATCH for doc-only fixes.
-export const MEMPHANT_UPDATE_SCHEMA_VERSION = '1.0.0';
+export const MEMPHANT_UPDATE_SCHEMA_VERSION = '1.1.0';
 
 const RESPONSE_FORMAT = `
 When you finish, include a project update block at the end of your response like this:
 
 memphant_update
+\`\`\`json
 {
-  "schemaVersion": "1.0.0",
+  "schemaVersion": "1.1.0",
   "summary": "one-sentence summary of the project",
   "currentState": "what is true right now after your work",
+  "inProgress": ["task you are actively mid-work on right now"],
+  "lastSessionSummary": "2–4 sentence recap of what just happened in this session",
+  "openQuestion": "the key decision or question you want help with next",
   "goals": ["any new goals to add"],
   "decisions": [{"decision": "any new decisions", "rationale": "why"}],
   "nextSteps": ["any new next steps to add"]
-}`;
+}
+\`\`\`
+
+Omit inProgress, lastSessionSummary, or openQuestion if they are not applicable.`;
 
 function formatForClaude(project: ProjectMemory, task?: string): string {
   const lines: string[] = [];
@@ -129,6 +146,20 @@ function formatForClaude(project: ProjectMemory, task?: string): string {
   }
   lines.push(`  <summary>${sanitize(project.summary || '(no summary yet)')}</summary>`);
   lines.push(`  <current_state>${sanitize(project.currentState || '(not set)')}</current_state>`);
+
+  if (hasItems(project.inProgress)) {
+    lines.push(`  <in_progress>`);
+    lines.push(bulletList(project.inProgress));
+    lines.push(`  </in_progress>`);
+  }
+
+  if (hasContent(project.lastSessionSummary)) {
+    lines.push(`  <last_session_summary>${sanitize(project.lastSessionSummary)}</last_session_summary>`);
+  }
+
+  if (hasContent(project.openQuestion)) {
+    lines.push(`  <open_question>${sanitize(project.openQuestion)}</open_question>`);
+  }
 
   lines.push(`  <goals>`);
   lines.push(bulletList(project.goals));
@@ -199,6 +230,24 @@ function formatForChatGPT(project: ProjectMemory, task?: string): string {
   lines.push(sanitize(project.currentState || '(not set)'));
   lines.push('');
 
+  if (hasItems(project.inProgress)) {
+    lines.push(`## In Progress`);
+    lines.push(bulletList(project.inProgress));
+    lines.push('');
+  }
+
+  if (hasContent(project.lastSessionSummary)) {
+    lines.push(`## Last Session`);
+    lines.push(sanitize(project.lastSessionSummary));
+    lines.push('');
+  }
+
+  if (hasContent(project.openQuestion)) {
+    lines.push(`## Open Question`);
+    lines.push(sanitize(project.openQuestion));
+    lines.push('');
+  }
+
   lines.push(`## Goals`);
   lines.push(numberedList(project.goals));
   lines.push('');
@@ -254,6 +303,15 @@ function formatForGrok(project: ProjectMemory, task?: string): string {
     lines.push(`STACK: ${sanitize(project.detectedStack.join(', '))}`);
   }
   lines.push(`STATUS: ${sanitize(project.currentState || 'not set')}`);
+  if (hasItems(project.inProgress)) {
+    lines.push(`IN_PROGRESS: ${sanitizeList(project.inProgress).join(', ')}`);
+  }
+  if (hasContent(project.lastSessionSummary)) {
+    lines.push(`LAST_SESSION: ${sanitize(project.lastSessionSummary)}`);
+  }
+  if (hasContent(project.openQuestion)) {
+    lines.push(`OPEN_QUESTION: ${sanitize(project.openQuestion)}`);
+  }
   if (task && task.trim()) lines.push(`TASK: ${sanitize(task)}`);
   lines.push(`GOALS: ${sanitizeList(project.goals).join(', ') || 'none'}`);
   lines.push(`RULES: ${sanitizeList(project.rules).join(', ') || 'none'}`);
@@ -279,9 +337,11 @@ function formatForGrok(project: ProjectMemory, task?: string): string {
   }
 
   lines.push('');
-  lines.push(
-    `When done, include: memphant_update {"summary":"...","goals":[...],"currentState":"...","nextSteps":[...]}`
-  );
+  lines.push(`When done, include a memphant_update block using fenced JSON like this:`);
+  lines.push(`memphant_update`);
+  lines.push('```json');
+  lines.push(`{"summary":"...","goals":[...],"currentState":"...","nextSteps":[...]}`);
+  lines.push('```');
 
   return lines.join('\n');
 }
@@ -303,6 +363,21 @@ function formatForPerplexity(project: ProjectMemory, task?: string): string {
   lines.push('');
   lines.push(`Current state: ${sanitize(project.currentState || 'not set')}`);
   lines.push('');
+
+  if (hasItems(project.inProgress)) {
+    lines.push(`Currently working on: ${sanitizeList(project.inProgress).join('; ')}`);
+    lines.push('');
+  }
+
+  if (hasContent(project.lastSessionSummary)) {
+    lines.push(`Last session: ${sanitize(project.lastSessionSummary)}`);
+    lines.push('');
+  }
+
+  if (hasContent(project.openQuestion)) {
+    lines.push(`Key question: ${sanitize(project.openQuestion)}`);
+    lines.push('');
+  }
 
   if (task && task.trim()) {
     lines.push(`I need help with this specific research task: ${sanitize(task)}`);
@@ -353,6 +428,24 @@ function formatForGemini(project: ProjectMemory, task?: string): string {
   lines.push(`## Current Status`);
   lines.push(`**${sanitize(project.currentState || 'not set')}**`);
   lines.push('');
+
+  if (hasItems(project.inProgress)) {
+    lines.push(`## In Progress`);
+    lines.push(bulletList(project.inProgress));
+    lines.push('');
+  }
+
+  if (hasContent(project.lastSessionSummary)) {
+    lines.push(`## Last Session`);
+    lines.push(sanitize(project.lastSessionSummary));
+    lines.push('');
+  }
+
+  if (hasContent(project.openQuestion)) {
+    lines.push(`## Open Question`);
+    lines.push(sanitize(project.openQuestion));
+    lines.push('');
+  }
 
   lines.push(`## Goals`);
   lines.push(numberedList(project.goals));
@@ -409,6 +502,15 @@ function formatGenericForPlatform(
   lines.push(`Project: ${sanitize(project.name)}`);
   lines.push(`Summary: ${sanitize(project.summary || '(no summary yet)')}`);
   lines.push(`Current state: ${sanitize(project.currentState || '(not set)')}`);
+  if (hasItems(project.inProgress)) {
+    lines.push(`In progress: ${sanitizeList(project.inProgress).join('; ')}`);
+  }
+  if (hasContent(project.lastSessionSummary)) {
+    lines.push(`Last session: ${sanitize(project.lastSessionSummary)}`);
+  }
+  if (hasContent(project.openQuestion)) {
+    lines.push(`Open question: ${sanitize(project.openQuestion)}`);
+  }
   lines.push('');
 
   if (project.githubRepo) {
