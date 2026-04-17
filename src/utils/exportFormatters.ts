@@ -3,7 +3,13 @@
  * Each formatter takes a ProjectMemory + optional task + mode and returns a string.
  * CRITICAL: linkedFolder.path is NEVER included in any output.
  */
-import type { AIPlatformConfig, ProjectMemory, Platform, ExportMode } from '../types/memphant-types';
+import type {
+  AIPlatformConfig,
+  ProjectMemory,
+  Platform,
+  ExportMode,
+  GitCommit,
+} from '../types/memphant-types';
 import { getPlatformConfig } from './platformRegistry';
 
 const STANDARD_PATTERNS = [
@@ -108,6 +114,18 @@ function decisionsBlock(decisions: ProjectMemory['decisions'], indent = '  '): s
     .join('\n');
 }
 
+function recentGitCommitsBlock(commits: GitCommit[] | undefined, indent = '  '): string | null {
+  if (!Array.isArray(commits) || commits.length === 0) return null;
+
+  return commits
+    .slice(0, 5)
+    .map((commit) => {
+      const dateOnly = commit.timestamp?.slice(0, 10) || '';
+      return `${indent}- ${sanitize(commit.hash)} ${sanitize(dateOnly)}: ${sanitize(commit.message)}`;
+    })
+    .join('\n');
+}
+
 // Current protocol version — increment MAJOR for breaking schema changes,
 // MINOR for new optional fields, PATCH for doc-only fixes.
 export const MEMPHANT_UPDATE_SCHEMA_VERSION = '1.1.0';
@@ -154,6 +172,13 @@ function formatForClaude(project: ProjectMemory, task?: string): string {
   lines.push(`  <summary>${sanitize(project.summary || '(no summary yet)')}</summary>`);
   lines.push(`  <current_state>${sanitize(project.currentState || '(not set)')}</current_state>`);
 
+  const gitBlock = recentGitCommitsBlock(project.pendingGitCommits);
+  if (gitBlock) {
+    lines.push(`  <recent_git_commits>`);
+    lines.push(gitBlock);
+    lines.push(`  </recent_git_commits>`);
+  }
+
   if (hasItems(project.inProgress)) {
     lines.push(`  <in_progress>`);
     lines.push(bulletList(project.inProgress));
@@ -199,7 +224,7 @@ function formatForClaude(project: ProjectMemory, task?: string): string {
     lines.push(`  <task>`);
     lines.push(`    <description>${sanitize(task)}</description>`);
     lines.push(
-      `    <boundaries>Focus only on this task. Do not modify anything outside the scope of this task.</boundaries>`
+      `    <boundaries>Focus only on this task. Do not modify anything outside the scope of this task.</boundaries>`,
     );
     lines.push(`  </task>`);
   }
@@ -236,6 +261,13 @@ function formatForChatGPT(project: ProjectMemory, task?: string): string {
   lines.push(`## Current Status`);
   lines.push(sanitize(project.currentState || '(not set)'));
   lines.push('');
+
+  const gitBlock = recentGitCommitsBlock(project.pendingGitCommits, '');
+  if (gitBlock) {
+    lines.push(`## Recent Git Commits`);
+    lines.push(gitBlock);
+    lines.push('');
+  }
 
   if (hasItems(project.inProgress)) {
     lines.push(`## In Progress`);
@@ -310,6 +342,15 @@ function formatForGrok(project: ProjectMemory, task?: string): string {
     lines.push(`STACK: ${sanitize(project.detectedStack.join(', '))}`);
   }
   lines.push(`STATUS: ${sanitize(project.currentState || 'not set')}`);
+
+  if (project.pendingGitCommits?.length) {
+    lines.push(`RECENT_GIT_COMMITS:`);
+    project.pendingGitCommits.slice(0, 5).forEach((commit) => {
+      const dateOnly = commit.timestamp?.slice(0, 10) || '';
+      lines.push(`  - ${sanitize(commit.hash)} ${sanitize(dateOnly)}: ${sanitize(commit.message)}`);
+    });
+  }
+
   if (hasItems(project.inProgress)) {
     lines.push(`IN_PROGRESS: ${sanitizeList(project.inProgress).join(', ')}`);
   }
@@ -366,6 +407,13 @@ function formatForPerplexity(project: ProjectMemory, task?: string): string {
   lines.push('');
   lines.push(`Current state: ${sanitize(project.currentState || 'not set')}`);
   lines.push('');
+
+  const gitBlock = recentGitCommitsBlock(project.pendingGitCommits, '');
+  if (gitBlock) {
+    lines.push(`Recent Git commits:`);
+    lines.push(gitBlock);
+    lines.push('');
+  }
 
   if (hasItems(project.inProgress)) {
     lines.push(`Currently working on: ${sanitizeList(project.inProgress).join('; ')}`);
@@ -431,6 +479,13 @@ function formatForGemini(project: ProjectMemory, task?: string): string {
   lines.push(`## Current Status`);
   lines.push(`**${sanitize(project.currentState || 'not set')}**`);
   lines.push('');
+
+  const gitBlock = recentGitCommitsBlock(project.pendingGitCommits, '');
+  if (gitBlock) {
+    lines.push(`## Recent Git Commits`);
+    lines.push(gitBlock);
+    lines.push('');
+  }
 
   if (hasItems(project.inProgress)) {
     lines.push(`## In Progress`);
@@ -505,6 +560,13 @@ function formatGenericForPlatform(
   lines.push(`Project: ${sanitize(project.name)}`);
   lines.push(`Summary: ${sanitize(project.summary || '(no summary yet)')}`);
   lines.push(`Current state: ${sanitize(project.currentState || '(not set)')}`);
+
+  const gitBlock = recentGitCommitsBlock(project.pendingGitCommits, '');
+  if (gitBlock) {
+    lines.push(`Recent git commits:`);
+    lines.push(gitBlock);
+  }
+
   if (hasItems(project.inProgress)) {
     lines.push(`In progress: ${sanitizeList(project.inProgress).join('; ')}`);
   }
@@ -593,8 +655,8 @@ function distillProject(project: ProjectMemory): ProjectMemory {
     project.goals.length <= 5
       ? project.goals
       : activeFields.has('goals')
-      ? project.goals.slice(-5)
-      : project.goals.slice(0, 5);
+        ? project.goals.slice(-5)
+        : project.goals.slice(0, 5);
 
   // Keep only last 5 decisions — old decisions are usually baked in by now
   const decisions = project.decisions.slice(-5);
@@ -629,19 +691,31 @@ function formatSmartExport(
   };
 
   const totalDropped = Object.values(dropped).reduce((a, b) => a + b, 0);
-  const header = totalDropped > 0
-    ? `[Smart Export — ${totalDropped} older item${totalDropped !== 1 ? 's' : ''} condensed to reduce noise]\n\n`
-    : '';
+  const header =
+    totalDropped > 0
+      ? `[Smart Export — ${totalDropped} older item${totalDropped !== 1 ? 's' : ''} condensed to reduce noise]\n\n`
+      : '';
 
   // Delegate to the platform formatter with the condensed project
   let body: string;
   switch (platform) {
-    case 'claude':      body = formatForClaude(condensed, task); break;
-    case 'chatgpt':     body = formatForChatGPT(condensed, task); break;
-    case 'grok':        body = formatForGrok(condensed, task); break;
-    case 'perplexity':  body = formatForPerplexity(condensed, task); break;
-    case 'gemini':      body = formatForGemini(condensed, task); break;
-    default:            body = formatGenericForPlatform(condensed, platform, task, platformConfig);
+    case 'claude':
+      body = formatForClaude(condensed, task);
+      break;
+    case 'chatgpt':
+      body = formatForChatGPT(condensed, task);
+      break;
+    case 'grok':
+      body = formatForGrok(condensed, task);
+      break;
+    case 'perplexity':
+      body = formatForPerplexity(condensed, task);
+      break;
+    case 'gemini':
+      body = formatForGemini(condensed, task);
+      break;
+    default:
+      body = formatGenericForPlatform(condensed, platform, task, platformConfig);
   }
 
   return header + body;
@@ -653,6 +727,14 @@ function formatDelta(project: ProjectMemory, task?: string): string {
   lines.push(`Project: ${sanitize(project.name)}`);
   lines.push(`Status: ${sanitize(project.currentState || 'not set')}`);
   lines.push('');
+
+  const gitBlock = recentGitCommitsBlock(project.pendingGitCommits, '');
+  if (gitBlock) {
+    lines.push(`Recent Git Commits:`);
+    lines.push(gitBlock);
+    lines.push('');
+  }
+
   lines.push(`Next Steps:`);
   lines.push(numberedList(project.nextSteps));
 
@@ -682,6 +764,13 @@ function formatSpecialist(project: ProjectMemory, task?: string): string {
   lines.push(`Project: ${sanitize(project.name)}`);
   lines.push(sanitize(project.summary || '(no summary yet)'));
   lines.push('');
+
+  const gitBlock = recentGitCommitsBlock(project.pendingGitCommits, '');
+  if (gitBlock) {
+    lines.push(`Recent Git Commits:`);
+    lines.push(gitBlock);
+    lines.push('');
+  }
 
   if (task && task.trim()) {
     lines.push(`Task to complete:`);

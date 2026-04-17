@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ProjectMemory, Platform, AppSettings } from '../types/memphant-types';
+import type { ProjectMemory, Platform, AppSettings, GitCommit } from '../types/memphant-types';
 import { DEFAULT_SETTINGS } from '../types/memphant-types';
 import type { CloudUser } from '../services/cloudSync';
 import { ensureValidPlatformId } from '../utils/platformRegistry';
@@ -143,6 +143,13 @@ interface ProjectStore {
 
   // Project operations
   updateProject: (id: string, updates: Partial<ProjectMemory>) => void;
+  setPendingGitCommits: (projectId: string, commits: GitCommit[]) => void;
+  clearPendingGitCommits: (projectId: string) => void;
+  setLastGitSync: (
+    projectId: string,
+    syncData: { hash: string; timestamp: string; commitCount: number } | undefined
+  ) => void;
+  
   addProject: (project: ProjectMemory) => void;
   removeProject: (id: string) => void;
 
@@ -250,6 +257,45 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
               ...p,
               ...updates,
               updatedAt: updates.updatedAt ?? new Date().toISOString(),
+            }
+          : p
+      ),
+    })),
+
+  setPendingGitCommits: (projectId, commits) =>
+    set((state) => ({
+      projects: state.projects.map((p) =>
+        p.id === projectId
+          ? {
+              ...p,
+              pendingGitCommits: [...commits],
+              updatedAt: new Date().toISOString(),
+            }
+          : p
+      ),
+    })),
+
+  clearPendingGitCommits: (projectId) =>
+    set((state) => ({
+      projects: state.projects.map((p) =>
+        p.id === projectId
+          ? {
+              ...p,
+              pendingGitCommits: undefined,
+              updatedAt: new Date().toISOString(),
+            }
+          : p
+      ),
+    })),
+
+  setLastGitSync: (projectId, syncData) =>
+    set((state) => ({
+      projects: state.projects.map((p) =>
+        p.id === projectId
+          ? {
+              ...p,
+              lastGitSync: syncData,
+              updatedAt: new Date().toISOString(),
             }
           : p
       ),

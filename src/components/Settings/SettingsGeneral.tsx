@@ -138,6 +138,27 @@ export function SettingsGeneral() {
             }}
           />
         </div>
+        <div className="setting-row">
+          <div className="setting-info">
+            <div className="setting-label">Auto-sync Git on focus</div>
+            <div className="setting-description">
+              When Memephant regains focus, silently check the active linked project for new Git commits
+            </div>
+          </div>
+          <Toggle
+            value={g.autoGitSync}
+            disabled={!desktop}
+            onChange={(v) => {
+              if (!desktop) {
+                showToast('Auto Git sync is available in the desktop app', 'info');
+                return;
+              }
+
+              update({ autoGitSync: v });
+              showToast(v ? 'Auto Git sync enabled' : 'Auto Git sync disabled');
+            }}
+          />
+        </div>
       </div>
 
       <div className="settings-group">
