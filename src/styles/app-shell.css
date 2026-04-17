@@ -2606,6 +2606,54 @@ select {
   margin: 0 0 8px;
   font-size: 14px;
 }
+
+/* Collapse toggle for >3 changes */
+.changes-since-collapse {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.changes-since-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 4px 0;
+  cursor: pointer;
+  color: rgba(0, 255, 150, 0.85);
+  font-size: 13px;
+  text-align: left;
+  gap: 8px;
+}
+
+.changes-since-toggle:hover {
+  color: rgba(0, 255, 150, 1);
+}
+
+.changes-since-toggle__count {
+  flex: 1;
+}
+
+.changes-since-toggle__chevron {
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+.changes-since-list {
+  margin: 6px 0 0;
+  padding-left: 16px;
+  list-style: none;
+}
+
+.changes-since-list li {
+  font-size: 13px;
+  color: #b8c8d8;
+  padding: 2px 0;
+}
+
 .sidebar-account-card__subline {
   font-size: 11px;
   color: #7aaacc;

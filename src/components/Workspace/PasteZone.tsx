@@ -44,6 +44,7 @@ export function PasteZone() {
   const [detectionMeta, setDetectionMeta] = useState<DetectionMeta>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [autoChecking, setAutoChecking] = useState(false);
+  const [changesExpanded, setChangesExpanded] = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const autoAnalyseTimeoutRef = useRef<number | null>(null);
@@ -70,9 +71,30 @@ export function PasteZone() {
   const lastSeenAt =
   activeProject?.platformState?.[targetPlatform]?.lastSeenAt;
 
-const recentChanges = activeProject
+// All changelog entries since last export for this platform.
+const allRecentChanges = activeProject
   ? getChangesSince(activeProject, lastSeenAt)
   : [];
+
+// Only surface meaningful changes — filter out app/system infrastructure events
+// (folder scans, rescans, project creation) and collapse consecutive same-field
+// entries within 60 seconds into one so the list doesn't fill with noise.
+function deduplicateChanges(entries: typeof allRecentChanges) {
+  const meaningful = entries.filter(
+    (c) => c.source !== 'app' && c.source !== 'system',
+  );
+  const deduped: typeof meaningful = [];
+  for (const entry of meaningful) {
+    const prev = deduped[deduped.length - 1];
+    const sameType = prev && prev.field === entry.field && prev.action === entry.action;
+    const within60s =
+      prev && Math.abs(new Date(entry.timestamp).getTime() - new Date(prev.timestamp).getTime()) < 60_000;
+    if (sameType && within60s) continue; // collapse
+    deduped.push(entry);
+  }
+  return deduped;
+}
+const recentChanges = deduplicateChanges(allRecentChanges);
 
   useEffect(() => {
     pasteTextRef.current = pasteText;
@@ -494,16 +516,46 @@ const recentChanges = activeProject
   <div className="changes-since-box">
     <h4>🧠 Changes since last time</h4>
 
-    <ul>
-      {recentChanges.map((change, i) => (
-        <li key={i}>
-          {change.action === 'added' && '+ '}
-          {change.action === 'updated' && '~ '}
-          {change.action === 'removed' && '- '}
-          {fieldLabel(change.field)}
-        </li>
-      ))}
-    </ul>
+    {recentChanges.length <= 3 ? (
+      <ul>
+        {recentChanges.map((change, i) => (
+          <li key={i}>
+            {change.action === 'added' && '+ '}
+            {change.action === 'updated' && '~ '}
+            {change.action === 'removed' && '- '}
+            {fieldLabel(change.field)}
+          </li>
+        ))}
+      </ul>
+    ) : (
+      <div className="changes-since-collapse">
+        <button
+          type="button"
+          className="changes-since-toggle"
+          onClick={() => setChangesExpanded((v) => !v)}
+          aria-expanded={changesExpanded}
+        >
+          <span className="changes-since-toggle__count">
+            {recentChanges.length} changes since last export
+          </span>
+          <span className="changes-since-toggle__chevron" aria-hidden="true">
+            {changesExpanded ? '▲' : '▼'}
+          </span>
+        </button>
+        {changesExpanded && (
+          <ul className="changes-since-list">
+            {recentChanges.map((change, i) => (
+              <li key={i}>
+                {change.action === 'added' && '+ '}
+                {change.action === 'updated' && '~ '}
+                {change.action === 'removed' && '- '}
+                {fieldLabel(change.field)}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    )}
   </div>
 )}
 

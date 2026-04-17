@@ -132,6 +132,39 @@
   color: #fff;
 }
 
+/* Subtitle inside primary button */
+.welcome-btn__text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.welcome-btn__subtitle {
+  font-size: 12px;
+  font-weight: 400;
+  opacity: 0.8;
+  letter-spacing: 0;
+}
+
+/* Tertiary: plain text link, no border */
+.welcome-btn--link {
+  background: none;
+  border: none;
+  color: #8899bb;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 4px 0;
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.welcome-btn--link:hover {
+  color: #aabbd8;
+  text-decoration: underline;
+}
+
 .welcome-description {
   font-size: 13px;
   color: #666;
@@ -460,26 +493,4 @@
   .welcome-tagline {
     font-size: 14px;
   }
-}
-.welcome-desktop-note {
-  margin-top: 0.75rem;
-  font-size: 0.95rem;
-  color: #b8c0d9;
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-  align-items: center;
-}
-
-.welcome-desktop-note__link {
-  background: none;
-  border: none;
-  padding: 0;
-  color: #8ec5ff;
-  cursor: pointer;
-  font: inherit;
-}
-
-.welcome-desktop-note__link:hover {
-  text-decoration: underline;
 }

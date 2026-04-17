@@ -644,6 +644,12 @@ export function fieldLabel(field: string): string {
     nextSteps: 'Next Steps',
     openQuestions: 'Open Questions',
     importantAssets: 'Important Files & Assets',
+    // v1.1.0 fields
+    inProgress: 'In Progress',
+    lastSessionSummary: 'Session Summary',
+    openQuestion: 'Open Question',
+    // Catch-all app event — show as 'Project' rather than raw 'general'
+    general: 'Project',
   };
   return labels[field] ?? field;
 }
