@@ -64,9 +64,6 @@ It is built for:
 
 ## Screenshots
 
-**Main workspace**
-![Memephant desktop](https://project-brain-eta.vercel.app/screenshots/desktop-wide.png)
-
 **Home screen**
 ![Home screen](https://project-brain-eta.vercel.app/screenshots/screenshot-homescreen.png)
 
