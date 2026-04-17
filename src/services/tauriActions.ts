@@ -105,10 +105,6 @@ async function openFolderDialog(): Promise<string | null> {
 }
 
 export async function syncGitCommits(projectId: string): Promise<GitCommit[]> {
-  if (!isTauri()) {
-    return [];
-  }
-
   const state = store();
   const project = state.projects.find((p) => p.id === projectId);
 
@@ -1201,4 +1197,93 @@ export async function copyExportToClipboard(
   try {
     await navigator.clipboard.writeText(exportText);
   } catch {
-    showToast('Could not copy to clipboard â€
+    showToast('Could not copy to clipboard â€” please try again.', 'error');
+    return;
+  }
+
+  const project = projects.find((item) => item.id === activeProjectId);
+  if (!project) {
+    showToast(`Copied for ${platform}.`);
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const snapshot = cloneCheckpointSnapshot(project);
+  const hash = hashProjectState(snapshot);
+  const checkpoint: ProjectCheckpoint = {
+    id: crypto.randomUUID(),
+    platform,
+    timestamp: now,
+    summary: project.summary || `Exported for ${platform}`,
+    snapshot,
+    hash,
+  };
+  const maxCheckpoints = Math.max(1, settings.projects.snapshotCount || 20);
+  const existingPlatformState = project.platformState?.[platform] ?? {};
+
+  const updatedProject: ProjectMemory = touchProject({
+    ...project,
+    checkpoints: [...(project.checkpoints ?? []), checkpoint].slice(-maxCheckpoints),
+    platformState: {
+      ...project.platformState,
+      [platform]: {
+        ...existingPlatformState,
+        lastExportHash: hash,
+        lastExportedAt: now,
+        exportCount: (existingPlatformState.exportCount ?? 0) + 1,
+      },
+    },
+    changelog: [
+      ...project.changelog,
+      {
+        timestamp: now,
+        field: 'general',
+        action: 'updated',
+        summary: `Copied project context for ${platform}`,
+        source: 'app',
+      },
+    ],
+  }, now);
+
+  const clearedProject: ProjectMemory = {
+    ...updatedProject,
+    pendingGitCommits: undefined,
+    updatedAt: now,
+  };
+
+  updateProject(project.id, clearedProject);
+  void saveToDisk(clearedProject);
+
+  showToast(`Copied for ${platform} — paste into your AI to get started`);
+}
+
+export async function downloadAllData(): Promise<void> {
+  const { projects, settings, showToast } = store();
+
+  const payload = {
+    exported_at: new Date().toISOString(),
+    app: 'Memephant',
+    schema_version: 1,
+    projects: projects.map((project) => toOldFormat(project)),
+    settings,
+  };
+
+  try {
+    const content = JSON.stringify(payload, null, 2);
+    const blob = new Blob([content], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const datePart = new Date().toISOString().slice(0, 10);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `memephant-data-${datePart}.json`;
+    link.rel = 'noopener';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    showToast('Data export downloaded.');
+  } catch (err) {
+    console.error('downloadAllData failed:', err);
+    showToast('Could not export your data.', 'error');
+  }
+}
