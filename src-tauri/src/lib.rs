@@ -1,6 +1,7 @@
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::sync::Mutex;
 use tauri::menu::{Menu, MenuItem};
 use tauri::Manager;
@@ -229,8 +230,6 @@ fn first_readme_summary(readme: &Option<String>) -> Option<String> {
     }
 }
 
-// Reads README and package/cargo metadata from the root of a scanned folder.
-// Returns only safe, non-sensitive content. Truncated to keep payloads small.
 fn read_project_meta(root: &Path) -> ProjectMeta {
     let readme = ["README.md", "readme.md", "README.txt", "readme.txt"]
         .iter()
@@ -542,7 +541,7 @@ fn build_scan_suggestions(
     }
 }
 
-// \u2500\u2500\u2500 Structs \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+// --- Structs ---
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 struct StackSignal {
@@ -569,7 +568,6 @@ struct PackageInfo {
     version: Option<String>,
 }
 
-// Internal only \u2014 not serialised directly; converted to ScanMeta for responses
 struct ProjectMeta {
     readme: Option<String>,
     package_json: Option<PackageInfo>,
@@ -610,7 +608,15 @@ struct RescanResult {
     meta: Option<ScanMeta>,
 }
 
-// \u2500\u2500\u2500 Project storage helpers \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+struct GitCommit {
+    hash: String,
+    message: String,
+    timestamp: String,
+    author: String,
+}
+
+// --- Project storage helpers ---
 
 fn projects_dir(app: &tauri::AppHandle) -> PathBuf {
     app.path()
@@ -629,7 +635,7 @@ fn meta_to_scan_meta(meta: ProjectMeta) -> ScanMeta {
     }
 }
 
-// \u2500\u2500\u2500 Tauri commands \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+// --- Tauri commands ---
 
 #[tauri::command]
 async fn scan_project_folder(folder_path: String) -> Result<ScanResult, String> {
@@ -683,6 +689,73 @@ async fn rescan_linked_folder(
         folder_exists: true,
         meta: Some(meta),
     })
+}
+
+#[tauri::command]
+async fn get_git_log(
+    folder_path: String,
+    since_hash: Option<String>,
+) -> Result<Vec<GitCommit>, String> {
+    let root = Path::new(&folder_path);
+
+    // Return empty if folder doesn't exist or has no git repo — never error
+    if !root.is_dir() {
+        return Ok(vec![]);
+    }
+
+    let git_dir = root.join(".git");
+    if !git_dir.exists() {
+        return Ok(vec![]);
+    }
+
+    let output = Command::new("git")
+        .args([
+            "-C",
+            &folder_path,
+            "log",
+            "--format=%h|%s|%aI|%an",
+            "-20",
+        ])
+        .output();
+
+    let output = match output {
+        Ok(o) => o,
+        Err(_) => return Ok(vec![]), // git not installed — silent fail
+    };
+
+    if !output.status.success() {
+        return Ok(vec![]);
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut commits: Vec<GitCommit> = Vec::new();
+
+    for line in stdout.lines() {
+        let parts: Vec<&str> = line.splitn(4, '|').collect();
+        if parts.len() < 4 {
+            continue;
+        }
+
+        let hash = parts[0].trim().to_string();
+
+        // Stop if we've reached the since_hash (exclusive)
+        if let Some(ref stop_hash) = since_hash {
+            if hash.starts_with(stop_hash.as_str()) || stop_hash.starts_with(hash.as_str()) {
+                break;
+            }
+        }
+
+        commits.push(GitCommit {
+            hash,
+            message: parts[1].trim().to_string(),
+            timestamp: parts[2].trim().to_string(),
+            author: parts[3].trim().to_string(),
+        });
+    }
+
+  
+
+    Ok(commits)
 }
 
 #[tauri::command]
@@ -758,7 +831,6 @@ async fn rename_project_file(
         return Ok(());
     }
 
-    // Guard against path traversal or subdirectories.
     for name in [&from_file_name, &to_file_name] {
         if name.contains("..") || name.contains('/') || name.contains('\\') {
             return Err("Invalid file name".to_string());
@@ -776,7 +848,6 @@ async fn rename_project_file(
         return Ok(());
     }
 
-    // Do not overwrite an existing canonical file.
     if to.exists() {
         return Ok(());
     }
@@ -895,7 +966,7 @@ fn setup_tray(app: &tauri::AppHandle) -> Result<(), tauri::Error> {
     Ok(())
 }
 
-// \u2500\u2500\u2500 App entry point \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+// --- App entry point ---
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -932,6 +1003,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             scan_project_folder,
             rescan_linked_folder,
+            get_git_log,
             save_project_file,
             load_projects,
             load_project_file,

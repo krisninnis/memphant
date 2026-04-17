@@ -78,8 +78,14 @@ export interface GitHubScanInfo {
   keyFilesFound: string[];  // files successfully fetched during scan
 }
 
+export interface GitCommit {
+  hash: string;
+  message: string;
+  timestamp: string;
+  author: string;
+}
+
 // Human-readable schema version for the project data format.
-// Increment MINOR for new optional fields, MAJOR for breaking changes.
 export const SCHEMA_VERSION = '1.1.0';
 
 export interface ProjectCheckpointSnapshot {
@@ -100,6 +106,12 @@ export interface ProjectCheckpointSnapshot {
   detectedStack?: string[];     // Tech stack extracted from repo scan (e.g. ["React", "TypeScript"])
   scanInfo?: GitHubScanInfo;    // Metadata from the last successful GitHub scan
   linkedFolder?: LinkedFolder;
+  lastGitSync?: {
+    hash: string;
+    timestamp: string;
+    commitCount: number;
+  };
+  pendingGitCommits?: GitCommit[];
   changelog: ChangelogEntry[];
   platformState: Partial<Record<Platform, PlatformState>>;
   /** Active work-in-flight right now. REPLACE-ALL on AI update. */
@@ -176,6 +188,7 @@ export interface AppSettings {
     autoSave: boolean;
     runOnStartup: boolean;
     systemTray: boolean;
+    autoGitSync: boolean;
   };
   privacy: {
     cloudSyncEnabled: boolean;
@@ -207,6 +220,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     autoSave: true,
     runOnStartup: false,
     systemTray: false,
+    autoGitSync: false,
   },
   privacy: {
     cloudSyncEnabled: false,
@@ -269,6 +283,16 @@ export function cloneCheckpointSnapshot(project: ProjectCheckpointSnapshot): Pro
         }
       : undefined,
     linkedFolder: project.linkedFolder ? { ...project.linkedFolder } : undefined,
+        lastGitSync: project.lastGitSync
+      ? {
+          hash: project.lastGitSync.hash,
+          timestamp: project.lastGitSync.timestamp,
+          commitCount: project.lastGitSync.commitCount,
+        }
+      : undefined,
+    pendingGitCommits: project.pendingGitCommits
+      ? project.pendingGitCommits.map((commit) => ({ ...commit }))
+      : undefined,
     changelog: project.changelog.map((entry) => ({ ...entry })),
     platformState: Object.fromEntries(
       Object.entries(project.platformState ?? {}).map(([platform, state]) => [

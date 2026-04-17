@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useProjectStore } from '../../store/projectStore';
 import { useActiveProject } from '../../hooks/useActiveProject';
 import {
   linkFolder,
   rescanLinkedFolder,
   exportActiveProjectAsMarkdown,
+  syncGitCommits,
 } from '../../services/tauriActions';
 import ExportButtons from './ExportButtons';
 import TaskField from './TaskField';
@@ -24,13 +25,18 @@ memphant_update
 
 Only include fields that changed. Keep the JSON valid.`;
 
+type GitSyncState = 'idle' | 'syncing' | 'found' | 'up_to_date';
+
 export function ActionBar() {
   const activeProject = useActiveProject();
   const preAiBackup = useProjectStore((s) => s.preAiBackup);
   const setPreAiBackup = useProjectStore((s) => s.setPreAiBackup);
   const updateProject = useProjectStore((s) => s.updateProject);
   const showToast = useProjectStore((s) => s.showToast);
+
   const [activationCopied, setActivationCopied] = useState(false);
+  const [gitSyncState, setGitSyncState] = useState<GitSyncState>('idle');
+  const [gitSyncCount, setGitSyncCount] = useState(0);
 
   const handleRollback = () => {
     if (!preAiBackup) {
@@ -54,6 +60,47 @@ export function ActionBar() {
     }
   };
 
+  const handleSyncGit = async () => {
+    if (!activeProject?.id || !activeProject.linkedFolder?.path || gitSyncState === 'syncing') {
+      return;
+    }
+
+    setGitSyncState('syncing');
+
+    try {
+      const commits = await syncGitCommits(activeProject.id);
+
+      if (commits.length > 0) {
+        setGitSyncCount(commits.length);
+        setGitSyncState('found');
+        showToast(
+          `${commits.length} commit${commits.length === 1 ? '' : 's'} will be included in your next AI export`,
+          'info',
+        );
+
+        window.setTimeout(() => {
+          setGitSyncState('idle');
+          setGitSyncCount(0);
+        }, 3000);
+
+        return;
+      }
+
+      setGitSyncState('up_to_date');
+      window.setTimeout(() => {
+        setGitSyncState('idle');
+      }, 2000);
+    } catch {
+      setGitSyncState('idle');
+      showToast('Could not sync Git commits', 'error');
+    }
+  };
+
+  useEffect(() => {
+    setGitSyncState('idle');
+    setGitSyncCount(0);
+  }, [activeProject?.id]);
+
   if (!activeProject) {
     return (
       <div className="action-bar">
@@ -63,6 +110,14 @@ export function ActionBar() {
   }
 
   const hasLinkedFolder = !!activeProject.linkedFolder?.path;
+  const pendingGitCommits = activeProject.pendingGitCommits ?? [];
+
+  let syncGitLabel = 'Sync Git';
+  if (gitSyncState === 'syncing') syncGitLabel = 'Syncing...';
+  if (gitSyncState === 'found') {
+    syncGitLabel = `${gitSyncCount} new commit${gitSyncCount === 1 ? '' : 's'}`;
+  }
+  if (gitSyncState === 'up_to_date') syncGitLabel = 'Up to date';
 
   return (
     <div className="action-bar">
@@ -71,6 +126,12 @@ export function ActionBar() {
       </div>
 
       <TaskField />
+
+      {pendingGitCommits.length > 0 && (
+        <div className="action-bar__git-note">
+          {pendingGitCommits.length} commit{pendingGitCommits.length === 1 ? '' : 's'} will be included in your next AI export.
+        </div>
+      )}
 
       <div className="action-bar__secondary">
         <button
@@ -83,7 +144,11 @@ export function ActionBar() {
         </button>
 
         {!hasLinkedFolder ? (
-          <button type="button" className="action-bar__btn" onClick={() => void linkFolder()}>
+          <button
+            type="button"
+            className="action-bar__btn"
+            onClick={() => void linkFolder()}
+          >
             Link project folder
           </button>
         ) : (
@@ -95,6 +160,20 @@ export function ActionBar() {
             Rescan linked folder
           </button>
         )}
+
+        <button
+          type="button"
+          className={`action-bar__btn${gitSyncState === 'found' ? ' action-bar__btn--success' : ''}`}
+          onClick={() => void handleSyncGit()}
+          disabled={!hasLinkedFolder || gitSyncState === 'syncing'}
+          title={
+            !hasLinkedFolder
+              ? 'Link a project folder first'
+              : 'Read recent commits from the linked project folder'
+          }
+        >
+          {syncGitLabel}
+        </button>
 
         <button
           type="button"

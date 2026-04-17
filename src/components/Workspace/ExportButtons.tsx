@@ -35,18 +35,21 @@ function formatCheckpointTime(isoString: string): string {
 
 export function ExportButtons() {
   const [copied, setCopied] = useState(false);
+
   const targetPlatform = useProjectStore((s) => s.targetPlatform);
   const setTargetPlatform = useProjectStore((s) => s.setTargetPlatform);
   const currentTask = useProjectStore((s) => s.currentTask);
   const showToast = useProjectStore((s) => s.showToast);
   const settings = useProjectStore((s) => s.settings);
-  const defaultExportMode = settings.projects.defaultExportMode;
-  const secretsScannerLevel = settings.privacy.secretsScannerLevel;
-  const effectiveExportMode = defaultExportMode;
 
   const activeProject = useActiveProject();
-  const enabledPlatforms = useMemo(() => getEnabledPlatforms(settings.platforms), [settings.platforms]);
 
+  const enabledPlatforms = useMemo(
+    () => getEnabledPlatforms(settings.platforms),
+    [settings.platforms],
+  );
+
+  // Ensure valid platform selection
   useEffect(() => {
     const nextPlatformId = ensureValidPlatformId(
       targetPlatform,
@@ -57,34 +60,52 @@ export function ExportButtons() {
     if (nextPlatformId !== targetPlatform) {
       setTargetPlatform(nextPlatformId);
     }
-  }, [setTargetPlatform, settings.general.defaultPlatform, settings.platforms, targetPlatform]);
+  }, [targetPlatform, settings, setTargetPlatform]);
+
+  const selectedPlatformId = ensureValidPlatformId(
+    targetPlatform,
+    settings.platforms,
+    settings.general.defaultPlatform,
+  );
 
   const selectedPlatform = getPlatformConfig(
-    ensureValidPlatformId(targetPlatform, settings.platforms, settings.general.defaultPlatform),
+    selectedPlatformId,
     settings.platforms,
   );
 
   const selectedProject = activeProject;
+
   const lastSeenAt = selectedProject?.platformState?.[selectedPlatform.id]?.lastSeenAt;
-  const recentChanges = selectedProject ? getChangesSince(selectedProject, lastSeenAt) : [];
+
+  const recentChanges = selectedProject
+    ? getChangesSince(selectedProject, lastSeenAt)
+    : [];
 
   const chatPlatforms = enabledPlatforms.filter((p) => p.category === 'chat');
   const devPlatforms = enabledPlatforms.filter((p) => p.category === 'dev');
   const localPlatforms = enabledPlatforms.filter((p) => p.category === 'local');
+
   const selectedPlatformState = selectedProject?.platformState?.[selectedPlatform.id];
+
   const syncLabel = selectedPlatformState?.lastExportedAt
     ? formatSyncAge(selectedPlatformState.lastExportedAt)
     : null;
+
   const quality = activeProject ? scoreExport(activeProject) : null;
+
   const allCheckpoints = activeProject?.checkpoints ?? [];
+
   const latestAnyCheckpoint =
     allCheckpoints.length > 0 ? allCheckpoints[allCheckpoints.length - 1] : undefined;
+
   const latestCheckpoint =
-    [...allCheckpoints].reverse().find((checkpoint) => checkpoint.platform === selectedPlatform.id)
+    [...allCheckpoints].reverse().find((c) => c.platform === selectedPlatform.id)
     ?? latestAnyCheckpoint;
+
   const checkpointSummary = latestCheckpoint
     ? `Last checkpoint saved ${formatSyncAge(latestCheckpoint.timestamp)}.`
     : 'Every copy saves a checkpoint before anything is pasted back in.';
+
   const changeSummary = !activeProject
     ? 'Open a project to prepare an AI handoff.'
     : recentChanges.length > 0
@@ -105,26 +126,32 @@ export function ExportButtons() {
       return;
     }
 
-    setScannerLevel(secretsScannerLevel);
+    try {
+      setScannerLevel(settings.privacy.secretsScannerLevel);
 
-    const exportText = formatForPlatform(
-      activeProject,
-      selectedPlatform.id,
-      currentTask,
-      effectiveExportMode,
-      selectedPlatform,
-    );
+      const exportText = formatForPlatform(
+        activeProject,
+        selectedPlatform.id,
+        currentTask,
+        settings.projects.defaultExportMode,
+        selectedPlatform,
+      );
 
-    await copyExportToClipboard(exportText, selectedPlatform.id);
+      await copyExportToClipboard(exportText, selectedPlatform.id);
 
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1800);
+      setCopied(true);
+      showToast(`Copied for ${selectedPlatform.name}`);
+
+      setTimeout(() => setCopied(false), 1800);
+    } catch (err) {
+      console.error('Export failed:', err);
+      showToast('Failed to copy export', 'error');
+    }
   }, [
     activeProject,
     currentTask,
-    effectiveExportMode,
-    secretsScannerLevel,
     selectedPlatform,
+    settings,
     showToast,
   ]);
 
@@ -159,16 +186,13 @@ export function ExportButtons() {
         style={{ '--pill-color': selectedPlatform.color ?? '#64748b' } as CSSProperties}
         onClick={() => void handleCopy()}
         disabled={!activeProject}
-        title={
-          syncLabel
-            ? `Last copied for ${selectedPlatform.name}: ${syncLabel}`
-            : `Copy project context for ${selectedPlatform.name}`
-        }
       >
         {copied ? (
           <>
             <span className="export-copy-btn__icon">OK</span>
-            <span className="export-copy-btn__text">Copied. Paste into {selectedPlatform.name}.</span>
+            <span className="export-copy-btn__text">
+              Copied. Paste into {selectedPlatform.name}.
+            </span>
           </>
         ) : (
           <>
@@ -182,11 +206,9 @@ export function ExportButtons() {
         )}
       </button>
 
-      <div className="export-platform-pills" role="tablist" aria-label="Choose AI platform">
+      <div className="export-platform-pills" role="tablist">
         {chatPlatforms.length > 0 && (
-          <div className="export-pill-group">
-            {renderPillGroup(chatPlatforms)}
-          </div>
+          <div className="export-pill-group">{renderPillGroup(chatPlatforms)}</div>
         )}
         {devPlatforms.length > 0 && (
           <div className="export-pill-group export-pill-group--dev">
@@ -203,7 +225,7 @@ export function ExportButtons() {
       </div>
 
       {quality && (
-        <div className="export-quality" title={quality.message || `Export is ${quality.label}`}>
+        <div className="export-quality">
           <div className="export-quality__bar">
             <div
               className="export-quality__fill"
@@ -213,32 +235,24 @@ export function ExportButtons() {
           <span className="export-quality__label" style={{ color: quality.color }}>
             {quality.label}
           </span>
-          {quality.message && (
-            <span className="export-quality__tip">{quality.message}</span>
-          )}
         </div>
       )}
 
       <div className="export-trust-card">
         <div className="export-trust-card__row">
-          <span className="export-trust-card__label">Checkpoint</span>
-          <span className="export-trust-card__value">{checkpointSummary}</span>
+          <span>Checkpoint</span>
+          <span>{checkpointSummary}</span>
         </div>
 
         {latestCheckpoint && (
           <div className="export-trust-card__detail">
             {selectedPlatform.name} handoff from {formatCheckpointTime(latestCheckpoint.timestamp)}
-            {latestCheckpoint.summary ? ` - ${latestCheckpoint.summary}` : ''}
           </div>
         )}
 
         <div className="export-trust-card__row">
-          <span className="export-trust-card__label">Ready now</span>
-          <span className="export-trust-card__value">{changeSummary}</span>
-        </div>
-
-        <div className="export-trust-card__detail">
-          Nothing leaves this device until you click copy. Cloud backup is separate from AI export.
+          <span>Ready now</span>
+          <span>{changeSummary}</span>
         </div>
       </div>
     </div>

@@ -1,7 +1,9 @@
-import { Component, type ReactNode, type ErrorInfo } from 'react';
+import { Component, type ReactNode, type ErrorInfo, useEffect } from 'react';
 import AppShell from './components/Layout/AppShell';
 import { PWAUpdatePrompt } from './components/PWAUpdatePrompt';
 import { PWAProvider } from './hooks/usePWA';
+import { useProjectStore } from './store/projectStore';
+import { syncGitCommits } from './services/tauriActions';
 import './styles/app-shell.css';
 
 interface ErrorBoundaryState {
@@ -91,8 +93,54 @@ class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryStat
     return this.props.children;
   }
 }
-
+function isTauri(): boolean {
+  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+}
 function App() {
+  const activeProject = useProjectStore((s) => s.activeProject());
+  const autoGitSync = useProjectStore((s) => s.settings.general.autoGitSync);
+  const showToast = useProjectStore((s) => s.showToast);
+
+  useEffect(() => {
+    if (!isTauri() || !autoGitSync || !activeProject?.id || !activeProject.linkedFolder?.path) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const runSync = async () => {
+      if (document.visibilityState !== 'visible') return;
+
+      const commits = await syncGitCommits(activeProject.id);
+
+      if (!cancelled && commits.length > 0) {
+        showToast(
+          `${commits.length} commit${commits.length === 1 ? '' : 's'} will be included in your next AI export`,
+          'info',
+        );
+      }
+    };
+
+    const handleFocus = () => {
+      void runSync();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void runSync();
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [activeProject?.id, activeProject?.linkedFolder?.path, autoGitSync, showToast]);
+
   return (
     <ErrorBoundary>
       <PWAProvider>

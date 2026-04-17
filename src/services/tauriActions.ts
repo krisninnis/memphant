@@ -13,6 +13,7 @@ import type {
   Platform,
   ProjectCheckpoint,
   ProjectRestorePoint,
+  GitCommit,
 } from '../types/memphant-types';
 import { cloneCheckpointSnapshot, hashProjectState, SCHEMA_VERSION } from '../types/memphant-types';
 import { pushProject, deleteCloudProject } from './cloudSync';
@@ -103,6 +104,41 @@ async function openFolderDialog(): Promise<string | null> {
   }
 }
 
+export async function syncGitCommits(projectId: string): Promise<GitCommit[]> {
+  const state = store();
+  const project = state.projects.find((p) => p.id === projectId);
+
+  if (!project?.linkedFolder?.path) {
+    return [];
+  }
+
+  try {
+    const commits = await tauriInvoke<GitCommit[]>('get_git_log', {
+      folderPath: project.linkedFolder.path,
+      sinceHash: project.lastGitSync?.hash ?? null,
+    });
+
+    if (!Array.isArray(commits) || commits.length === 0) {
+      return [];
+    }
+
+    state.setPendingGitCommits(projectId, commits);
+
+    const latest = commits[0];
+    if (latest) {
+      state.setLastGitSync(projectId, {
+        hash: latest.hash,
+        timestamp: latest.timestamp,
+        commitCount: commits.length,
+      });
+    }
+
+    return commits;
+  } catch (err) {
+    console.warn('[Memphant] Git sync failed silently:', err);
+    return [];
+  }
+}
 // â”€â”€â”€ Old â†” New format conversion â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type LegacyLinkedFolder = {
@@ -224,6 +260,40 @@ export function normalizeOldProject(raw: Record<string, unknown>): ProjectMemory
           scanHash: legacy.linkedFolder.scanHash,
           lastScannedAt: legacy.linkedFolder.lastScannedAt,
         }
+      : undefined,
+    lastGitSync:
+      raw.lastGitSync &&
+      typeof raw.lastGitSync === 'object' &&
+      typeof (raw.lastGitSync as { hash?: unknown }).hash === 'string' &&
+      typeof (raw.lastGitSync as { timestamp?: unknown }).timestamp === 'string'
+        ? {
+            hash: (raw.lastGitSync as { hash: string }).hash,
+            timestamp: (raw.lastGitSync as { timestamp: string }).timestamp,
+            commitCount:
+              typeof (raw.lastGitSync as { commitCount?: unknown }).commitCount === 'number'
+                ? (raw.lastGitSync as { commitCount: number }).commitCount
+                : 0,
+          }
+        : undefined,
+    pendingGitCommits: Array.isArray(raw.pendingGitCommits)
+      ? (raw.pendingGitCommits as unknown[])
+          .filter(
+            (
+              commit,
+            ): commit is { hash: string; message: string; timestamp: string; author: string } =>
+              typeof commit === 'object' &&
+              commit !== null &&
+              typeof (commit as { hash?: unknown }).hash === 'string' &&
+              typeof (commit as { message?: unknown }).message === 'string' &&
+              typeof (commit as { timestamp?: unknown }).timestamp === 'string' &&
+              typeof (commit as { author?: unknown }).author === 'string'
+          )
+          .map((commit) => ({
+            hash: commit.hash,
+            message: commit.message,
+            timestamp: commit.timestamp,
+            author: commit.author,
+          }))
       : undefined,
     changelog: normalizedChangelog,
     checkpoints: Array.isArray(raw.checkpoints)
@@ -348,6 +418,8 @@ export function toOldFormat(project: ProjectMemory): Record<string, unknown> {
       focus: project.aiInstructions || 'Help move the project forward without losing continuity',
     },
     linkedFolder: project.linkedFolder,
+    lastGitSync: project.lastGitSync,
+    pendingGitCommits: project.pendingGitCommits,
     checkpoints: project.checkpoints.map((checkpoint) => ({
       ...checkpoint,
       snapshot: checkpoint.snapshot,
@@ -1173,8 +1245,14 @@ export async function copyExportToClipboard(
     ],
   }, now);
 
-  updateProject(project.id, updatedProject);
-  void saveToDisk(updatedProject);
+  const clearedProject: ProjectMemory = {
+    ...updatedProject,
+    pendingGitCommits: undefined,
+    updatedAt: now,
+  };
+
+  updateProject(project.id, clearedProject);
+  void saveToDisk(clearedProject);
 
   showToast(`Copied for ${platform} — paste into your AI to get started`);
 }
