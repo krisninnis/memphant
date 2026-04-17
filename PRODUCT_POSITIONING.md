@@ -1,7 +1,7 @@
-# Memphant Positioning
+# Memephant Positioning
 
 ## One-line promise
-Memphant is a local-first cross-AI project handoff app that lets you move your project between AI tools without losing context.
+Memephant is a local-first cross-AI project handoff app that lets you move your project between AI tools without losing context.
 
 ## Core job
 Keep project context structured, consistent, and transferable across AI platforms so users never have to rebuild state, decisions, or progress.
@@ -28,14 +28,14 @@ Users are forced to repeatedly explain:
 
 This wastes time, introduces inconsistencies, and breaks workflow momentum.
 
-## Why Memphant exists
-Memphant acts as the source of truth for a project’s state:
+## Why Memephant exists
+Memephant acts as the source of truth for a project’s state:
 - structured memory (not just text)
 - reusable context
 - controlled updates from AI
 - continuity across tools
 
-Instead of AI being the source of memory, Memphant becomes the layer that manages it.
+Instead of AI being the source of memory, Memephant becomes the layer that manages it.
 
 ## What makes it different
 - Local-first (user owns their data)
@@ -51,11 +51,11 @@ Instead of AI being the source of memory, Memphant becomes the layer that manage
 - Not an “AI agent platform”
 
 ## Mental model
-Memphant is:
+Memephant is:
 > The memory layer between you and AI tools
 
 AI tools generate ideas and updates.  
-Memphant stores, structures, and evolves the project state.
+Memephant stores, structures, and evolves the project state.
 
 ## Success condition
 A user should feel:
