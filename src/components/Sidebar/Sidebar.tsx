@@ -1,9 +1,11 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { useProjectStore } from '../../store/projectStore';
 import {
+  isDesktopApp,
   createProject,
   createProjectFromFolder,
   createProjectFromTemplate,
+  importProjectFromFile,
   deleteProject,
 } from '../../services/tauriActions';
 import { PROJECT_TEMPLATES } from '../../utils/projectTemplates';
@@ -33,7 +35,7 @@ function getDisplayName(email: string) {
     .join(' ');
 }
 
-export function Sidebar({ onNavigate }: SidebarProps) {
+const Sidebar = ({ onNavigate }: SidebarProps) => {
   const projects = useProjectStore((s) => s.projects);
   const cloudUser = useProjectStore((s) => s.cloudUser);
   const activeProjectId = useProjectStore((s) => s.activeProjectId);
@@ -45,16 +47,9 @@ export function Sidebar({ onNavigate }: SidebarProps) {
   const [createMode, setCreateMode] = useState<CreateMode>('none');
   const [newName, setNewName] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  // Debounced value used for the actual filter — avoids re-running the filter
-  // on every keystroke when the project list is large (100+ projects).
+  const [showDesktopPrompt, setShowDesktopPrompt] = useState(false);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [debouncedSearch, setDebouncedSearch] = useState('');
-
-  const handleSearchChange = useCallback((value: string) => {
-    setSearchQuery(value);
-    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-    searchDebounceRef.current = setTimeout(() => setDebouncedSearch(value), 120);
-  }, []);
   const [selectedTemplate, setSelectedTemplate] = useState<ProjectTemplate | null>(null);
   const [templateName, setTemplateName] = useState('');
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
@@ -64,9 +59,37 @@ export function Sidebar({ onNavigate }: SidebarProps) {
 
   const nameInputRef = useRef<HTMLInputElement>(null);
   const templateNameRef = useRef<HTMLInputElement>(null);
+  const importFileRef = useRef<HTMLInputElement>(null);
 
-  // Memoised filter — only re-runs when projects array or the debounced search
-  // value changes. For 100+ projects this keeps keystroke latency imperceptible.
+  const desktopApp = isDesktopApp();
+
+  useEffect(() => {
+    if (desktopApp) return;
+
+    const dismissed = sessionStorage.getItem('mph_desktop_prompt_seen') === '1';
+    if (dismissed) return;
+
+    const showTimer = window.setTimeout(() => {
+      setShowDesktopPrompt(true);
+    }, 700);
+
+    const hideTimer = window.setTimeout(() => {
+      setShowDesktopPrompt(false);
+      sessionStorage.setItem('mph_desktop_prompt_seen', '1');
+    }, 5200);
+
+    return () => {
+      window.clearTimeout(showTimer);
+      window.clearTimeout(hideTimer);
+    };
+  }, [desktopApp]);
+
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchQuery(value);
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => setDebouncedSearch(value), 120);
+  }, []);
+
   const filteredProjects = useMemo(() => {
     const q = debouncedSearch.trim().toLowerCase();
     if (!q) return projects;
@@ -109,10 +132,37 @@ export function Sidebar({ onNavigate }: SidebarProps) {
     setTimeout(() => nameInputRef.current?.focus(), 50);
   };
 
+  const handleImportClick = () => {
+  importFileRef.current?.click();
+
+  // Show desktop prompt again when user tries to import,
+  // but don't restart it if it's already visible
+  if (!desktopApp && !showDesktopPrompt) {
+    setShowDesktopPrompt(true);
+
+    window.setTimeout(() => {
+      setShowDesktopPrompt(false);
+    }, 4000);
+  }
+};
+
+  const handleImportFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    await importProjectFromFile(file);
+    event.target.value = '';
+    onNavigate?.();
+  };
+
   const openCloudBackup = () => {
     setSettingsTab('sync');
     setCurrentView('settings');
     onNavigate?.();
+  };
+
+  const openDesktopDownload = () => {
+    window.open('https://memephant.com/download', '_blank', 'noopener,noreferrer');
   };
 
   const pendingDeleteProject = pendingDeleteId
@@ -123,6 +173,16 @@ export function Sidebar({ onNavigate }: SidebarProps) {
 
   return (
     <div className="sidebar-inner">
+      {!desktopApp && showDesktopPrompt && (
+        <button
+          type="button"
+          className="sidebar-desktop-prompt"
+          onClick={openDesktopDownload}
+        >
+          Want full project tracking? Use the desktop app
+        </button>
+      )}
+
       <div className="sidebar-header">
         <div>
           <h2 className="sidebar-brand">Memephant</h2>
@@ -164,13 +224,32 @@ export function Sidebar({ onNavigate }: SidebarProps) {
               📋 From template
             </button>
 
-            <button
-              type="button"
-              className="sidebar-action-btn"
-              onClick={() => void createProjectFromFolder()}
-            >
-              📂 Open a project folder
-            </button>
+            {desktopApp ? (
+              <button
+                type="button"
+                className="sidebar-action-btn"
+                onClick={() => void createProjectFromFolder()}
+              >
+                📂 Open folder
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className="sidebar-action-btn"
+                  onClick={handleImportClick}
+                >
+                  📥 Import project
+                </button>
+                <input
+                  ref={importFileRef}
+                  type="file"
+                  accept=".json,application/json"
+                  style={{ display: 'none' }}
+                  onChange={(e) => void handleImportFileChange(e)}
+                />
+              </>
+            )}
           </>
         )}
 
@@ -297,7 +376,10 @@ export function Sidebar({ onNavigate }: SidebarProps) {
           {searchQuery && (
             <button
               className="sidebar-search-clear"
-              onClick={() => { handleSearchChange(''); setDebouncedSearch(''); }}
+              onClick={() => {
+                handleSearchChange('');
+                setDebouncedSearch('');
+              }}
               aria-label="Clear search"
             >
               ×
@@ -309,7 +391,9 @@ export function Sidebar({ onNavigate }: SidebarProps) {
       <div className="sidebar-projects">
         {projects.length === 0 && (
           <p className="sidebar-empty">
-            No projects yet — create one above or open a folder.
+            {desktopApp
+              ? 'No projects yet — create one above or open a folder.'
+              : 'No projects yet — create one above or import a project.'}
           </p>
         )}
 
@@ -332,39 +416,39 @@ export function Sidebar({ onNavigate }: SidebarProps) {
         ))}
       </div>
 
-     <div className="sidebar-account-dock">
-  {!cloudUser ? (
-    <div className="sidebar-auth-card">
-      <div className="sidebar-auth-content">
-        <div className="sidebar-auth-icon">☁️</div>
+      <div className="sidebar-account-dock">
+        {!cloudUser ? (
+          <div className="sidebar-auth-card">
+            <div className="sidebar-auth-content">
+              <div className="sidebar-auth-icon">☁️</div>
 
-        <div className="sidebar-auth-text">
-          <p className="sidebar-auth-title">Back up & sync</p>
-          <p className="sidebar-auth-desc">
-            Access your projects on any device and never lose your context.
-          </p>
-        </div>
+              <div className="sidebar-auth-text">
+                <p className="sidebar-auth-title">Back up & sync</p>
+                <p className="sidebar-auth-desc">
+                  Access your projects on any device and never lose your context.
+                </p>
+              </div>
 
-        <div className="sidebar-auth-actions">
-          <button
-            type="button"
-            className="sidebar-auth-btn sidebar-auth-btn--primary"
-            onClick={openCloudBackup}
-          >
-            Create account
-          </button>
+              <div className="sidebar-auth-actions">
+                <button
+                  type="button"
+                  className="sidebar-auth-btn sidebar-auth-btn--primary"
+                  onClick={openCloudBackup}
+                >
+                  Create account
+                </button>
 
-          <button
-            type="button"
-            className="sidebar-auth-btn sidebar-auth-btn--secondary"
-            onClick={openCloudBackup}
-          >
-            Sign in
-          </button>
-        </div>
-      </div>
-    </div>
-  ) : (
+                <button
+                  type="button"
+                  className="sidebar-auth-btn sidebar-auth-btn--secondary"
+                  onClick={openCloudBackup}
+                >
+                  Sign in
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
           <button
             type="button"
             className="sidebar-account-card"
@@ -403,6 +487,6 @@ export function Sidebar({ onNavigate }: SidebarProps) {
       )}
     </div>
   );
-}
+};
 
 export default Sidebar;

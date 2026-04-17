@@ -1,6 +1,6 @@
 /**
  * Standalone Tauri action functions that operate on the Zustand store.
- * These are NOT hooks â€” they can be called from anywhere.
+ * These are NOT hooks — they can be called from anywhere.
  *
  * Browser fallback: when running in a regular browser (phone preview / web mode)
  * all Tauri invoke() calls fall back to localStorage so the app remains usable.
@@ -20,16 +20,95 @@ import { pushProject, deleteCloudProject } from './cloudSync';
 import { suggestEmptyFields } from '../utils/autoSuggest';
 import type { ProjectTemplate } from '../utils/projectTemplates';
 
-// â”€â”€â”€ Free tier limit â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ——————————————————————————————————————————————————————————————————————————————
+// Free tier limit
+// ——————————————————————————————————————————————————————————————————————————————
+
 const MAX_RESTORE_POINTS = 5;
 
-// â”€â”€â”€ Tauri detection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ——————————————————————————————————————————————————————————————————————————————
+// Runtime / platform capability helpers
+// ——————————————————————————————————————————————————————————————————————————————
 
-function isTauri(): boolean {
+export function isDesktopApp(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 }
 
-// â”€â”€â”€ Browser localStorage fallback storage â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+export function isBrowserApp(): boolean {
+  return !isDesktopApp();
+}
+
+
+export function canScanFolders(): boolean {
+  return isDesktopApp();
+}
+
+export function canLinkFolders(): boolean {
+  return isDesktopApp();
+}
+
+export function canRescanLinkedFolders(): boolean {
+  return isDesktopApp();
+}
+
+export function canSyncGit(): boolean {
+  return isDesktopApp();
+}
+
+export function canUseNativeProjectStorage(): boolean {
+  return isDesktopApp();
+}
+
+export function canDownloadFiles(): boolean {
+  return typeof window !== 'undefined' && typeof document !== 'undefined';
+}
+
+export type RuntimeCapabilities = {
+  desktopApp: boolean;
+  browserApp: boolean;
+  folderScan: boolean;
+  folderLink: boolean;
+  linkedFolderRescan: boolean;
+  gitSync: boolean;
+  nativeStorage: boolean;
+  fileDownload: boolean;
+};
+
+export function getRuntimeCapabilities(): RuntimeCapabilities {
+  return {
+    desktopApp: isDesktopApp(),
+    browserApp: isBrowserApp(),
+    folderScan: canScanFolders(),
+    folderLink: canLinkFolders(),
+    linkedFolderRescan: canRescanLinkedFolders(),
+    gitSync: canSyncGit(),
+    nativeStorage: canUseNativeProjectStorage(),
+    fileDownload: canDownloadFiles(),
+  };
+}
+
+export function getUnavailableFeatureMessage(
+  feature: 'folderScan' | 'folderLink' | 'rescan' | 'gitSync' | 'nativeStorage',
+): string {
+  switch (feature) {
+    case 'folderScan':
+      return 'Opening or scanning a local project folder requires the desktop app.';
+    case 'folderLink':
+      return 'Linking a local project folder requires the desktop app.';
+    case 'rescan':
+      return 'Rescanning a linked folder requires the desktop app.';
+    case 'gitSync':
+      return 'Git sync requires the desktop app.';
+    case 'nativeStorage':
+      return 'This feature uses desktop-native storage and requires the desktop app.';
+    default:
+      return 'This feature requires the desktop app.';
+  }
+}
+
+// ——————————————————————————————————————————————————————————————————————————————
+// Browser localStorage fallback storage
+// ——————————————————————————————————————————————————————————————————————————————
 
 const LS_PREFIX = 'mph_project:';
 
@@ -80,7 +159,9 @@ const browserStore = {
   },
 };
 
-// â”€â”€â”€ Tauri lazy imports (only loaded in Tauri context) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ——————————————————————————————————————————————————————————————————————————————
+// Tauri lazy imports (only loaded in Tauri context)
+// ——————————————————————————————————————————————————————————————————————————————
 
 async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   const { invoke } = await import('@tauri-apps/api/core');
@@ -88,8 +169,8 @@ async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Prom
 }
 
 async function openFolderDialog(): Promise<string | null> {
-  if (!isTauri()) {
-    console.warn('Not running in Tauri');
+  if (!canScanFolders()) {
+    console.warn(getUnavailableFeatureMessage('folderScan'));
     return null;
   }
 
@@ -105,7 +186,7 @@ async function openFolderDialog(): Promise<string | null> {
 }
 
 export async function syncGitCommits(projectId: string): Promise<GitCommit[]> {
-  if (!isTauri()) {
+  if (!canSyncGit()) {
     return [];
   }
 
@@ -143,7 +224,10 @@ export async function syncGitCommits(projectId: string): Promise<GitCommit[]> {
     return [];
   }
 }
-// â”€â”€â”€ Old â†” New format conversion â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+// ——————————————————————————————————————————————————————————————————————————————
+// Old ↔ New format conversion
+// ——————————————————————————————————————————————————————————————————————————————
 
 type LegacyLinkedFolder = {
   path?: string;
@@ -255,7 +339,9 @@ export function normalizeOldProject(raw: Record<string, unknown>): ProjectMemory
     aiInstructions:
       typeof legacy.aiInstructions === 'string'
         ? legacy.aiInstructions
-        : typeof legacy.aiInstructions === 'object' && legacy.aiInstructions && typeof legacy.aiInstructions.focus === 'string'
+        : typeof legacy.aiInstructions === 'object' &&
+            legacy.aiInstructions &&
+            typeof legacy.aiInstructions.focus === 'string'
           ? legacy.aiInstructions.focus
           : '',
     linkedFolder: legacy.linkedFolder
@@ -290,7 +376,7 @@ export function normalizeOldProject(raw: Record<string, unknown>): ProjectMemory
               typeof (commit as { hash?: unknown }).hash === 'string' &&
               typeof (commit as { message?: unknown }).message === 'string' &&
               typeof (commit as { timestamp?: unknown }).timestamp === 'string' &&
-              typeof (commit as { author?: unknown }).author === 'string'
+              typeof (commit as { author?: unknown }).author === 'string',
           )
           .map((commit) => ({
             hash: commit.hash,
@@ -307,9 +393,7 @@ export function normalizeOldProject(raw: Record<string, unknown>): ProjectMemory
             const candidate = checkpoint as LegacyCheckpoint;
             if (!candidate.snapshot || typeof candidate.snapshot !== 'object') return null;
 
-            const normalizedSnapshot = cloneCheckpointSnapshot(
-              normalizeOldProject(candidate.snapshot),
-            );
+            const normalizedSnapshot = cloneCheckpointSnapshot(normalizeOldProject(candidate.snapshot));
 
             return {
               id: typeof candidate.id === 'string' ? candidate.id : crypto.randomUUID(),
@@ -349,14 +433,8 @@ export function normalizeOldProject(raw: Record<string, unknown>): ProjectMemory
                 typeof candidate.timestamp === 'string'
                   ? candidate.timestamp
                   : new Date().toISOString(),
-              reason:
-                candidate.reason === 'rescan'
-                  ? 'rescan'
-                  : 'ai_apply',
-              summary:
-                typeof candidate.summary === 'string'
-                  ? candidate.summary
-                  : 'Restore point',
+              reason: candidate.reason === 'rescan' ? 'rescan' : 'ai_apply',
+              summary: typeof candidate.summary === 'string' ? candidate.summary : 'Restore point',
               snapshot: cloneCheckpointSnapshot(normalizeOldProject(candidate.snapshot)),
             };
           })
@@ -377,13 +455,12 @@ export function normalizeOldProject(raw: Record<string, unknown>): ProjectMemory
                 exportCount: platformState.exportCount,
               },
             ];
-          })
+          }),
         )
       : {},
     // ── 1.1.0 optional fields — undefined when not present in raw data ────────
     inProgress: Array.isArray(raw.inProgress)
-      ? (raw.inProgress as unknown[])
-          .filter((s): s is string => typeof s === 'string' && s.trim().length > 0)
+      ? (raw.inProgress as unknown[]).filter((s): s is string => typeof s === 'string' && s.trim().length > 0)
       : undefined,
     lastSessionSummary:
       typeof raw.lastSessionSummary === 'string' && raw.lastSessionSummary.trim()
@@ -409,9 +486,7 @@ export function toOldFormat(project: ProjectMemory): Record<string, unknown> {
     summary: project.summary,
     goals: project.goals,
     rules: project.rules,
-    decisions: project.decisions.map((d) =>
-      typeof d === 'string' ? d : d.decision
-    ),
+    decisions: project.decisions.map((d) => (typeof d === 'string' ? d : d.decision)),
     currentState: project.currentState,
     nextSteps: project.nextSteps,
     openQuestions: project.openQuestions,
@@ -450,7 +525,7 @@ export function toOldFormat(project: ProjectMemory): Record<string, unknown> {
               lastSessionNote: state?.lastSessionNote,
               exportCount: state?.exportCount,
             },
-          ])
+          ]),
         )
       : {},
     snapshots: [],
@@ -459,7 +534,9 @@ export function toOldFormat(project: ProjectMemory): Record<string, unknown> {
   };
 }
 
-// â”€â”€â”€ Scan result types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ——————————————————————————————————————————————————————————————————————————————
+// Scan result types
+// ——————————————————————————————————————————————————————————————————————————————
 
 type PackageInfo = {
   name?: string;
@@ -581,7 +658,9 @@ function serializeProjectAsMarkdown(project: ProjectMemory): string {
   ].join('\n');
 }
 
-// â”€â”€â”€ Core storage operations (with browser fallback) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ——————————————————————————————————————————————————————————————————————————————
+// Core storage operations (with browser fallback)
+// ——————————————————————————————————————————————————————————————————————————————
 
 function projectUpdatedAt(project: ProjectMemory): string {
   if (project.updatedAt) return project.updatedAt;
@@ -620,10 +699,13 @@ export function withRestorePoint(
 ): ProjectMemory {
   const restorePoint = createRestorePoint(project, reason, summary, timestamp);
 
-  return touchProject({
-    ...project,
-    restorePoints: [...(project.restorePoints ?? []), restorePoint].slice(-MAX_RESTORE_POINTS),
-  }, timestamp);
+  return touchProject(
+    {
+      ...project,
+      restorePoints: [...(project.restorePoints ?? []), restorePoint].slice(-MAX_RESTORE_POINTS),
+    },
+    timestamp,
+  );
 }
 
 export async function saveToDisk(project: ProjectMemory): Promise<void> {
@@ -634,7 +716,7 @@ export async function saveToDisk(project: ProjectMemory): Promise<void> {
   const stem = canonicalTauriFileStem(localProject.id);
   const fileName = canonicalTauriFileName(localProject.id);
 
-  if (isTauri()) {
+  if (canUseNativeProjectStorage()) {
     try {
       await tauriInvoke('backup_project_file', { fileName });
     } catch (err) {
@@ -689,7 +771,7 @@ export async function saveToDisk(project: ProjectMemory): Promise<void> {
 }
 
 export async function loadAllFromDisk(): Promise<ProjectMemory[]> {
-  const fileNames = isTauri()
+  const fileNames = canUseNativeProjectStorage()
     ? await tauriInvoke<string[]>('load_projects')
     : browserStore.list();
 
@@ -700,12 +782,12 @@ export async function loadAllFromDisk(): Promise<ProjectMemory[]> {
 
   for (const fileName of fileNames) {
     try {
-      const content = isTauri()
+      const content = canUseNativeProjectStorage()
         ? await tauriInvoke<string>('load_project_file', { fileName })
         : browserStore.load(fileName);
       const project = normalizeOldProject(JSON.parse(content));
 
-      if (isTauri()) {
+      if (canUseNativeProjectStorage()) {
         const canonical = canonicalTauriFileName(project.id);
         if (fileName !== canonical) {
           let canonicalExists = false;
@@ -747,8 +829,8 @@ export async function loadAllFromDisk(): Promise<ProjectMemory[]> {
 
       const updatedAt = projectUpdatedAt(project);
       const canonical =
-        (isTauri() && fileName === canonicalTauriFileName(project.id)) ||
-        (!isTauri() && fileName === canonicalBrowserFileName(project.id));
+        (canUseNativeProjectStorage() && fileName === canonicalTauriFileName(project.id)) ||
+        (!canUseNativeProjectStorage() && fileName === canonicalBrowserFileName(project.id));
 
       const existing = loadedById.get(project.id);
       if (!existing) {
@@ -771,7 +853,9 @@ export async function loadAllFromDisk(): Promise<ProjectMemory[]> {
   return Array.from(loadedById.values()).map((v) => v.project);
 }
 
-// â”€â”€â”€ Actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ——————————————————————————————————————————————————————————————————————————————
+// Actions
+// ——————————————————————————————————————————————————————————————————————————————
 
 const store = () => useProjectStore.getState();
 
@@ -806,9 +890,7 @@ export async function createProject(name: string): Promise<void> {
     importantAssets: [],
     checkpoints: [],
     restorePoints: [],
-    changelog: [
-      { timestamp: now, field: 'general', action: 'added', summary: 'Project created', source: 'app' },
-    ],
+    changelog: [{ timestamp: now, field: 'general', action: 'added', summary: 'Project created', source: 'app' }],
     platformState: {},
   };
 
@@ -816,7 +898,7 @@ export async function createProject(name: string): Promise<void> {
   const suggestions = suggestEmptyFields(baseProject);
   const project: ProjectMemory = {
     ...baseProject,
-    ...(suggestions.summary      && { summary: suggestions.summary }),
+    ...(suggestions.summary && { summary: suggestions.summary }),
     ...(suggestions.currentState && { currentState: suggestions.currentState }),
     ...(suggestions.goals?.length && { goals: suggestions.goals }),
   };
@@ -876,8 +958,8 @@ export async function createProjectFromTemplate(
 }
 
 export async function createProjectFromFolder(): Promise<void> {
-  if (!isTauri()) {
-    store().showToast('Folder scanning requires the desktop app.', 'info');
+  if (!canScanFolders()) {
+    store().showToast(getUnavailableFeatureMessage('folderScan'), 'info');
     return;
   }
 
@@ -951,8 +1033,8 @@ export async function rescanLinkedFolder(): Promise<void> {
     return;
   }
 
-  if (!isTauri()) {
-    store().showToast('Folder scanning requires the desktop app.', 'info');
+  if (!canRescanLinkedFolders()) {
+    store().showToast(getUnavailableFeatureMessage('rescan'), 'info');
     return;
   }
 
@@ -963,7 +1045,7 @@ export async function rescanLinkedFolder(): Promise<void> {
     });
 
     if (!result.folder_exists) {
-      store().showToast('Linked folder not found â€” it may have been moved.', 'error');
+      store().showToast('Linked folder not found — it may have been moved.', 'error');
       return;
     }
 
@@ -976,27 +1058,30 @@ export async function rescanLinkedFolder(): Promise<void> {
       now,
     );
 
-    const updatedProject = touchProject({
-      ...projectWithRestore,
-      importantAssets: result.files.slice(0, 200),
-      linkedFolder: {
-        path: activeProject.linkedFolder.path,
-        scanHash: result.scan_hash,
-        lastScannedAt: now,
-      },
-      changelog: [
-        ...activeProject.changelog,
-        {
-          timestamp: now,
-          field: 'general',
-          action: 'updated',
-          summary: stackSummary
-            ? `Linked project rescanned. ${stackSummary}`
-            : 'Linked project rescanned',
-          source: 'system',
+    const updatedProject = touchProject(
+      {
+        ...projectWithRestore,
+        importantAssets: result.files.slice(0, 200),
+        linkedFolder: {
+          path: activeProject.linkedFolder.path,
+          scanHash: result.scan_hash,
+          lastScannedAt: now,
         },
-      ],
-    }, now);
+        changelog: [
+          ...activeProject.changelog,
+          {
+            timestamp: now,
+            field: 'general',
+            action: 'updated',
+            summary: stackSummary
+              ? `Linked project rescanned. ${stackSummary}`
+              : 'Linked project rescanned',
+            source: 'system',
+          },
+        ],
+      },
+      now,
+    );
 
     store().updateProject(activeProject.id, updatedProject);
     void saveToDisk(updatedProject);
@@ -1024,22 +1109,25 @@ export async function restoreProjectFromHistory(
   }
 
   const now = new Date().toISOString();
-  const restoredProject: ProjectMemory = touchProject({
-    ...project,
-    ...cloneCheckpointSnapshot(restorePoint.snapshot),
-    checkpoints: [...(project.checkpoints ?? [])],
-    restorePoints: [...(project.restorePoints ?? [])],
-    changelog: [
-      ...restorePoint.snapshot.changelog.map((entry) => ({ ...entry })),
-      {
-        timestamp: now,
-        field: 'general',
-        action: 'updated',
-        summary: `Restored project from ${restorePoint.reason === 'rescan' ? 'rescan' : 'AI apply'} history`,
-        source: 'app',
-      },
-    ],
-  }, now);
+  const restoredProject: ProjectMemory = touchProject(
+    {
+      ...project,
+      ...cloneCheckpointSnapshot(restorePoint.snapshot),
+      checkpoints: [...(project.checkpoints ?? [])],
+      restorePoints: [...(project.restorePoints ?? [])],
+      changelog: [
+        ...restorePoint.snapshot.changelog.map((entry) => ({ ...entry })),
+        {
+          timestamp: now,
+          field: 'general',
+          action: 'updated',
+          summary: `Restored project from ${restorePoint.reason === 'rescan' ? 'rescan' : 'AI apply'} history`,
+          source: 'app',
+        },
+      ],
+    },
+    now,
+  );
 
   store().updateProject(project.id, restoredProject);
   await saveToDisk(restoredProject);
@@ -1054,8 +1142,8 @@ export async function linkFolder(): Promise<void> {
     return;
   }
 
-  if (!isTauri()) {
-    store().showToast('Folder linking requires the desktop app.', 'info');
+  if (!canLinkFolders()) {
+    store().showToast(getUnavailableFeatureMessage('folderLink'), 'info');
     return;
   }
 
@@ -1125,12 +1213,12 @@ export async function deleteProject(id: string): Promise<void> {
   const project = projects.find((p) => p.id === id);
   if (!project) return;
 
-  const fileName = isTauri()
+  const fileName = canUseNativeProjectStorage()
     ? canonicalTauriFileName(project.id)
     : canonicalBrowserFileName(project.id);
 
   try {
-    if (isTauri()) {
+    if (canUseNativeProjectStorage()) {
       await tauriInvoke('delete_project_file', { fileName });
     } else {
       browserStore.delete(fileName);
@@ -1147,7 +1235,7 @@ export async function deleteProject(id: string): Promise<void> {
 }
 
 export async function getProjectsPath(): Promise<string> {
-  if (!isTauri()) {
+  if (!canUseNativeProjectStorage()) {
     return 'Browser storage (localStorage)';
   }
   try {
@@ -1188,6 +1276,33 @@ export async function exportActiveProjectAsMarkdown(): Promise<void> {
   }
 }
 
+export async function exportActiveProjectAsJson(): Promise<void> {
+  const activeProject = store().activeProject();
+  if (!activeProject) {
+    store().showToast('Open a project first.', 'error');
+    return;
+  }
+
+  try {
+    const content = JSON.stringify(toOldFormat(activeProject), null, 2);
+    const blob = new Blob([content], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const safeName = canonicalTauriFileStem(activeProject.name || activeProject.id);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${safeName}.json`;
+    link.rel = 'noopener';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    store().showToast('Project JSON downloaded.');
+  } catch (err) {
+    console.error('JSON export failed:', err);
+    store().showToast('Could not export project JSON.', 'error');
+  }
+}
+
 /**
  * Copy formatted export text to clipboard and record the sync timestamp
  * on the project's platform state.
@@ -1201,7 +1316,7 @@ export async function copyExportToClipboard(
   try {
     await navigator.clipboard.writeText(exportText);
   } catch {
-    showToast('Could not copy to clipboard â€” please try again.', 'error');
+    showToast('Could not copy to clipboard — please try again.', 'error');
     return;
   }
 
@@ -1225,29 +1340,32 @@ export async function copyExportToClipboard(
   const maxCheckpoints = Math.max(1, settings.projects.snapshotCount || 20);
   const existingPlatformState = project.platformState?.[platform] ?? {};
 
-  const updatedProject: ProjectMemory = touchProject({
-    ...project,
-    checkpoints: [...(project.checkpoints ?? []), checkpoint].slice(-maxCheckpoints),
-    platformState: {
-      ...project.platformState,
-      [platform]: {
-        ...existingPlatformState,
-        lastExportHash: hash,
-        lastExportedAt: now,
-        exportCount: (existingPlatformState.exportCount ?? 0) + 1,
+  const updatedProject: ProjectMemory = touchProject(
+    {
+      ...project,
+      checkpoints: [...(project.checkpoints ?? []), checkpoint].slice(-maxCheckpoints),
+      platformState: {
+        ...project.platformState,
+        [platform]: {
+          ...existingPlatformState,
+          lastExportHash: hash,
+          lastExportedAt: now,
+          exportCount: (existingPlatformState.exportCount ?? 0) + 1,
+        },
       },
+      changelog: [
+        ...project.changelog,
+        {
+          timestamp: now,
+          field: 'general',
+          action: 'updated',
+          summary: `Copied project context for ${platform}`,
+          source: 'app',
+        },
+      ],
     },
-    changelog: [
-      ...project.changelog,
-      {
-        timestamp: now,
-        field: 'general',
-        action: 'updated',
-        summary: `Copied project context for ${platform}`,
-        source: 'app',
-      },
-    ],
-  }, now);
+    now,
+  );
 
   const clearedProject: ProjectMemory = {
     ...updatedProject,

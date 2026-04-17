@@ -2,12 +2,18 @@
  * WelcomeScreen - shown when no projects exist.
  *
  * Two modes:
- *   1. Landing: choose guided setup, templates, or folder scan
+ *   1. Landing: choose guided setup, templates, or folder scan / import
  *   2. Wizard: 3-step guided flow that creates a useful first project
  */
-import { useState, type KeyboardEvent } from 'react';
+import { useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react';
 import { useProjectStore } from '../../store/projectStore';
-import { createProjectFromFolder, createProjectFromTemplate, saveToDisk } from '../../services/tauriActions';
+import {
+  isDesktopApp,
+  createProjectFromFolder,
+  createProjectFromTemplate,
+  importProjectFromFile,
+  saveToDisk,
+} from '../../services/tauriActions';
 import type { ProjectMemory } from '../../types/memphant-types';
 import { PROJECT_TEMPLATES } from '../../utils/projectTemplates';
 import type { ProjectTemplate } from '../../utils/projectTemplates';
@@ -84,6 +90,9 @@ export function WelcomeScreen() {
   const setCurrentView = useProjectStore((s) => s.setCurrentView);
   const setSettingsTab = useProjectStore((s) => s.setSettingsTab);
 
+  const importFileRef = useRef<HTMLInputElement>(null);
+  const desktopApp = isDesktopApp();
+
   const canAdvanceStep1 = name.trim().length > 0;
   const canAdvanceStep2 = summary.trim().length > 0;
   const canFinish = firstStep.trim().length > 0;
@@ -127,6 +136,22 @@ export function WelcomeScreen() {
     }
   };
 
+  const handleImportClick = () => {
+    importFileRef.current?.click();
+  };
+
+  const handleImportFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    await importProjectFromFile(file);
+    event.target.value = '';
+  };
+
+  const openDesktopDownload = () => {
+    window.open('https://memephant.com/download', '_blank', 'noopener,noreferrer');
+  };
+
   if (mode === 'landing') {
     return (
       <div className="welcome-screen">
@@ -145,7 +170,11 @@ export function WelcomeScreen() {
               <span className="welcome-flow__number">1</span>
               <div>
                 <strong>Build project memory</strong>
-                <div>Scan a folder or describe the project once.</div>
+                <div>
+                  {desktopApp
+                    ? 'Scan a folder or describe the project once.'
+                    : 'Import a project or describe it once.'}
+                </div>
               </div>
             </div>
             <div className="welcome-flow__step">
@@ -169,14 +198,45 @@ export function WelcomeScreen() {
               <span>Start</span>
               Set up my first project
             </button>
+
             <button className="welcome-btn welcome-btn--secondary" onClick={() => setMode('templates')}>
               <span>Use</span>
               Start from a template
             </button>
-            <button className="welcome-btn welcome-btn--secondary" onClick={() => void createProjectFromFolder()}>
-              <span>Scan</span>
-              Scan a project folder
-            </button>
+
+            {desktopApp ? (
+              <button
+                className="welcome-btn welcome-btn--secondary"
+                onClick={() => void createProjectFromFolder()}
+              >
+                <span>Open</span>
+                Open folder
+              </button>
+            ) : (
+              <>
+                <button className="welcome-btn welcome-btn--secondary" onClick={handleImportClick}>
+                  <span>Import</span>
+                  Import project
+                </button>
+                <input
+                  ref={importFileRef}
+                  type="file"
+                  accept=".json,application/json"
+                  style={{ display: 'none' }}
+                  onChange={(e) => void handleImportFileChange(e)}
+                />
+                <div className="welcome-desktop-note">
+                  <span>Want full project tracking?</span>
+                  <button
+                    type="button"
+                    className="welcome-desktop-note__link"
+                    onClick={openDesktopDownload}
+                  >
+                    Use the desktop app
+                  </button>
+                </div>
+              </>
+            )}
           </div>
 
           <p className="welcome-description">

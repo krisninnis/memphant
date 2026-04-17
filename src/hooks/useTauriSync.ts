@@ -15,48 +15,49 @@ function withUiTimeout<T>(
   label: string,
 ): Promise<T> {
   return new Promise((resolve, reject) => {
-    let settled = false
-    let timedOut = false
+    let settled = false;
+    let timedOut = false;
+
     const timeoutId = window.setTimeout(() => {
-      if (settled) return
-      settled = true
-      timedOut = true
-      console.warn('[useTauriSync] ui_timeout_fired', { label, timeoutMs, uiOnly: true })
-      reject(new Error(message))
-    }, timeoutMs)
+      if (settled) return;
+      settled = true;
+      timedOut = true;
+      console.warn('[useTauriSync] ui_timeout_fired', { label, timeoutMs, uiOnly: true });
+      reject(new Error(message));
+    }, timeoutMs);
 
     promise.then(
       (value) => {
         if (settled) {
           if (timedOut) {
-            console.warn('[useTauriSync] late_resolution_ignored', { label, timeoutMs })
+            console.warn('[useTauriSync] late_resolution_ignored', { label, timeoutMs });
           }
-          return
+          return;
         }
-        settled = true
-        window.clearTimeout(timeoutId)
-        resolve(value)
+        settled = true;
+        window.clearTimeout(timeoutId);
+        resolve(value);
       },
       (error) => {
         if (settled) {
           if (timedOut) {
-            console.warn('[useTauriSync] late_rejection_ignored', { label, timeoutMs, error })
+            console.warn('[useTauriSync] late_rejection_ignored', { label, timeoutMs, error });
           }
-          return
+          return;
         }
-        settled = true
-        window.clearTimeout(timeoutId)
-        console.error('[useTauriSync] ui_timeout_rejected', { label, timeoutMs, error })
-        reject(error)
+        settled = true;
+        window.clearTimeout(timeoutId);
+        console.error('[useTauriSync] ui_timeout_rejected', { label, timeoutMs, error });
+        reject(error);
       },
-    )
+    );
 
     window.setTimeout(() => {
       if (!settled) {
-        console.warn('[useTauriSync] underlying_request_still_in_flight', { label, timeoutMs })
+        console.warn('[useTauriSync] underlying_request_still_in_flight', { label, timeoutMs });
       }
-    }, timeoutMs + 50)
-  })
+    }, timeoutMs + 50);
+  });
 }
 
 export function useTauriSync() {
@@ -149,29 +150,47 @@ export function useTauriSync() {
               console.error('Subscription fetch failed:', err);
             }
 
-            // Only run startup sync when restoring an existing session
-            if (event !== 'INITIAL_SESSION') return;
+            // Treat both restored sessions and fresh manual sign-ins as
+            // account-entry events. On account entry, DO NOT keep device-local
+            // projects visible as if they belong to the signed-in user.
+            const shouldHydrateCloudProjects =
+              event === 'INITIAL_SESSION' || event === 'SIGNED_IN';
+
+            if (!shouldHydrateCloudProjects) return;
 
             if (currentId === incomingUser.id) return;
+
+            // ACCOUNT ISOLATION: A different user (or first-time login) is taking
+            // over. Immediately clear the previous user's projects from the store
+            // so they are never visible to the incoming user, even briefly.
+            console.log('[useTauriSync] ACCOUNT SWITCH DETECTED — clearing local state');
+            store.setProjects([]);
+            store.setActiveProject(null);
 
             store.setSyncStatus('syncing');
 
             try {
-              const projectsToSync = useProjectStore.getState().projects;
-              const { merged, changed, conflicts } = await withUiTimeout(
-                runCloudSyncCycle(projectsToSync, 'startup', incomingUser.id),
+              // Pull ONLY — never push on login. The device may have projects from
+              // a different account on disk. Local projects are ignored here; push
+              // only happens when the user explicitly saves a project.
+              console.log('[useTauriSync] LOCAL PROJECTS IGNORED ON LOGIN — pulling cloud state only');
+              const { merged, conflicts } = await withUiTimeout(
+                runCloudSyncCycle([], 'startup', incomingUser.id),
                 30000,
                 'Cloud restore timed out.',
-                'useTauriSync.initial_session_sync_cycle',
+                'useTauriSync.account_entry_sync_cycle',
               );
 
-              if (changed) {
-                store.setProjects(merged);
+              // Replace the now-empty store with this account's cloud view.
+              console.log(`[useTauriSync] CLOUD PROJECTS LOADED: ${merged.length} projects`);
+              store.setProjects(merged);
+
+              // Select the first project if nothing is active (we just cleared).
+              if (merged.length > 0) {
+                store.setActiveProject(merged[0].id);
               }
 
               if (conflicts.length > 0) {
-                // Remote was newer — inform the user that their local copy was
-                // updated from the cloud (not a destructive conflict, just visibility).
                 store.showToast(
                   `Cloud updated ${conflicts.length} project${conflicts.length === 1 ? '' : 's'} from a newer cloud version.`,
                   'info',
@@ -213,7 +232,6 @@ export function useTauriSync() {
       unsubscribeAuth?.();
     };
   }, [setActiveProject, setLoading, setProjects, showToast]);
-
   useEffect(() => {
     if (!activeProjectId) return;
 
