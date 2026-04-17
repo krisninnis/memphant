@@ -1,7 +1,7 @@
 # Sync and Logout Rules
 
 ## Cloud connection states
-Memphant can be in one of these states:
+Memephant can be in one of these states:
 - Local only
 - Signed in and synced
 - Signed in but sync pending
