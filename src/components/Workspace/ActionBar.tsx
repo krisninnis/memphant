@@ -182,7 +182,7 @@ export function ActionBar() {
             disabled={!hasLinkedFolder || gitSyncState === 'syncing'}
             title={
               !hasLinkedFolder
-                ? 'Link a project folder first'
+                ? 'Link a project folder first to sync Git commits'
                 : 'Read recent commits from the linked project folder'
             }
           >

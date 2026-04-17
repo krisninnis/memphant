@@ -194,28 +194,38 @@ export function WelcomeScreen() {
           </div>
 
           <div className="welcome-actions">
-            <button className="welcome-btn welcome-btn--primary" onClick={() => setMode('wizard')}>
-              <span>Start</span>
-              Set up my first project
-            </button>
-
-            <button className="welcome-btn welcome-btn--secondary" onClick={() => setMode('templates')}>
-              <span>Use</span>
-              Start from a template
-            </button>
-
             {desktopApp ? (
-              <button
-                className="welcome-btn welcome-btn--secondary"
-                onClick={() => void createProjectFromFolder()}
-              >
-                <span>Open</span>
-                Open folder
-              </button>
+              <>
+                {/* PRIMARY: Open an existing codebase */}
+                <button
+                  className="welcome-btn welcome-btn--primary"
+                  onClick={() => void createProjectFromFolder()}
+                >
+                  <span>📂</span>
+                  <span className="welcome-btn__text">
+                    Open a project folder
+                    <small className="welcome-btn__subtitle">Start from an existing codebase</small>
+                  </span>
+                </button>
+
+                {/* SECONDARY: Create blank project */}
+                <button className="welcome-btn welcome-btn--secondary" onClick={() => setMode('wizard')}>
+                  + New Project
+                </button>
+
+                {/* TERTIARY: Templates */}
+                <button className="welcome-btn--link" onClick={() => setMode('templates')}>
+                  From template
+                </button>
+              </>
             ) : (
               <>
+                {/* Web: New project is the primary action */}
+                <button className="welcome-btn welcome-btn--primary" onClick={() => setMode('wizard')}>
+                  + New Project
+                </button>
+
                 <button className="welcome-btn welcome-btn--secondary" onClick={handleImportClick}>
-                  <span>Import</span>
                   Import project
                 </button>
                 <input
@@ -225,6 +235,11 @@ export function WelcomeScreen() {
                   style={{ display: 'none' }}
                   onChange={(e) => void handleImportFileChange(e)}
                 />
+
+                <button className="welcome-btn--link" onClick={() => setMode('templates')}>
+                  From template
+                </button>
+
                 <div className="welcome-desktop-note">
                   <span>Want full project tracking?</span>
                   <button
@@ -411,38 +426,27 @@ export function WelcomeScreen() {
             </button>
           )}
 
-          {step === 1 && (
-            <button
-              className="wizard-btn wizard-btn--primary"
-              onClick={handleNext}
-              disabled={!canAdvanceStep1}
-            >
-              Next
+          {step === 2 && (
+            <button className="wizard-btn wizard-btn--skip" onClick={handleSkipSummary}>
+              Skip for now
             </button>
           )}
 
-          {step === 2 && (
-            <>
-              <button className="wizard-btn wizard-btn--skip" onClick={handleSkipSummary}>
-                Skip for now
-              </button>
-              <button
-                className="wizard-btn wizard-btn--primary"
-                onClick={handleNext}
-                disabled={!canAdvanceStep2}
-              >
-                Next
-              </button>
-            </>
-          )}
-
-          {step === 3 && (
+          {step < 3 ? (
             <button
               className="wizard-btn wizard-btn--primary"
-              onClick={() => void handleCreate()}
-              disabled={!canFinish || creating}
+              disabled={step === 1 ? !canAdvanceStep1 : !canAdvanceStep2}
+              onClick={handleNext}
             >
-              {creating ? 'Creating...' : "Let's go"}
+              Next
+            </button>
+          ) : (
+            <button
+              className="wizard-btn wizard-btn--primary"
+              disabled={!canFinish || creating}
+              onClick={() => void handleCreate()}
+            >
+              {creating ? 'Creating...' : 'Start  Set up my first project'}
             </button>
           )}
         </div>
@@ -457,7 +461,7 @@ export function WelcomeScreen() {
             setFirstStep('');
           }}
         >
-          Back to start
+          Cancel
         </button>
       </div>
     </div>
