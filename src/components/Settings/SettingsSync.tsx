@@ -298,18 +298,21 @@ export function SettingsSync() {
     setSyncStatus('syncing');
 
     try {
-      const projectsToSync = useProjectStore.getState().projects;
-
-      const { merged, changed, conflicts } = await withUiTimeout(
-        runCloudSyncCycle(projectsToSync, 'signin', user.id),
+      // ACCOUNT ISOLATION: Never push local projects into the cloud on sign-in.
+      // The device may have projects from a different account on disk.
+      // Always pull-only on login — push happens only on explicit user saves.
+      console.log('[SettingsSync] LOCAL PROJECTS IGNORED ON LOGIN — pulling cloud state only');
+      const { merged, conflicts } = await withUiTimeout(
+        runCloudSyncCycle([], 'signin', user.id),
         45000,
         'Cloud sync is taking longer than expected - the server may be waking up. Try syncing again.',
         'settings.signin_sync_cycle',
       );
 
-      if (changed) {
-        setProjects(merged);
-      }
+      // Always replace the visible project list with this account's cloud view,
+      // regardless of whether anything "changed" — local projects must not persist.
+      console.log(`[SettingsSync] CLOUD PROJECTS LOADED: ${merged.length} projects`);
+      setProjects(merged);
 
       setLastSyncedAt(new Date().toISOString());
       setSyncStatus('synced');
@@ -1172,5 +1175,6 @@ VITE_SUPABASE_ANON_KEY=your-anon-key`}</pre>
         Your data is stored locally first. Cloud backup is optional and encrypted in transit.
       </p>
     </section>
-  );
+  )
+;
 }

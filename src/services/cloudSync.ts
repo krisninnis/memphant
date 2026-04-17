@@ -1294,6 +1294,19 @@ async function _runCycle(
   const cycleId = nextRequestId('cycle')
   logSync('cycle', 'cycle_start', { reason, cycleId, userId, localCount: localProjects.length })
 
+  // Safety guard: on login/startup reasons, local projects should always be empty.
+  // If they are not, something upstream broke account isolation — log loudly so
+  // the regression is visible in sync logs, and drop them to protect the account.
+  if ((reason === 'signin' || reason === 'startup') && localProjects.length > 0) {
+    console.warn(
+      `[cloudSync] SAFETY: local projects received on ${reason} cycle — dropping ${localProjects.length} to prevent cross-account leak`,
+      { cycleId, userId, projectIds: localProjects.map((p) => p.id) },
+    )
+    logSync('cycle', 'unsafe_local_projects_dropped', { reason, cycleId, userId, count: localProjects.length })
+    // Shadow-reassign: proceed as if localProjects = []
+    localProjects = []
+  }
+
   try {
     // 1. Ensure JWT is fresh before any writes (prevents internal auto-refresh hang)
     logSync('cycle', 'before_ensure_session_fresh', { reason, cycleId, userId })

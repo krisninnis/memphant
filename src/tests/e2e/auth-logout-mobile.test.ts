@@ -41,7 +41,7 @@ const mockDatabases = jest.fn(async () => [
   { name: 'memphant-projects', version: 1 },   // should NOT be deleted
   { name: 'supabase-session', version: 1 },
 ]);
-Object.assign(global, {
+Object.assign(globalThis, {
   indexedDB: {
     databases: mockDatabases,
     deleteDatabase: mockDeleteDatabase,

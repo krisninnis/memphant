@@ -6,9 +6,12 @@ import { initialiseSentry } from "./services/sentryService";
 // Initialise Sentry only if the user opted in (stored in settings).
 // We read the setting directly from localStorage here to avoid waiting for the
 // full Zustand store to hydrate before crash reporting is active.
-globalThis.__MEMPHANT_ENV__ = {
+(globalThis as typeof globalThis & {
+  __MEMPHANT_ENV__?: Record<string, string | undefined>;
+}).__MEMPHANT_ENV__ = {
   ...(import.meta.env as Record<string, string | undefined>),
 };
+
 try {
   const raw = window.localStorage.getItem('mph_settings_v1');
   if (raw) {

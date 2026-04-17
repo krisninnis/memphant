@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react';
 import { useProjectStore } from '../../store/projectStore';
 import { useActiveProject } from '../../hooks/useActiveProject';
 import {
+  isDesktopApp,
   linkFolder,
   rescanLinkedFolder,
   exportActiveProjectAsMarkdown,
+  exportActiveProjectAsJson,
   syncGitCommits,
 } from '../../services/tauriActions';
 import ExportButtons from './ExportButtons';
@@ -38,6 +40,8 @@ export function ActionBar() {
   const [gitSyncState, setGitSyncState] = useState<GitSyncState>('idle');
   const [gitSyncCount, setGitSyncCount] = useState(0);
 
+  const desktopApp = isDesktopApp();
+
   const handleRollback = () => {
     if (!preAiBackup) {
       showToast('Nothing to undo.');
@@ -61,6 +65,11 @@ export function ActionBar() {
   };
 
   const handleSyncGit = async () => {
+    if (!desktopApp) {
+      showToast('Git sync requires the desktop app.', 'info');
+      return;
+    }
+
     if (!activeProject?.id || !activeProject.linkedFolder?.path || gitSyncState === 'syncing') {
       return;
     }
@@ -127,7 +136,7 @@ export function ActionBar() {
 
       <TaskField />
 
-      {pendingGitCommits.length > 0 && (
+      {desktopApp && pendingGitCommits.length > 0 && (
         <div className="action-bar__git-note">
           {pendingGitCommits.length} commit{pendingGitCommits.length === 1 ? '' : 's'} will be included in your next AI export.
         </div>
@@ -143,37 +152,43 @@ export function ActionBar() {
           {activationCopied ? 'Activation copied' : 'Activate update loop'}
         </button>
 
-        {!hasLinkedFolder ? (
-          <button
-            type="button"
-            className="action-bar__btn"
-            onClick={() => void linkFolder()}
-          >
-            Link project folder
-          </button>
-        ) : (
-          <button
-            type="button"
-            className="action-bar__btn"
-            onClick={() => void rescanLinkedFolder()}
-          >
-            Rescan linked folder
-          </button>
+        {desktopApp && (
+          !hasLinkedFolder ? (
+            <button
+              type="button"
+              className="action-bar__btn"
+              onClick={() => void linkFolder()}
+              title="Link a local project folder to enable rescans and Git-aware exports"
+            >
+              Link project folder
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="action-bar__btn"
+              onClick={() => void rescanLinkedFolder()}
+              title="Rescan the linked local project folder"
+            >
+              Rescan linked folder
+            </button>
+          )
         )}
 
-        <button
-          type="button"
-          className={`action-bar__btn${gitSyncState === 'found' ? ' action-bar__btn--success' : ''}`}
-          onClick={() => void handleSyncGit()}
-          disabled={!hasLinkedFolder || gitSyncState === 'syncing'}
-          title={
-            !hasLinkedFolder
-              ? 'Link a project folder first'
-              : 'Read recent commits from the linked project folder'
-          }
-        >
-          {syncGitLabel}
-        </button>
+        {desktopApp && (
+          <button
+            type="button"
+            className={`action-bar__btn${gitSyncState === 'found' ? ' action-bar__btn--success' : ''}`}
+            onClick={() => void handleSyncGit()}
+            disabled={!hasLinkedFolder || gitSyncState === 'syncing'}
+            title={
+              !hasLinkedFolder
+                ? 'Link a project folder first'
+                : 'Read recent commits from the linked project folder'
+            }
+          >
+            {syncGitLabel}
+          </button>
+        )}
 
         <button
           type="button"
@@ -183,6 +198,17 @@ export function ActionBar() {
         >
           Save as file
         </button>
+
+        {!desktopApp && (
+          <button
+            type="button"
+            className="action-bar__btn"
+            onClick={() => void exportActiveProjectAsJson()}
+            title="Download this project as a JSON file for web/mobile use"
+          >
+            Export project JSON
+          </button>
+        )}
 
         {preAiBackup && (
           <button

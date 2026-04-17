@@ -197,3 +197,46 @@
   border-color: #7eb8f7;
   color: #d0e8ff;
 }
+.sidebar-desktop-prompt {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  top: 340px;
+  z-index: 20;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(11, 18, 43, 0.96);
+  color: #fff;
+  border-radius: 14px;
+  padding: 0.85rem 1rem;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.28);
+  animation: sidebarPromptRise 0.45s ease, sidebarPromptFadeOut 0.5s ease 4.5s forwards;
+}
+
+.sidebar-desktop-prompt:hover {
+  border-color: rgba(142, 197, 255, 0.45);
+}
+
+@keyframes sidebarPromptRise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes sidebarPromptFadeOut {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
