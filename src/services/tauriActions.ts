@@ -105,6 +105,10 @@ async function openFolderDialog(): Promise<string | null> {
 }
 
 export async function syncGitCommits(projectId: string): Promise<GitCommit[]> {
+  if (!isTauri()) {
+    return [];
+  }
+
   const state = store();
   const project = state.projects.find((p) => p.id === projectId);
 
