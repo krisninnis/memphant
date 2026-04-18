@@ -8,6 +8,14 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 // In-process Promise queue — equivalent to processLock from @supabase/auth-js.
 // Avoids importing a transitive package directly (no type declarations in the
 // build environment). Never steals the lock; correct for a single-window app.
+//
+// Safety: if fn() never settles (e.g. a fetch that hangs indefinitely because
+// the server accepts the TCP connection but never responds), the lock would be
+// held forever, causing every subsequent auth op — including the upsert's
+// internal _getAccessToken() → getSession() — to queue up and never run.
+// The force-release timer breaks this: after LOCK_MAX_HOLD_MS the lock is
+// released even if fn() is still in flight, so the queue drains.
+const LOCK_MAX_HOLD_MS = 8_000;
 let _lockQueue: Promise<unknown> = Promise.resolve();
 async function processLock<R>(
   _name: string,
@@ -17,10 +25,12 @@ async function processLock<R>(
   const current = _lockQueue;
   let release: () => void = () => {};
   _lockQueue = new Promise((r) => { release = r as () => void; });
+  const forceReleaseTimer = setTimeout(release, LOCK_MAX_HOLD_MS);
   try {
     await current;
     return await fn();
   } finally {
+    clearTimeout(forceReleaseTimer);
     release();
   }
 }
