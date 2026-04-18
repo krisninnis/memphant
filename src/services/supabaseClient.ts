@@ -17,10 +17,15 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 // released even if fn() is still in flight, so the queue drains.
 // LOCK_MAX_HOLD_MS: maximum time fn() may hold the lock once it *starts running*.
 // Queue wait time is excluded — the timer only starts after await current resolves.
-// 10s is generous enough for slow auth refreshes but short enough to prevent an
-// indefinitely-stalled refreshSession() from blocking all subsequent getSession()
-// calls (which would cause the upsert's _getAccessToken() to wait forever).
-const LOCK_MAX_HOLD_MS = 10_000;
+//
+// Why 5s: ensureSessionFresh has its own 6s race timer for refreshSession().
+// With a 10s force-release, refreshSession() held the lock for ~10s, leaving
+// the upsert's _getAccessToken() → getSession() waiting until just before the
+// 15s HTTP timeout fired — only ~5s of actual HTTP time. At 5s force-release,
+// the lock is freed ~1s before session_refresh_failed (6s) is logged, so the
+// upsert's getSession() runs immediately after and the HTTP request gets
+// nearly the full 15s window. refreshSession() continues in the background.
+const LOCK_MAX_HOLD_MS = 5_000;
 let _lockQueue: Promise<unknown> = Promise.resolve();
 async function processLock<R>(
   _name: string,
