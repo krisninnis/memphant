@@ -10,6 +10,7 @@ import {
   fetchSubscription,
   pendingCount,
 } from '../../services/cloudSync';
+import type { ProjectMemory } from '../../types/memphant-types';
 
 type AppEnv = {
   VITE_APP_URL?: string;
@@ -34,6 +35,7 @@ function withUiTimeout<T>(
   timeoutMs: number,
   message: string,
   label: string,
+  onLateSuccess?: (value: T) => void,
 ): Promise<T> {
   return new Promise((resolve, reject) => {
     let settled = false;
@@ -50,7 +52,8 @@ function withUiTimeout<T>(
       (value) => {
         if (settled) {
           if (timedOut) {
-            console.warn('[SettingsSync] late_resolution_ignored', { label, timeoutMs });
+            console.warn('[SettingsSync] late_resolution_applying', { label, timeoutMs });
+            onLateSuccess?.(value);
           }
           return;
         }
@@ -244,6 +247,7 @@ export function SettingsSync() {
   const lastSyncedAt = useProjectStore((s) => s.lastSyncedAt);
   const projects = useProjectStore((s) => s.projects);
   const setProjects = useProjectStore((s) => s.setProjects);
+  const clearVisibleProjects = useProjectStore((s) => s.clearVisibleProjects);
   const setCloudUser = useProjectStore((s) => s.setCloudUser);
   const setCloudDisconnecting = useProjectStore((s) => s.setCloudDisconnecting);
   const setSyncStatus = useProjectStore((s) => s.setSyncStatus);
@@ -255,7 +259,9 @@ export function SettingsSync() {
   const setSubscriptionTier = useProjectStore((s) => s.setSubscriptionTier);
   const setSubscriptionStatus = useProjectStore((s) => s.setSubscriptionStatus);
 
-  const [mode, setMode] = useState<'signin' | 'signup' | 'reset' | 'resetSent' | 'emailSent' | 'oauthPending'>('signin');
+  const [mode, setMode] = useState<
+    'signin' | 'signup' | 'reset' | 'resetSent' | 'emailSent' | 'oauthPending'
+  >('signin');
   const [oauthProvider, setOauthProvider] = useState<'google' | 'apple' | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -296,36 +302,46 @@ export function SettingsSync() {
     }
 
     setSyncStatus('syncing');
+    clearVisibleProjects();
 
     try {
       // ACCOUNT ISOLATION: Never push local projects into the cloud on sign-in.
       // The device may have projects from a different account on disk.
       // Always pull-only on login — push happens only on explicit user saves.
-      console.log('[SettingsSync] LOCAL PROJECTS IGNORED ON LOGIN — pulling cloud state only');
+      console.warn('[SettingsSync] LOCAL PROJECTS IGNORED ON LOGIN — pulling cloud state only');
+
+      const applySignInResult = (merged: ProjectMemory[], conflicts: string[]) => {
+        const st = useProjectStore.getState();
+        // Always replace the visible project list with this account's cloud view,
+        // regardless of whether anything "changed" — local projects must not persist.
+        console.warn(`[SettingsSync] CLOUD PROJECTS LOADED: ${merged.length} projects`);
+        st.setProjects(merged);
+        st.setActiveProject(merged.length > 0 ? merged[0].id : null);
+        st.setLastSyncedAt(new Date().toISOString());
+        st.setSyncStatus('synced');
+        setSyncErrorDetails('');
+        if (conflicts.length > 0) {
+          st.showToast(
+            `Signed in. Cloud updated ${conflicts.length} project${conflicts.length === 1 ? '' : 's'} from a newer cloud version.`,
+            'info',
+          );
+        } else {
+          st.showToast('Signed in. Cloud backup is now synced.');
+        }
+      };
+
       const { merged, conflicts } = await withUiTimeout(
         runCloudSyncCycle([], 'signin', user.id),
         45000,
         'Cloud sync is taking longer than expected - the server may be waking up. Try syncing again.',
         'settings.signin_sync_cycle',
+        ({ merged: lateM, conflicts: lateC }) => {
+          console.warn('[SettingsSync] LATE CLOUD RESULT ARRIVED — applying to store');
+          applySignInResult(lateM, lateC);
+        },
       );
 
-      // Always replace the visible project list with this account's cloud view,
-      // regardless of whether anything "changed" — local projects must not persist.
-      console.log(`[SettingsSync] CLOUD PROJECTS LOADED: ${merged.length} projects`);
-      setProjects(merged);
-
-      setLastSyncedAt(new Date().toISOString());
-      setSyncStatus('synced');
-      setSyncErrorDetails('');
-
-      if (conflicts.length > 0) {
-        showToast(
-          `Signed in. Cloud updated ${conflicts.length} project${conflicts.length === 1 ? '' : 's'} from a newer cloud version.`,
-          'info',
-        );
-      } else {
-        showToast('Signed in. Cloud backup is now synced.');
-      }
+      applySignInResult(merged, conflicts);
     } catch (err) {
       const message = errorMessage(err, 'Cloud sync failed.');
       setSyncStatus('error');
@@ -472,6 +488,11 @@ VITE_SUPABASE_ANON_KEY=your-anon-key`}</pre>
 
     try {
       await logoutCloudAccount();
+
+      // Clear visible project state immediately so no previous-account data
+      // remains on screen after logout.
+      clearVisibleProjects();
+
       resetCloudState();
       setMode('signin');
       setOauthProvider(null);
@@ -664,6 +685,7 @@ VITE_SUPABASE_ANON_KEY=your-anon-key`}</pre>
         <DeleteAccountSection
           cloudUser={cloudUser}
           onDeleted={() => {
+            clearVisibleProjects();
             resetCloudState();
             showToast('Your account has been deleted.');
           }}
@@ -1175,6 +1197,5 @@ VITE_SUPABASE_ANON_KEY=your-anon-key`}</pre>
         Your data is stored locally first. Cloud backup is optional and encrypted in transit.
       </p>
     </section>
-  )
-;
+  );
 }

@@ -3,6 +3,7 @@ import { useProjectStore } from '../store/projectStore';
 import { loadAllFromDisk, saveToDisk } from '../services/tauriActions';
 import { fetchSubscription, runCloudSyncCycle } from '../services/cloudSync';
 import { supabase, cloudAvailable } from '../services/supabaseClient';
+import type { ProjectMemory } from '../types/memphant-types';
 
 function isTauri(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -13,6 +14,7 @@ function withUiTimeout<T>(
   timeoutMs: number,
   message: string,
   label: string,
+  onLateSuccess?: (value: T) => void,
 ): Promise<T> {
   return new Promise((resolve, reject) => {
     let settled = false;
@@ -30,7 +32,8 @@ function withUiTimeout<T>(
       (value) => {
         if (settled) {
           if (timedOut) {
-            console.warn('[useTauriSync] late_resolution_ignored', { label, timeoutMs });
+            console.warn('[useTauriSync] late_resolution_applying', { label, timeoutMs });
+            onLateSuccess?.(value);
           }
           return;
         }
@@ -62,6 +65,7 @@ function withUiTimeout<T>(
 
 export function useTauriSync() {
   const setProjects = useProjectStore((s) => s.setProjects);
+  const clearVisibleProjects = useProjectStore((s) => s.clearVisibleProjects);
   const projects = useProjectStore((s) => s.projects);
   const activeProjectId = useProjectStore((s) => s.activeProjectId);
   const setActiveProject = useProjectStore((s) => s.setActiveProject);
@@ -102,9 +106,9 @@ export function useTauriSync() {
       setLoading(true);
 
       try {
-        // Step 1: Load local data from disk first
+        // Step 1: Load local data from disk, but do not immediately publish it
+        // into the visible workspace before auth state is known.
         const loaded = await loadAllFromDisk();
-        setProjects(loaded);
 
         // Step 2: Attach auth listener after local projects are loaded
         if (supabase && cloudAvailable) {
@@ -114,6 +118,8 @@ export function useTauriSync() {
             const store = useProjectStore.getState();
 
             if (event === 'SIGNED_OUT') {
+              console.warn('[CloudSync] ACCOUNT LOGOUT — clearing visible workspace');
+              store.clearVisibleProjects();
               store.resetCloudState();
               return;
             }
@@ -121,7 +127,11 @@ export function useTauriSync() {
             if (event === 'TOKEN_REFRESHED') return;
 
             const sessionUser = session?.user;
-            if (!sessionUser?.email) return;
+            if (!sessionUser?.email) {
+              store.clearVisibleProjects();
+              store.resetCloudState();
+              return;
+            }
 
             const incomingUser = {
               id: sessionUser.id,
@@ -163,9 +173,8 @@ export function useTauriSync() {
             // ACCOUNT ISOLATION: A different user (or first-time login) is taking
             // over. Immediately clear the previous user's projects from the store
             // so they are never visible to the incoming user, even briefly.
-            console.log('[useTauriSync] ACCOUNT SWITCH DETECTED — clearing local state');
-            store.setProjects([]);
-            store.setActiveProject(null);
+            console.warn('[useTauriSync] ACCOUNT SWITCH DETECTED — clearing visible workspace');
+            store.clearVisibleProjects();
 
             store.setSyncStatus('syncing');
 
@@ -173,32 +182,36 @@ export function useTauriSync() {
               // Pull ONLY — never push on login. The device may have projects from
               // a different account on disk. Local projects are ignored here; push
               // only happens when the user explicitly saves a project.
-              console.log('[useTauriSync] LOCAL PROJECTS IGNORED ON LOGIN — pulling cloud state only');
+              console.warn('[useTauriSync] LOCAL PROJECTS IGNORED ON LOGIN — pulling cloud state only');
+
+              const applyCloudResult = (merged: ProjectMemory[], conflicts: string[]) => {
+                const st = useProjectStore.getState();
+                console.warn(`[useTauriSync] CLOUD PROJECTS LOADED: ${merged.length} projects`);
+                st.setProjects(merged);
+                st.setActiveProject(merged[0]?.id ?? null);
+                if (conflicts.length > 0) {
+                  st.showToast(
+                    `Cloud updated ${conflicts.length} project${conflicts.length === 1 ? '' : 's'} from a newer cloud version.`,
+                    'info',
+                  );
+                }
+                st.setLastSyncedAt(new Date().toISOString());
+                st.setSyncStatus('synced');
+              };
+
               const { merged, conflicts } = await withUiTimeout(
                 runCloudSyncCycle([], 'startup', incomingUser.id),
                 30000,
                 'Cloud restore timed out.',
                 'useTauriSync.account_entry_sync_cycle',
+                ({ merged: lateM, conflicts: lateC }) => {
+                  console.warn('[useTauriSync] LATE CLOUD RESULT ARRIVED — applying to store');
+                  useProjectStore.getState().setSyncStatus('synced');
+                  applyCloudResult(lateM, lateC);
+                },
               );
 
-              // Replace the now-empty store with this account's cloud view.
-              console.log(`[useTauriSync] CLOUD PROJECTS LOADED: ${merged.length} projects`);
-              store.setProjects(merged);
-
-              // Select the first project if nothing is active (we just cleared).
-              if (merged.length > 0) {
-                store.setActiveProject(merged[0].id);
-              }
-
-              if (conflicts.length > 0) {
-                store.showToast(
-                  `Cloud updated ${conflicts.length} project${conflicts.length === 1 ? '' : 's'} from a newer cloud version.`,
-                  'info',
-                );
-              }
-
-              store.setLastSyncedAt(new Date().toISOString());
-              store.setSyncStatus('synced');
+              applyCloudResult(merged, conflicts);
             } catch (err) {
               console.error('Cloud sync failed:', err);
               store.setSyncStatus('error');
@@ -207,6 +220,10 @@ export function useTauriSync() {
           });
 
           unsubscribeAuth = () => subscription.unsubscribe();
+        } else {
+          // No cloud auth available at all: local-only mode is allowed to
+          // show device-local projects immediately.
+          setProjects(loaded);
         }
 
         // Step 3: Select a default active project only if nothing is selected yet
@@ -231,7 +248,7 @@ export function useTauriSync() {
     return () => {
       unsubscribeAuth?.();
     };
-  }, [setActiveProject, setLoading, setProjects, showToast]);
+  }, [clearVisibleProjects, setActiveProject, setLoading, setProjects, showToast]);
   useEffect(() => {
     if (!activeProjectId) return;
 
