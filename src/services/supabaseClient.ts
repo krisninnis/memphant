@@ -15,7 +15,12 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 // internal _getAccessToken() → getSession() — to queue up and never run.
 // The force-release timer breaks this: after LOCK_MAX_HOLD_MS the lock is
 // released even if fn() is still in flight, so the queue drains.
-const LOCK_MAX_HOLD_MS = 8_000;
+// LOCK_MAX_HOLD_MS: maximum time fn() may hold the lock once it *starts running*.
+// Queue wait time is excluded — the timer only starts after await current resolves.
+// 10s is generous enough for slow auth refreshes but short enough to prevent an
+// indefinitely-stalled refreshSession() from blocking all subsequent getSession()
+// calls (which would cause the upsert's _getAccessToken() to wait forever).
+const LOCK_MAX_HOLD_MS = 10_000;
 let _lockQueue: Promise<unknown> = Promise.resolve();
 async function processLock<R>(
   _name: string,
@@ -25,12 +30,16 @@ async function processLock<R>(
   const current = _lockQueue;
   let release: () => void = () => {};
   _lockQueue = new Promise((r) => { release = r as () => void; });
-  const forceReleaseTimer = setTimeout(release, LOCK_MAX_HOLD_MS);
   try {
-    await current;
-    return await fn();
+    await current; // wait for the previous operation to finish
+    // Force-release starts HERE — after queue wait, measuring fn() hold time only.
+    const forceReleaseTimer = setTimeout(release, LOCK_MAX_HOLD_MS);
+    try {
+      return await fn();
+    } finally {
+      clearTimeout(forceReleaseTimer);
+    }
   } finally {
-    clearTimeout(forceReleaseTimer);
     release();
   }
 }
