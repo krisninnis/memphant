@@ -65,7 +65,6 @@ function withUiTimeout<T>(
 
 export function useTauriSync() {
   const setProjects = useProjectStore((s) => s.setProjects);
-  const clearVisibleProjects = useProjectStore((s) => s.clearVisibleProjects);
   const projects = useProjectStore((s) => s.projects);
   const activeProjectId = useProjectStore((s) => s.activeProjectId);
   const setActiveProject = useProjectStore((s) => s.setActiveProject);
@@ -119,7 +118,7 @@ export function useTauriSync() {
 
             if (event === 'SIGNED_OUT') {
               console.warn('[CloudSync] ACCOUNT LOGOUT — clearing visible workspace');
-              store.clearVisibleProjects();
+              store.setProjects([]);
               store.resetCloudState();
               return;
             }
@@ -128,7 +127,7 @@ export function useTauriSync() {
 
             const sessionUser = session?.user;
             if (!sessionUser?.email) {
-              store.clearVisibleProjects();
+              store.setProjects([]);
               store.resetCloudState();
               return;
             }
@@ -248,7 +247,7 @@ export function useTauriSync() {
     return () => {
       unsubscribeAuth?.();
     };
-  }, [clearVisibleProjects, setActiveProject, setLoading, setProjects, showToast]);
+  }, [setActiveProject, setLoading, setProjects, showToast]);
   useEffect(() => {
     if (!activeProjectId) return;
 

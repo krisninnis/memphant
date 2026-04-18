@@ -247,7 +247,6 @@ export function SettingsSync() {
   const lastSyncedAt = useProjectStore((s) => s.lastSyncedAt);
   const projects = useProjectStore((s) => s.projects);
   const setProjects = useProjectStore((s) => s.setProjects);
-  const clearVisibleProjects = useProjectStore((s) => s.clearVisibleProjects);
   const setCloudUser = useProjectStore((s) => s.setCloudUser);
   const setCloudDisconnecting = useProjectStore((s) => s.setCloudDisconnecting);
   const setSyncStatus = useProjectStore((s) => s.setSyncStatus);
@@ -302,7 +301,7 @@ export function SettingsSync() {
     }
 
     setSyncStatus('syncing');
-    clearVisibleProjects();
+    setProjects([]);
 
     try {
       // ACCOUNT ISOLATION: Never push local projects into the cloud on sign-in.
@@ -491,7 +490,7 @@ VITE_SUPABASE_ANON_KEY=your-anon-key`}</pre>
 
       // Clear visible project state immediately so no previous-account data
       // remains on screen after logout.
-      clearVisibleProjects();
+      setProjects([]);
 
       resetCloudState();
       setMode('signin');
@@ -685,7 +684,7 @@ VITE_SUPABASE_ANON_KEY=your-anon-key`}</pre>
         <DeleteAccountSection
           cloudUser={cloudUser}
           onDeleted={() => {
-            clearVisibleProjects();
+            setProjects([]);
             resetCloudState();
             showToast('Your account has been deleted.');
           }}
