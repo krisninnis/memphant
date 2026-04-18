@@ -173,7 +173,7 @@ export function useTauriSync() {
             // over. Immediately clear the previous user's projects from the store
             // so they are never visible to the incoming user, even briefly.
             console.warn('[useTauriSync] ACCOUNT SWITCH DETECTED — clearing visible workspace');
-            store.clearVisibleProjects();
+            store.setProjects([]);
 
             store.setSyncStatus('syncing');
 
