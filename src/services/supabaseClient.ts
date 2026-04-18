@@ -8,9 +8,12 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 // In-process Promise queue — equivalent to processLock from @supabase/auth-js.
 // Avoids importing a transitive package directly (no type declarations in the
 // build environment). Never steals the lock; correct for a single-window app.
-type LockFunc = (name: string, acquireTimeout: number, fn: () => Promise<unknown>) => Promise<unknown>;
 let _lockQueue: Promise<unknown> = Promise.resolve();
-const processLock: LockFunc = async (_name, _acquireTimeout, fn) => {
+async function processLock<R>(
+  _name: string,
+  _acquireTimeout: number,
+  fn: () => Promise<R>,
+): Promise<R> {
   const current = _lockQueue;
   let release: () => void = () => {};
   _lockQueue = new Promise((r) => { release = r as () => void; });
@@ -20,7 +23,7 @@ const processLock: LockFunc = async (_name, _acquireTimeout, fn) => {
   } finally {
     release();
   }
-};
+}
 
 const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const key = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
