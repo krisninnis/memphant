@@ -4,6 +4,7 @@
  * checks `cloudAvailable` before attempting any network calls.
  */
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { processLock } from '@supabase/auth-js';
 
 const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const key = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
@@ -142,6 +143,15 @@ export const supabase: SupabaseClient | null = cloudAvailable
         autoRefreshToken: false,
         persistSession: true,
         detectSessionInUrl: true,
+        // Use a simple in-process Promise queue instead of the Navigator Locks API.
+        // The Navigator lock has a 5s steal timeout: if ANY auth operation (e.g.
+        // refreshSession during ensureSessionFresh) holds the lock for >5s, any
+        // concurrent getSession() call (fired internally by every DB query via
+        // _getAccessToken) forcefully steals the lock, causing the holder to throw
+        // "Lock was released because another request stole it".
+        // processLock never steals — it queues and waits. Safe for a single-window
+        // Tauri desktop app where cross-tab protection is not needed.
+        lock: processLock,
       },
       global: {
         fetch: instrumentedFetch,
