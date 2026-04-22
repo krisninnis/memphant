@@ -4,5 +4,6 @@ export const open = jest.fn().mockResolvedValue(null);
 export const save = jest.fn().mockResolvedValue(null);
 export const openUrl = jest.fn().mockResolvedValue(undefined);
 export const check = jest.fn().mockResolvedValue(null);
+export const isTauri = jest.fn(() => false);
 export const getSession = jest.fn().mockResolvedValue({ data: { session: null } });
 export default {};

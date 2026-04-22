@@ -6,6 +6,7 @@
  * all Tauri invoke() calls fall back to localStorage so the app remains usable.
  */
 import { useProjectStore } from '../store/projectStore';
+import { isDesktopApp, isBrowserApp } from '../utils/runtime';
 import type {
   ChangelogEntry,
   PlatformState,
@@ -30,13 +31,7 @@ const MAX_RESTORE_POINTS = 5;
 // Runtime / platform capability helpers
 // ——————————————————————————————————————————————————————————————————————————————
 
-export function isDesktopApp(): boolean {
-  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
-}
-
-export function isBrowserApp(): boolean {
-  return !isDesktopApp();
-}
+export { isDesktopApp, isBrowserApp } from '../utils/runtime';
 
 
 export function canScanFolders(): boolean {
@@ -477,7 +472,7 @@ export function toOldFormat(project: ProjectMemory): Record<string, unknown> {
   const updatedAt = project.updatedAt || projectUpdatedAt(project) || new Date().toISOString();
 
   return {
-    schema_version: '0.2.0',
+    schema_version: SCHEMA_VERSION,
     id: project.id,
     projectName: project.name,
     created: new Date().toISOString(),
