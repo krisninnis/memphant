@@ -13,6 +13,7 @@ import {
 } from '../../utils/diffEngine';
 import { extractStructuredProjectUpdate, runLocalAiAction } from '../../services/localAiService';
 import { getChangesSince } from '../../utils/getChangesSince';
+import { getPlatformConfig } from '../../utils/platformRegistry';
 import DiffPreview from './DiffPreview';
 import type { DetectedUpdate } from '../../utils/diffEngine';
 import type { DiffResult, ProjectCheckpoint } from '../../types/memphant-types';
@@ -58,6 +59,8 @@ export function PasteZone() {
   const setPreAiBackup = useProjectStore((s) => s.setPreAiBackup);
   const showToast = useProjectStore((s) => s.showToast);
   const targetPlatform = useProjectStore((s) => s.targetPlatform);
+  const platformSettings = useProjectStore((s) => s.settings.platforms);
+  const targetPlatformLabel = getPlatformConfig(targetPlatform, platformSettings).name;
   const localAiSettings = useProjectStore((s) => s.settings.localAi);
   const [localAiActionBusy, setLocalAiActionBusy] = useState(false);
   const [localAiActionTitle, setLocalAiActionTitle] = useState('');
@@ -377,7 +380,7 @@ const recentChanges = deduplicateChanges(allRecentChanges);
     const projectWithRestore = withRestorePoint(
       activeProject,
       'ai_apply',
-      `Before AI apply for ${targetPlatform}`,
+      `Before AI apply for ${targetPlatformLabel}`,
     );
 
     const mergedProject = applyUpdate(projectWithRestore, detectedUpdate, {
