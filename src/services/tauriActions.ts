@@ -6,19 +6,23 @@
  * all Tauri invoke() calls fall back to localStorage so the app remains usable.
  */
 import { useProjectStore } from '../store/projectStore';
+import { isDesktopApp, isBrowserApp } from '../utils/runtime';
 import type {
   ChangelogEntry,
+  Decision,
   PlatformState,
   ProjectMemory,
   Platform,
   ProjectCheckpoint,
   ProjectRestorePoint,
   GitCommit,
+  ProjectNextIds,
 } from '../types/memphant-types';
 import { cloneCheckpointSnapshot, hashProjectState, SCHEMA_VERSION } from '../types/memphant-types';
 import { pushProject, deleteCloudProject } from './cloudSync';
 import { suggestEmptyFields } from '../utils/autoSuggest';
 import type { ProjectTemplate } from '../utils/projectTemplates';
+import { ensureProjectStableIds } from '../utils/stableItemIds';
 
 // ——————————————————————————————————————————————————————————————————————————————
 // Free tier limit
@@ -30,13 +34,7 @@ const MAX_RESTORE_POINTS = 5;
 // Runtime / platform capability helpers
 // ——————————————————————————————————————————————————————————————————————————————
 
-export function isDesktopApp(): boolean {
-  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
-}
-
-export function isBrowserApp(): boolean {
-  return !isDesktopApp();
-}
+export { isDesktopApp, isBrowserApp } from '../utils/runtime';
 
 
 export function canScanFolders(): boolean {
@@ -267,7 +265,63 @@ type LegacyProject = Record<string, unknown> & {
   checkpoints?: unknown;
   restorePoints?: unknown;
   platformState?: Record<string, unknown>;
+  goalIds?: unknown;
+  ruleIds?: unknown;
+  openQuestionIds?: unknown;
+  nextIds?: unknown;
 };
+
+function normalizeStableIdArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return value.filter(
+    (item): item is string => typeof item === 'string' && item.trim().length > 0,
+  );
+}
+
+function normalizeStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(
+    (item): item is string => typeof item === 'string' && item.trim().length > 0,
+  );
+}
+
+function normalizeDecision(value: unknown): Decision | null {
+  if (typeof value === 'string') {
+    return { decision: value };
+  }
+
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  if (typeof candidate.decision !== 'string') {
+    return null;
+  }
+
+  return {
+    decision: candidate.decision,
+    rationale: typeof candidate.rationale === 'string' ? candidate.rationale : undefined,
+    alternativesConsidered: normalizeStringArray(candidate.alternativesConsidered),
+    source: typeof candidate.source === 'string' ? candidate.source : undefined,
+    timestamp: typeof candidate.timestamp === 'string' ? candidate.timestamp : undefined,
+    id: typeof candidate.id === 'string' ? candidate.id : undefined,
+  };
+}
+
+function normalizeNextIds(value: unknown): ProjectNextIds | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+
+  const candidate = value as Record<string, unknown>;
+  const D = typeof candidate.D === 'number' && candidate.D > 0 ? candidate.D : undefined;
+  const R = typeof candidate.R === 'number' && candidate.R > 0 ? candidate.R : undefined;
+  const G = typeof candidate.G === 'number' && candidate.G > 0 ? candidate.G : undefined;
+  const Q = typeof candidate.Q === 'number' && candidate.Q > 0 ? candidate.Q : undefined;
+
+  if (!D || !R || !G || !Q) return undefined;
+
+  return { D, R, G, Q };
+}
 
 export function normalizeOldProject(raw: Record<string, unknown>): ProjectMemory {
   const legacy = raw as LegacyProject;
@@ -317,25 +371,20 @@ export function normalizeOldProject(raw: Record<string, unknown>): ProjectMemory
       'Untitled',
     updatedAt: derivedUpdatedAt,
     summary: typeof legacy.summary === 'string' ? legacy.summary : '',
-    goals: Array.isArray(raw.goals) ? raw.goals : [],
-    rules: Array.isArray(raw.rules) ? raw.rules : [],
+    goals: normalizeStringArray(raw.goals),
+    goalIds: normalizeStableIdArray(raw.goalIds),
+    rules: normalizeStringArray(raw.rules),
+    ruleIds: normalizeStableIdArray(raw.ruleIds),
     decisions: Array.isArray(raw.decisions)
       ? raw.decisions
-          .map((d: unknown) => {
-            if (typeof d === 'string') {
-              return { decision: d };
-            }
-            if (d && typeof d === 'object' && typeof (d as { decision?: unknown }).decision === 'string') {
-              return d as ProjectMemory['decisions'][number];
-            }
-            return null;
-          })
-          .filter((decision): decision is ProjectMemory['decisions'][number] => decision !== null)
+          .map(normalizeDecision)
+          .filter((decision): decision is Decision => decision !== null)
       : [],
     currentState: typeof legacy.currentState === 'string' ? legacy.currentState : '',
-    nextSteps: Array.isArray(raw.nextSteps) ? raw.nextSteps : [],
-    openQuestions: Array.isArray(raw.openQuestions) ? raw.openQuestions : [],
-    importantAssets: Array.isArray(raw.importantAssets) ? raw.importantAssets : [],
+    nextSteps: normalizeStringArray(raw.nextSteps),
+    openQuestions: normalizeStringArray(raw.openQuestions),
+    openQuestionIds: normalizeStableIdArray(raw.openQuestionIds),
+    importantAssets: normalizeStringArray(raw.importantAssets),
     aiInstructions:
       typeof legacy.aiInstructions === 'string'
         ? legacy.aiInstructions
@@ -470,6 +519,7 @@ export function normalizeOldProject(raw: Record<string, unknown>): ProjectMemory
       typeof raw.openQuestion === 'string' && raw.openQuestion.trim()
         ? raw.openQuestion
         : undefined,
+    nextIds: normalizeNextIds(raw.nextIds),
   };
 }
 
@@ -477,7 +527,7 @@ export function toOldFormat(project: ProjectMemory): Record<string, unknown> {
   const updatedAt = project.updatedAt || projectUpdatedAt(project) || new Date().toISOString();
 
   return {
-    schema_version: '0.2.0',
+    schema_version: SCHEMA_VERSION,
     id: project.id,
     projectName: project.name,
     created: new Date().toISOString(),
@@ -485,12 +535,16 @@ export function toOldFormat(project: ProjectMemory): Record<string, unknown> {
     lastModified: updatedAt,
     summary: project.summary,
     goals: project.goals,
+    goalIds: project.goalIds,
     rules: project.rules,
-    decisions: project.decisions.map((d) => (typeof d === 'string' ? d : d.decision)),
+    ruleIds: project.ruleIds,
+    decisions: project.decisions.map((decision) => ({ ...decision })),
     currentState: project.currentState,
     nextSteps: project.nextSteps,
     openQuestions: project.openQuestions,
+    openQuestionIds: project.openQuestionIds,
     importantAssets: project.importantAssets,
+    nextIds: project.nextIds,
     aiInstructions: {
       role: 'You are a project collaborator.',
       tone: 'Clear, direct, structured',
@@ -708,17 +762,13 @@ export function withRestorePoint(
   );
 }
 
-export async function saveToDisk(project: ProjectMemory): Promise<void> {
-  const storeState = store();
-  const localProject = touchProject(project);
-  const data = JSON.stringify(toOldFormat(localProject), null, 2);
-
-  const stem = canonicalTauriFileStem(localProject.id);
-  const fileName = canonicalTauriFileName(localProject.id);
+async function writeProjectToStorage(project: ProjectMemory): Promise<void> {
+  const data = JSON.stringify(toOldFormat(project), null, 2);
+  const stem = canonicalTauriFileStem(project.id);
 
   if (canUseNativeProjectStorage()) {
     try {
-      await tauriInvoke('backup_project_file', { fileName });
+      await tauriInvoke('backup_project_file', { fileName: canonicalTauriFileName(project.id) });
     } catch (err) {
       console.warn('[Memphant] Backup failed:', err);
     }
@@ -727,9 +777,17 @@ export async function saveToDisk(project: ProjectMemory): Promise<void> {
       projectName: stem,
       projectData: data,
     });
-  } else {
-    browserStore.save(localProject.id, data);
+    return;
   }
+
+  browserStore.save(project.id, data);
+}
+
+export async function saveToDisk(project: ProjectMemory): Promise<void> {
+  const storeState = store();
+  const localProject = ensureProjectStableIds(touchProject(project)).project;
+
+  await writeProjectToStorage(localProject);
 
   if (storeState.cloudUser && storeState.settings.privacy.cloudSyncEnabled) {
     storeState.setSyncStatus('saved_local');
@@ -785,7 +843,9 @@ export async function loadAllFromDisk(): Promise<ProjectMemory[]> {
       const content = canUseNativeProjectStorage()
         ? await tauriInvoke<string>('load_project_file', { fileName })
         : browserStore.load(fileName);
-      const project = normalizeOldProject(JSON.parse(content));
+      const parsed = JSON.parse(content) as Record<string, unknown>;
+      const normalizedProject = normalizeOldProject(parsed);
+      const { project, changed: migrationChanged } = ensureProjectStableIds(normalizedProject);
 
       if (canUseNativeProjectStorage()) {
         const canonical = canonicalTauriFileName(project.id);
@@ -825,6 +885,10 @@ export async function loadAllFromDisk(): Promise<ProjectMemory[]> {
             browserStore.delete(fileName);
           }
         }
+      }
+
+      if (migrationChanged) {
+        await writeProjectToStorage(project);
       }
 
       const updatedAt = projectUpdatedAt(project);
