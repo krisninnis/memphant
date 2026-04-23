@@ -98,6 +98,11 @@ pub struct FolderWatcher {
     watcher: Option<RecommendedWatcher>,
 }
 
+#[derive(Default)]
+pub struct WatcherManager {
+    active: Option<FolderWatcher>,
+}
+
 /// Start the folder watcher for a project.
 ///
 /// Phase 1: logs a startup message and returns immediately.
@@ -184,11 +189,47 @@ impl FolderWatcher {
             Err(_) => Vec::new(),
         }
     }
+
+    pub fn root(&self) -> &Path {
+        &self.root
+    }
 }
 
 impl Drop for FolderWatcher {
     fn drop(&mut self) {
         let _ = self.stop();
+    }
+}
+
+impl WatcherManager {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn start(&mut self, root: &Path) -> Result<(), String> {
+        self.stop()?;
+        let watcher = FolderWatcher::start(root)?;
+        self.active = Some(watcher);
+        Ok(())
+    }
+
+    pub fn stop(&mut self) -> Result<(), String> {
+        if let Some(mut watcher) = self.active.take() {
+            watcher.stop()?;
+        }
+
+        Ok(())
+    }
+
+    pub fn drain(&self) -> Vec<BufferedEvent> {
+        self.active
+            .as_ref()
+            .map(|watcher| watcher.drain())
+            .unwrap_or_default()
+    }
+
+    pub fn active_root(&self) -> Option<&Path> {
+        self.active.as_ref().map(|watcher| watcher.root())
     }
 }
 
@@ -474,6 +515,65 @@ mod tests {
             enabled: true,
         };
         assert!(start_watcher(config).is_err());
+    }
+
+    #[test]
+    fn manager_starts_with_one_root() {
+        let temp_dir = TempDir::new().expect("temp dir should be created");
+        let root = temp_dir.path().canonicalize().expect("root should canonicalize");
+        let mut manager = WatcherManager::new();
+
+        manager.start(&root).expect("manager should start watcher");
+
+        assert_eq!(manager.active_root(), Some(root.as_path()));
+
+        manager.stop().expect("manager stop should succeed");
+    }
+
+    #[test]
+    fn manager_replaces_watcher_with_second_root() {
+        let first_dir = TempDir::new().expect("first temp dir should be created");
+        let second_dir = TempDir::new().expect("second temp dir should be created");
+        let first_root = first_dir
+            .path()
+            .canonicalize()
+            .expect("first root should canonicalize");
+        let second_root = second_dir
+            .path()
+            .canonicalize()
+            .expect("second root should canonicalize");
+        let mut manager = WatcherManager::new();
+
+        manager
+            .start(&first_root)
+            .expect("manager should start first watcher");
+        assert_eq!(manager.active_root(), Some(first_root.as_path()));
+
+        manager
+            .start(&second_root)
+            .expect("manager should replace watcher");
+        assert_eq!(manager.active_root(), Some(second_root.as_path()));
+
+        manager.stop().expect("manager stop should succeed");
+    }
+
+    #[test]
+    fn manager_stop_leaves_no_active_watcher() {
+        let temp_dir = TempDir::new().expect("temp dir should be created");
+        let root = temp_dir.path().canonicalize().expect("root should canonicalize");
+        let mut manager = WatcherManager::new();
+
+        manager.start(&root).expect("manager should start watcher");
+        manager.stop().expect("manager stop should succeed");
+
+        assert_eq!(manager.active_root(), None);
+    }
+
+    #[test]
+    fn drain_on_empty_manager_returns_empty() {
+        let manager = WatcherManager::new();
+
+        assert!(manager.drain().is_empty());
     }
 
     #[test]
