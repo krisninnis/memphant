@@ -10,6 +10,11 @@ use tauri_plugin_autostart::ManagerExt;
 
 mod vcp;
 
+// Folder watcher — compiled only when the `folder_watcher` feature flag is set.
+// No Tauri commands registered yet; Phase 2 will add them.
+#[cfg(feature = "folder_watcher")]
+mod watcher;
+
 #[derive(serde::Serialize)]
 struct StateManifestPreview {
     manifest: vcp::Manifest,
