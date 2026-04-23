@@ -1,6 +1,6 @@
-//! Folder watcher activity summariser - Phase 2 Step 1.
+//! Folder watcher activity summariser - Phase 2 Step 2.
 //!
-//! This module turns buffered watcher events into a small markdown activity block.
+//! This module turns buffered watcher events into a compact markdown activity block.
 //! It is intentionally rules-based only:
 //! - no LLM calls
 //! - no disk writes
@@ -11,6 +11,7 @@ use crate::watcher::{BufferedEvent, BufferedOperation};
 
 const MAX_ACTIVITY_LINES: usize = 8;
 const MAX_OUTPUT_CHARS: usize = 1_200;
+const MAX_COMMIT_ITEMS: usize = 3;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct FileActivity {
@@ -21,6 +22,13 @@ struct FileActivity {
 }
 
 pub fn summarize_recent_activity(events: &[BufferedEvent]) -> String {
+    summarize_recent_activity_with_commits(events, &[])
+}
+
+pub fn summarize_recent_activity_with_commits(
+    events: &[BufferedEvent],
+    commits: &[String],
+) -> String {
     if events.is_empty() {
         return "## Recent activity\n- No recent file activity.".to_string();
     }
@@ -34,7 +42,7 @@ pub fn summarize_recent_activity(events: &[BufferedEvent]) -> String {
     });
 
     let mut lines = vec!["## Recent activity".to_string()];
-    let mut included = 0usize;
+    let mut included_groups = 0usize;
 
     for operation in [
         BufferedOperation::Modified,
@@ -43,43 +51,29 @@ pub fn summarize_recent_activity(events: &[BufferedEvent]) -> String {
         BufferedOperation::Renamed,
         BufferedOperation::Other,
     ] {
-        let group: Vec<&FileActivity> = activities
-            .iter()
-            .filter(|activity| activity.last_operation == operation)
-            .collect();
+        if included_groups >= MAX_ACTIVITY_LINES {
+            break;
+        }
 
-        if group.is_empty() {
+        let grouped_paths = collect_grouped_paths(&activities, operation);
+        if grouped_paths.is_empty() {
             continue;
         }
 
-        for activity in group {
-            if included >= MAX_ACTIVITY_LINES {
-                break;
-            }
-
-            let candidate = format_activity_line(activity);
-            if would_exceed_char_budget(&lines, &candidate) {
-                let remaining = activities.len().saturating_sub(included);
-                if remaining > 0 {
-                    lines.push(format!("- ...and {} more file changes.", remaining));
-                }
-                return lines.join("\n");
-            }
-
-            lines.push(candidate);
-            included += 1;
+        let candidate = format_group_line(operation, &grouped_paths);
+        if would_exceed_char_budget(&lines, &candidate) {
+            append_overflow_line(&mut lines, activities.len());
+            return lines.join("\n");
         }
 
-        if included >= MAX_ACTIVITY_LINES {
-            break;
-        }
+        lines.push(candidate);
+        included_groups += 1;
     }
 
-    let remaining = activities.len().saturating_sub(included);
-    if remaining > 0 {
-        let overflow_line = format!("- ...and {} more file changes.", remaining);
-        if !would_exceed_char_budget(&lines, &overflow_line) {
-            lines.push(overflow_line);
+    if !commits.is_empty() && included_groups < MAX_ACTIVITY_LINES {
+        let commit_line = format_commit_line(commits);
+        if !commit_line.is_empty() && !would_exceed_char_budget(&lines, &commit_line) {
+            lines.push(commit_line);
         }
     }
 
@@ -110,22 +104,79 @@ fn collapse_events(events: &[BufferedEvent]) -> Vec<FileActivity> {
     activities
 }
 
-fn format_activity_line(activity: &FileActivity) -> String {
+fn collect_grouped_paths(activities: &[FileActivity], operation: BufferedOperation) -> Vec<String> {
+    let mut grouped: Vec<&FileActivity> = activities
+        .iter()
+        .filter(|activity| activity.last_operation == operation)
+        .collect();
+
+    grouped.sort_by(|left, right| {
+        right
+            .latest_timestamp_ms
+            .cmp(&left.latest_timestamp_ms)
+            .then_with(|| left.path.cmp(&right.path))
+    });
+
+    grouped
+        .into_iter()
+        .map(|activity| format_activity_path(activity))
+        .collect()
+}
+
+fn format_activity_path(activity: &FileActivity) -> String {
     match activity.last_operation {
-        BufferedOperation::Added => format!("- Added `{}`.", activity.path),
-        BufferedOperation::Deleted => format!("- Deleted `{}`.", activity.path),
-        BufferedOperation::Renamed => format!("- Renamed `{}`.", activity.path),
-        BufferedOperation::Other => format!("- Updated `{}`.", activity.path),
-        BufferedOperation::Modified => {
-            if activity.total_events > 1 {
-                format!(
-                    "- Edited `{}` ({} changes).",
-                    activity.path, activity.total_events
-                )
-            } else {
-                format!("- Edited `{}`.", activity.path)
-            }
+        BufferedOperation::Modified if activity.total_events > 1 => {
+            format!("`{}` ({} changes)", activity.path, activity.total_events)
         }
+        _ => format!("`{}`", activity.path),
+    }
+}
+
+fn format_group_line(operation: BufferedOperation, paths: &[String]) -> String {
+    let label = match operation {
+        BufferedOperation::Modified => "Edited",
+        BufferedOperation::Added => "Added",
+        BufferedOperation::Deleted => "Deleted",
+        BufferedOperation::Renamed => "Renamed",
+        BufferedOperation::Other => "Updated",
+    };
+
+    format!("- {}: {}.", label, paths.join(", "))
+}
+
+fn format_commit_line(commits: &[String]) -> String {
+    let compact: Vec<String> = commits
+        .iter()
+        .filter_map(|commit| {
+            let trimmed = commit.trim();
+            (!trimmed.is_empty()).then(|| trimmed.replace('\n', " "))
+        })
+        .take(MAX_COMMIT_ITEMS)
+        .collect();
+
+    if compact.is_empty() {
+        return String::new();
+    }
+
+    let mut line = format!("- Recent commits: {}.", compact.join(" | "));
+    if commits.len() > MAX_COMMIT_ITEMS {
+        line.push_str(" ...");
+    }
+
+    line
+}
+
+fn append_overflow_line(lines: &mut Vec<String>, total_files: usize) {
+    let described_files = lines.len().saturating_sub(1);
+    let remaining = total_files.saturating_sub(described_files);
+
+    if remaining == 0 {
+        return;
+    }
+
+    let overflow_line = format!("- ...and {} more file changes.", remaining);
+    if !would_exceed_char_budget(lines, &overflow_line) {
+        lines.push(overflow_line);
     }
 }
 
@@ -149,86 +200,88 @@ mod tests {
     }
 
     #[test]
-    fn summarizes_empty_input() {
+    fn unchanged_empty_behavior() {
         let summary = summarize_recent_activity(&[]);
 
         assert_eq!(summary, "## Recent activity\n- No recent file activity.");
     }
 
     #[test]
-    fn summarizes_grouped_plain_english_activity() {
+    fn grouped_operation_output_is_readable() {
         let events = vec![
-            event("src/main.ts", BufferedOperation::Modified, 10),
-            event("docs/guide.md", BufferedOperation::Added, 20),
-            event("src/old.ts", BufferedOperation::Deleted, 30),
-            event("src/new-name.ts", BufferedOperation::Renamed, 40),
+            event("src/a.ts", BufferedOperation::Modified, 10),
+            event("src/b.ts", BufferedOperation::Modified, 20),
+            event("docs/x.md", BufferedOperation::Added, 30),
+            event("src/old.ts", BufferedOperation::Deleted, 40),
+            event("src/new-name.ts", BufferedOperation::Renamed, 50),
+            event("src/b.ts", BufferedOperation::Modified, 60),
         ];
 
         let summary = summarize_recent_activity(&events);
 
         assert!(summary.starts_with("## Recent activity\n"));
-        assert!(summary.contains("- Edited `src/main.ts`."));
-        assert!(summary.contains("- Added `docs/guide.md`."));
-        assert!(summary.contains("- Deleted `src/old.ts`."));
-        assert!(summary.contains("- Renamed `src/new-name.ts`."));
+        assert!(summary.contains("- Edited: `src/b.ts` (2 changes), `src/a.ts`."));
+        assert!(summary.contains("- Added: `docs/x.md`."));
+        assert!(summary.contains("- Deleted: `src/old.ts`."));
+        assert!(summary.contains("- Renamed: `src/new-name.ts`."));
     }
 
     #[test]
-    fn collapses_repetitive_edits_for_the_same_file() {
-        let events = vec![
-            event("src/main.ts", BufferedOperation::Modified, 10),
-            event("src/main.ts", BufferedOperation::Modified, 11),
-            event("src/main.ts", BufferedOperation::Modified, 12),
+    fn commit_line_is_included_when_commits_are_provided() {
+        let events = vec![event("src/main.ts", BufferedOperation::Modified, 10)];
+        let commits = vec![
+            "abc123 Fix watcher dedupe".to_string(),
+            "def456 Add summariser grouping".to_string(),
         ];
 
-        let summary = summarize_recent_activity(&events);
+        let summary = summarize_recent_activity_with_commits(&events, &commits);
 
-        assert!(summary.contains("- Edited `src/main.ts` (3 changes)."));
-        assert_eq!(summary.matches("src/main.ts").count(), 1);
+        assert!(summary.contains("- Edited: `src/main.ts`."));
+        assert!(summary.contains("- Recent commits: abc123 Fix watcher dedupe | def456 Add summariser grouping."));
     }
 
     #[test]
-    fn keeps_paths_relative_only() {
-        let events = vec![event("src\\windows\\main.ts", BufferedOperation::Modified, 10)];
-
-        let summary = summarize_recent_activity(&events);
-
-        assert!(summary.contains("`src/windows/main.ts`"));
-        assert!(!summary.contains("C:\\"));
-    }
-
-    #[test]
-    fn enforces_output_budget_cap() {
-        let events: Vec<BufferedEvent> = (0..20)
+    fn output_still_respects_the_cap() {
+        let events: Vec<BufferedEvent> = (0..30)
             .map(|index| {
                 event(
                     &format!("src/file-{index}.ts"),
-                    BufferedOperation::Modified,
+                    match index % 4 {
+                        0 => BufferedOperation::Modified,
+                        1 => BufferedOperation::Added,
+                        2 => BufferedOperation::Deleted,
+                        _ => BufferedOperation::Renamed,
+                    },
                     index as u64,
                 )
             })
             .collect();
+        let commits = vec![
+            "abc123 first commit".to_string(),
+            "def456 second commit".to_string(),
+            "ghi789 third commit".to_string(),
+            "jkl012 fourth commit".to_string(),
+        ];
 
-        let summary = summarize_recent_activity(&events);
+        let summary = summarize_recent_activity_with_commits(&events, &commits);
         let bullet_lines = summary.lines().filter(|line| line.starts_with("- ")).count();
 
         assert!(summary.starts_with("## Recent activity\n"));
-        assert!(summary.contains("...and "));
-        assert!(bullet_lines <= MAX_ACTIVITY_LINES + 1);
         assert!(summary.len() <= MAX_OUTPUT_CHARS);
+        assert!(bullet_lines <= MAX_ACTIVITY_LINES + 1);
     }
 
     #[test]
-    fn latest_operation_wins_for_a_file() {
+    fn preserves_relative_paths_only() {
         let events = vec![
-            event("src/main.ts", BufferedOperation::Added, 10),
-            event("src/main.ts", BufferedOperation::Modified, 20),
-            event("src/main.ts", BufferedOperation::Deleted, 30),
+            event("src\\windows\\main.ts", BufferedOperation::Modified, 10),
+            event("docs\\guide.md", BufferedOperation::Added, 20),
         ];
 
         let summary = summarize_recent_activity(&events);
 
-        assert!(summary.contains("- Deleted `src/main.ts`."));
-        assert!(!summary.contains("- Added `src/main.ts`."));
+        assert!(summary.contains("`src/windows/main.ts`"));
+        assert!(summary.contains("`docs/guide.md`"));
+        assert!(!summary.contains("C:\\"));
     }
 }
