@@ -375,6 +375,75 @@ select {
   background: rgba(217, 119, 6, 0.15);
 }
 
+.state-manifest-preview {
+  background: #0f1524;
+  border: 1px solid #24314f;
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.state-manifest-preview__header,
+.state-manifest-preview__meta,
+.state-manifest-preview__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.state-manifest-preview__title {
+  color: #e2e8f0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.state-manifest-preview__subtitle,
+.state-manifest-preview__meta {
+  color: #8ca2c7;
+  font-size: 12px;
+}
+
+.state-manifest-preview__close {
+  background: transparent;
+  border: 1px solid #2a2a3e;
+  color: #94a3b8;
+  border-radius: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.state-manifest-preview__close:hover {
+  background: #1e2a45;
+  color: #e2e8f0;
+}
+
+.state-manifest-preview__error {
+  color: #fecaca;
+  background: rgba(127, 29, 29, 0.18);
+  border: 1px solid rgba(248, 113, 113, 0.28);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+.state-manifest-preview__text {
+  width: 100%;
+  min-height: 170px;
+  resize: vertical;
+  background: #090f1d;
+  border: 1px solid #24314f;
+  border-radius: 10px;
+  color: #d8e2f5;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  padding: 12px;
+}
+
 .export-buttons {
   display: flex;
   gap: 8px;

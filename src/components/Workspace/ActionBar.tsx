@@ -7,7 +7,9 @@ import {
   rescanLinkedFolder,
   exportActiveProjectAsMarkdown,
   exportActiveProjectAsJson,
+  generateStateManifest,
   syncGitCommits,
+  type StateManifestPreview,
 } from '../../services/tauriActions';
 import ExportButtons from './ExportButtons';
 import TaskField from './TaskField';
@@ -39,6 +41,9 @@ export function ActionBar() {
   const [activationCopied, setActivationCopied] = useState(false);
   const [gitSyncState, setGitSyncState] = useState<GitSyncState>('idle');
   const [gitSyncCount, setGitSyncCount] = useState(0);
+  const [manifestPreview, setManifestPreview] = useState<StateManifestPreview | null>(null);
+  const [manifestError, setManifestError] = useState<string | null>(null);
+  const [manifestLoading, setManifestLoading] = useState(false);
 
   const desktopApp = isDesktopApp();
 
@@ -105,9 +110,53 @@ export function ActionBar() {
     }
   };
 
+  const handlePreviewManifest = async () => {
+    if (!activeProject || manifestLoading) return;
+
+    setManifestLoading(true);
+    setManifestError(null);
+
+    try {
+      const preview = await generateStateManifest(activeProject);
+      setManifestPreview(preview);
+      showToast('State manifest generated.', 'info');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setManifestPreview(null);
+      setManifestError(message || 'Could not generate state manifest.');
+      showToast(message || 'Could not generate state manifest.', 'error');
+    } finally {
+      setManifestLoading(false);
+    }
+  };
+
+  const handleCopyManifestText = async () => {
+    if (!manifestPreview) return;
+
+    try {
+      await navigator.clipboard.writeText(manifestPreview.text);
+      showToast('State manifest copied.', 'info');
+    } catch {
+      showToast('Could not copy state manifest.', 'error');
+    }
+  };
+
+  const handleCopyManifestDigest = async () => {
+    if (!manifestPreview) return;
+
+    try {
+      await navigator.clipboard.writeText(manifestPreview.digest);
+      showToast('State digest copied.', 'info');
+    } catch {
+      showToast('Could not copy state digest.', 'error');
+    }
+  };
+
   useEffect(() => {
     setGitSyncState('idle');
     setGitSyncCount(0);
+    setManifestPreview(null);
+    setManifestError(null);
   }, [activeProject?.id]);
 
   if (!activeProject) {
@@ -190,6 +239,18 @@ export function ActionBar() {
           </button>
         )}
 
+        {desktopApp && (
+          <button
+            type="button"
+            className="action-bar__btn"
+            onClick={() => void handlePreviewManifest()}
+            disabled={manifestLoading}
+            title="Generate a preview-only VCP state manifest for this project"
+          >
+            {manifestLoading ? 'Generating manifest...' : 'Preview state manifest'}
+          </button>
+        )}
+
         <button
           type="button"
           className="action-bar__btn"
@@ -220,6 +281,64 @@ export function ActionBar() {
           </button>
         )}
       </div>
+
+      {(manifestPreview || manifestError) && (
+        <div className="state-manifest-preview">
+          <div className="state-manifest-preview__header">
+            <div>
+              <div className="state-manifest-preview__title">State manifest preview</div>
+              <div className="state-manifest-preview__subtitle">
+                Preview only. Normal AI export and import flows are unchanged.
+              </div>
+            </div>
+            <button
+              type="button"
+              className="state-manifest-preview__close"
+              onClick={() => {
+                setManifestPreview(null);
+                setManifestError(null);
+              }}
+              aria-label="Close state manifest preview"
+            >
+              Close
+            </button>
+          </div>
+
+          {manifestError ? (
+            <div className="state-manifest-preview__error">{manifestError}</div>
+          ) : manifestPreview ? (
+            <>
+              <div className="state-manifest-preview__meta">
+                <span>Digest: {manifestPreview.digest}</span>
+                <span>{manifestPreview.item_count} item{manifestPreview.item_count === 1 ? '' : 's'}</span>
+              </div>
+              <textarea
+                className="state-manifest-preview__text"
+                value={manifestPreview.text}
+                readOnly
+                spellCheck={false}
+                aria-label="State manifest text"
+              />
+              <div className="state-manifest-preview__actions">
+                <button
+                  type="button"
+                  className="action-bar__btn"
+                  onClick={() => void handleCopyManifestText()}
+                >
+                  Copy manifest
+                </button>
+                <button
+                  type="button"
+                  className="action-bar__btn"
+                  onClick={() => void handleCopyManifestDigest()}
+                >
+                  Copy digest
+                </button>
+              </div>
+            </>
+          ) : null}
+        </div>
+      )}
     </div>
   );
 }
