@@ -1,0 +1,34 @@
+{
+  "id": "small_mixed_fixture",
+  "goals": [
+    "Ship MVP by Q2",
+    "Reach 100 beta users",
+    "Complete security audit"
+  ],
+  "goalIds": ["G-001", "G-002", "G-003"],
+  "rules": [
+    "Never commit secrets to the repo",
+    "All API endpoints require authentication"
+  ],
+  "ruleIds": ["R-001", "R-002"],
+  "decisions": [
+    {
+      "id": "D-001",
+      "decision": "Use PostgreSQL for primary data store",
+      "rationale": "Strong ACID guarantees and broad hosting support make it the safest default.",
+      "alternativesConsidered": ["MongoDB", "MySQL"],
+      "source": "architecture-review"
+    },
+    {
+      "id": "D-002",
+      "decision": "Deploy to Fly.io for initial hosting",
+      "rationale": "Low operational overhead and per-region pricing fits early-stage budget.",
+      "alternativesConsidered": ["AWS ECS", "Render"],
+      "source": "infra-decision-log"
+    }
+  ],
+  "openQuestions": [
+    "Should we support SSO in v1?"
+  ],
+  "openQuestionIds": ["Q-001"]
+}
