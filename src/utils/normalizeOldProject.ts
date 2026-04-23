@@ -6,6 +6,7 @@ import type {
   PlatformState,
   ProjectCheckpoint,
   ProjectMemory,
+  ProjectNextIds,
   ProjectRestorePoint,
 } from '../types/memphant-types';
 import { SCHEMA_VERSION } from '../types/memphant-types';
@@ -24,6 +25,7 @@ function normalizeDecisions(value: unknown): Decision[] {
   return value
     .filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
     .map((item) => ({
+      id: typeof item.id === 'string' ? item.id : undefined,
       decision: typeof item.decision === 'string' ? item.decision : '',
       rationale: typeof item.rationale === 'string' ? item.rationale : undefined,
       alternativesConsidered: normalizeOptionalStringArray(item.alternativesConsidered),
@@ -39,6 +41,27 @@ function normalizeOptionalStringArray(value: unknown): string[] | undefined {
     (item): item is string => typeof item === 'string' && item.trim().length > 0,
   );
   return result.length > 0 ? result : undefined;
+}
+
+function normalizeStableIdArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return value.filter(
+    (item): item is string => typeof item === 'string' && item.trim().length > 0,
+  );
+}
+
+function normalizeNextIds(value: unknown): ProjectNextIds | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+
+  const candidate = value as Record<string, unknown>;
+  const D = typeof candidate.D === 'number' && candidate.D > 0 ? candidate.D : undefined;
+  const R = typeof candidate.R === 'number' && candidate.R > 0 ? candidate.R : undefined;
+  const G = typeof candidate.G === 'number' && candidate.G > 0 ? candidate.G : undefined;
+  const Q = typeof candidate.Q === 'number' && candidate.Q > 0 ? candidate.Q : undefined;
+
+  if (!D || !R || !G || !Q) return undefined;
+
+  return { D, R, G, Q };
 }
 
 function normalizeChangelog(value: unknown): ChangelogEntry[] {
@@ -162,11 +185,14 @@ export function normalizeOldProject(raw: LegacyProject): ProjectMemory {
     updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : undefined,
     summary: typeof raw.summary === 'string' ? raw.summary : '',
     goals: normalizeStringArray(raw.goals),
+    goalIds: normalizeStableIdArray(raw.goalIds),
     rules: normalizeStringArray(raw.rules),
+    ruleIds: normalizeStableIdArray(raw.ruleIds),
     decisions: normalizeDecisions(raw.decisions),
     currentState: typeof raw.currentState === 'string' ? raw.currentState : '',
     nextSteps: normalizeStringArray(raw.nextSteps),
     openQuestions: normalizeStringArray(raw.openQuestions),
+    openQuestionIds: normalizeStableIdArray(raw.openQuestionIds),
     importantAssets: normalizeStringArray(raw.importantAssets),
     aiInstructions: typeof raw.aiInstructions === 'string' ? raw.aiInstructions : undefined,
     githubRepo: typeof raw.githubRepo === 'string' ? raw.githubRepo : undefined,
@@ -184,6 +210,7 @@ export function normalizeOldProject(raw: LegacyProject): ProjectMemory {
       typeof raw.lastSessionSummary === 'string' ? raw.lastSessionSummary : undefined,
     openQuestion:
       typeof raw.openQuestion === 'string' ? raw.openQuestion : undefined,
+    nextIds: normalizeNextIds(raw.nextIds),
     checkpoints: normalizeCheckpoints(raw.checkpoints),
     restorePoints: normalizeRestorePoints(raw.restorePoints),
   };
