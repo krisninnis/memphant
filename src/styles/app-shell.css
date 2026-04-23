@@ -2009,6 +2009,48 @@ select {
   font-weight: 400;
 }
 
+.export-manifest-btn {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  padding: 9px 14px;
+  background: #111a2d;
+  color: #dbe7ff;
+  border: 1px solid #2e4268;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.1s, background 0.2s;
+}
+
+.export-manifest-btn:hover:not(:disabled) {
+  background: #16233b;
+  border-color: #5574aa;
+  transform: translateY(-1px);
+}
+
+.export-manifest-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.export-manifest-btn--copied {
+  border-color: #1a9e5c;
+  color: #dff8eb;
+}
+
+.export-manifest-btn__label {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.export-manifest-btn__hint {
+  color: #8ca2c7;
+  font-size: 11px;
+  text-align: right;
+}
+
 .export-trust-card {
   background: #0f1524;
   border: 1px solid #24314f;
