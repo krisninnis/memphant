@@ -3,6 +3,7 @@ import type { ProjectMemory, Platform, AppSettings, GitCommit } from '../types/m
 import { DEFAULT_SETTINGS } from '../types/memphant-types';
 import type { CloudUser } from '../services/cloudSync';
 import { ensureValidPlatformId } from '../utils/platformRegistry';
+import { ensureProjectStableIds } from '../utils/stableItemIds';
 
 export type SyncStatus = 'saved_local' | 'pending' | 'syncing' | 'synced' | 'error';
 export type SubscriptionTier = 'free' | 'pro' | 'team';
@@ -194,7 +195,10 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   isAdmin: false,
 
   // Actions
-  setProjects: (projects) => set({ projects }),
+  setProjects: (projects) =>
+    set({
+      projects: projects.map((project) => ensureProjectStableIds(project).project),
+    }),
   setActiveProject: (id) => set({ activeProjectId: id }),
   setCurrentTask: (task) => set({ currentTask: task }),
   setTargetPlatform: (platform) =>
@@ -253,11 +257,14 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     set((state) => ({
       projects: state.projects.map((p) =>
         p.id === id
-          ? {
-              ...p,
-              ...updates,
-              updatedAt: updates.updatedAt ?? new Date().toISOString(),
-            }
+          ? ensureProjectStableIds(
+              {
+                ...p,
+                ...updates,
+                updatedAt: updates.updatedAt ?? new Date().toISOString(),
+              },
+              p,
+            ).project
           : p
       ),
     })),
@@ -303,7 +310,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
   addProject: (project) =>
     set((state) => ({
-      projects: [...state.projects, project],
+      projects: [...state.projects, ensureProjectStableIds(project).project],
     })),
 
   removeProject: (id) =>

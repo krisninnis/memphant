@@ -1,3 +1,4 @@
+/* eslint-env node */
 /**
  * POST /api/webhook
  *
@@ -203,7 +204,7 @@ export default async function handler(req, res) {
   let rawBody;
   try {
     rawBody = await getRawBody(req);
-  } catch (err) {
+  } catch (_err) {
     return res.status(400).json({ error: 'Could not read request body' });
   }
 
