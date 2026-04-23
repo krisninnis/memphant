@@ -12,6 +12,7 @@
 //!   docs/folder-watcher-redaction-policy.md
 //!   docs/memphant-bet.md
 
+use crate::summariser::summarize_recent_activity_with_commits;
 use notify::{
     event::{CreateKind, EventKind, ModifyKind, RemoveKind},
     recommended_watcher, Event, RecommendedWatcher, RecursiveMode, Watcher,
@@ -230,6 +231,15 @@ impl WatcherManager {
 
     pub fn active_root(&self) -> Option<&Path> {
         self.active.as_ref().map(|watcher| watcher.root())
+    }
+
+    pub fn drain_summary(&self) -> String {
+        self.drain_summary_with_commits(&[])
+    }
+
+    pub fn drain_summary_with_commits(&self, commits: &[String]) -> String {
+        let events = self.drain();
+        summarize_recent_activity_with_commits(&events, commits)
     }
 }
 
@@ -574,6 +584,58 @@ mod tests {
         let manager = WatcherManager::new();
 
         assert!(manager.drain().is_empty());
+    }
+
+    #[test]
+    fn manager_generates_summary_from_buffered_events() {
+        let temp_dir = TempDir::new().expect("temp dir should be created");
+        let root = temp_dir.path().canonicalize().expect("root should canonicalize");
+        let mut manager = WatcherManager::new();
+
+        manager.start(&root).expect("manager should start watcher");
+        thread::sleep(Duration::from_millis(150));
+
+        let allowed_file = root.join("src").join("main.ts");
+        write_file(&allowed_file, b"export const ready = true;\n");
+        thread::sleep(Duration::from_millis(400));
+
+        let summary = manager.drain_summary();
+        assert!(summary.starts_with("## Recent activity\n"));
+        assert!(summary.contains("src/main.ts"));
+
+        manager.stop().expect("manager stop should succeed");
+    }
+
+    #[test]
+    fn manager_summary_drain_clears_buffered_events() {
+        let temp_dir = TempDir::new().expect("temp dir should be created");
+        let root = temp_dir.path().canonicalize().expect("root should canonicalize");
+        let mut manager = WatcherManager::new();
+
+        manager.start(&root).expect("manager should start watcher");
+        thread::sleep(Duration::from_millis(150));
+
+        let allowed_file = root.join("docs").join("note.md");
+        write_file(&allowed_file, b"# Note\n");
+        thread::sleep(Duration::from_millis(400));
+
+        let first_summary = manager.drain_summary();
+        assert!(first_summary.contains("docs/note.md"));
+
+        let second_summary = manager.drain_summary();
+        assert_eq!(second_summary, "## Recent activity\n- No recent file activity.");
+
+        manager.stop().expect("manager stop should succeed");
+    }
+
+    #[test]
+    fn empty_manager_returns_existing_empty_summary_block() {
+        let manager = WatcherManager::new();
+
+        assert_eq!(
+            manager.drain_summary(),
+            "## Recent activity\n- No recent file activity."
+        );
     }
 
     #[test]
