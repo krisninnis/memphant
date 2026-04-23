@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { useProjectStore } from '../../store/projectStore';
 import { useActiveProject } from '../../hooks/useActiveProject';
-import { copyExportToClipboard } from '../../services/tauriActions';
-import { formatForPlatform, setScannerLevel } from '../../utils/exportFormatters';
+import { copyExportToClipboard, generateStateManifest } from '../../services/tauriActions';
+import {
+  formatForClaudeWithManifest,
+  formatForPlatform,
+  setScannerLevel,
+} from '../../utils/exportFormatters';
 import { getChangesSince } from '../../utils/getChangesSince';
 import { scoreExport } from '../../utils/exportQuality';
 import {
@@ -35,6 +39,8 @@ function formatCheckpointTime(isoString: string): string {
 
 export function ExportButtons() {
   const [copied, setCopied] = useState(false);
+  const [manifestCopied, setManifestCopied] = useState(false);
+  const [manifestLoading, setManifestLoading] = useState(false);
 
   const targetPlatform = useProjectStore((s) => s.targetPlatform);
   const setTargetPlatform = useProjectStore((s) => s.setTargetPlatform);
@@ -155,6 +161,46 @@ export function ExportButtons() {
     showToast,
   ]);
 
+  const handleCopyClaudeWithManifest = useCallback(async () => {
+    if (!activeProject) {
+      showToast('Open a project first', 'error');
+      return;
+    }
+
+    try {
+      setManifestLoading(true);
+      setScannerLevel(settings.privacy.secretsScannerLevel);
+
+      const manifest = await generateStateManifest(activeProject);
+      const exportText = formatForClaudeWithManifest(
+        activeProject,
+        manifest.text,
+        manifest.digest,
+        currentTask,
+      );
+
+      await copyExportToClipboard(exportText, 'claude');
+
+      setManifestCopied(true);
+      showToast('Copied for Claude with state manifest');
+
+      setTimeout(() => setManifestCopied(false), 1800);
+    } catch (err) {
+      console.error('Claude manifest export failed:', err);
+      const message = err instanceof Error
+        ? err.message
+        : 'Failed to generate Claude export with state manifest';
+      showToast(message, 'error');
+    } finally {
+      setManifestLoading(false);
+    }
+  }, [
+    activeProject,
+    currentTask,
+    settings.privacy.secretsScannerLevel,
+    showToast,
+  ]);
+
   const renderPillGroup = (platforms: typeof enabledPlatforms) =>
     platforms.map((platform) => {
       const isActive = selectedPlatform.id === platform.id;
@@ -205,6 +251,26 @@ export function ExportButtons() {
           </>
         )}
       </button>
+
+      {selectedPlatform.id === 'claude' && (
+        <button
+          type="button"
+          className={`export-manifest-btn${manifestCopied ? ' export-manifest-btn--copied' : ''}`}
+          onClick={() => void handleCopyClaudeWithManifest()}
+          disabled={!activeProject || manifestLoading}
+        >
+          <span className="export-manifest-btn__label">
+            {manifestLoading
+              ? 'Generating state manifest...'
+              : manifestCopied
+                ? 'Copied Claude + manifest'
+                : 'Copy for Claude + manifest'}
+          </span>
+          <span className="export-manifest-btn__hint">
+            Adds VCP state manifest from Rust
+          </span>
+        </button>
+      )}
 
       <div className="export-platform-pills" role="tablist">
         {chatPlatforms.length > 0 && (
