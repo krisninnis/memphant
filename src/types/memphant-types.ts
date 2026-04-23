@@ -17,6 +17,7 @@ export type Platform = string;
 export type ExportMode = 'full' | 'delta' | 'specialist' | 'smart';
 export type PlatformCategory = 'chat' | 'dev' | 'local' | 'custom';
 export type PlatformExportStyle = 'structured' | 'compact' | 'code-heavy';
+export type StableItemPrefix = 'D' | 'R' | 'G' | 'Q';
 
 export interface AIPlatformConfig {
   id: Platform;
@@ -42,11 +43,19 @@ export interface CustomPlatformConfig {
 }
 
 export interface Decision {
+  id?: string;
   decision: string;
   rationale?: string;
   alternativesConsidered?: string[];
   source?: string;
   timestamp?: string;
+}
+
+export interface ProjectNextIds {
+  D: number;
+  R: number;
+  G: number;
+  Q: number;
 }
 
 export interface ChangelogEntry {
@@ -86,7 +95,7 @@ export interface GitCommit {
 }
 
 // Human-readable schema version for the project data format.
-export const SCHEMA_VERSION = '1.1.0';
+export const SCHEMA_VERSION = '1.2.0';
 
 export interface ProjectCheckpointSnapshot {
   schema_version: number | string;
@@ -95,11 +104,17 @@ export interface ProjectCheckpointSnapshot {
   updatedAt?: string;
   summary: string;
   goals: string[];
+  /** TODO(vcp-typed-items): replace parallel IDs with typed goal items. */
+  goalIds?: string[];
   rules: string[];
+  /** TODO(vcp-typed-items): replace parallel IDs with typed rule items. */
+  ruleIds?: string[];
   decisions: Decision[];
   currentState: string;
   nextSteps: string[];
   openQuestions: string[];
+  /** TODO(vcp-typed-items): replace parallel IDs with typed open-question items. */
+  openQuestionIds?: string[];
   importantAssets: string[];
   aiInstructions?: string;
   githubRepo?: string;          // Optional public GitHub repo URL — included in AI exports
@@ -114,6 +129,7 @@ export interface ProjectCheckpointSnapshot {
   pendingGitCommits?: GitCommit[];
   changelog: ChangelogEntry[];
   platformState: Partial<Record<Platform, PlatformState>>;
+  nextIds?: ProjectNextIds;
   /** Active work-in-flight right now. REPLACE-ALL on AI update. */
   inProgress?: string[];
   /** ~2–4 sentence recap of what happened in the last session. REPLACE on AI update. */
@@ -266,11 +282,14 @@ export function cloneCheckpointSnapshot(project: ProjectCheckpointSnapshot): Pro
     updatedAt: project.updatedAt,
     summary: project.summary,
     goals: [...project.goals],
+    goalIds: project.goalIds ? [...project.goalIds] : undefined,
     rules: [...project.rules],
+    ruleIds: project.ruleIds ? [...project.ruleIds] : undefined,
     decisions: project.decisions.map((decision) => ({ ...decision })),
     currentState: project.currentState,
     nextSteps: [...project.nextSteps],
     openQuestions: [...project.openQuestions],
+    openQuestionIds: project.openQuestionIds ? [...project.openQuestionIds] : undefined,
     importantAssets: [...project.importantAssets],
     aiInstructions: project.aiInstructions,
     githubRepo: project.githubRepo,
@@ -300,6 +319,7 @@ export function cloneCheckpointSnapshot(project: ProjectCheckpointSnapshot): Pro
         state ? { ...state } : state,
       ]),
     ) as Partial<Record<Platform, PlatformState>>,
+    nextIds: project.nextIds ? { ...project.nextIds } : undefined,
     inProgress: project.inProgress ? [...project.inProgress] : undefined,
     lastSessionSummary: project.lastSessionSummary,
     openQuestion: project.openQuestion,
