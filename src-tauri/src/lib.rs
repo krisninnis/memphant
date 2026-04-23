@@ -8,8 +8,15 @@ use tauri::Manager;
 use tauri::tray::TrayIconBuilder;
 use tauri_plugin_autostart::ManagerExt;
 
-// VCP infrastructure — no Tauri commands registered in this slice.
 mod vcp;
+
+#[derive(serde::Serialize)]
+struct StateManifestPreview {
+    manifest: vcp::Manifest,
+    text: String,
+    digest: String,
+    item_count: usize,
+}
 
 #[derive(Default)]
 struct TrayModeState {
@@ -904,6 +911,21 @@ async fn write_text_file(file_path: String, content: String) -> Result<(), Strin
 }
 
 #[tauri::command]
+async fn generate_state_manifest(
+    project: vcp::ProjectState,
+) -> Result<StateManifestPreview, String> {
+    let manifest = vcp::build_state_manifest(&project)?;
+    let text = manifest.to_text();
+
+    Ok(StateManifestPreview {
+        digest: manifest.state_digest.clone(),
+        item_count: manifest.item_count,
+        manifest,
+        text,
+    })
+}
+
+#[tauri::command]
 async fn backup_project_file(app: tauri::AppHandle, file_name: String) -> Result<(), String> {
     let projects = projects_dir(&app);
     let source = projects.join(&file_name);
@@ -1015,6 +1037,7 @@ pub fn run() {
             get_projects_path,
             backup_project_file,
             write_text_file,
+            generate_state_manifest,
             enable_autostart,
             disable_autostart,
             toggle_tray_mode,
