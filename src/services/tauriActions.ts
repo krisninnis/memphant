@@ -220,6 +220,16 @@ export async function syncGitCommits(projectId: string): Promise<GitCommit[]> {
   }
 }
 
+export async function generateStateManifest(
+  project: ProjectMemory,
+): Promise<StateManifestPreview> {
+  if (!isDesktopApp()) {
+    throw new Error('State manifest preview requires the desktop app.');
+  }
+
+  return tauriInvoke<StateManifestPreview>('generate_state_manifest', { project });
+}
+
 // ——————————————————————————————————————————————————————————————————————————————
 // Old ↔ New format conversion
 // ——————————————————————————————————————————————————————————————————————————————
@@ -581,6 +591,29 @@ type RescanResult = {
   scan_hash: string;
   folder_exists: boolean;
   meta?: ScanMeta;
+};
+
+export type StateManifestItem = {
+  id: string;
+  kind: 'decision' | 'goal' | 'rule' | 'open_question';
+  content_hash: string;
+  preview: string;
+};
+
+export type StateManifest = {
+  schema_version: string;
+  project_id: string;
+  generated_at: string;
+  item_count: number;
+  state_digest: string;
+  items: StateManifestItem[];
+};
+
+export type StateManifestPreview = {
+  manifest: StateManifest;
+  text: string;
+  digest: string;
+  item_count: number;
 };
 
 function formatDetectedStack(meta?: ScanMeta): string {
