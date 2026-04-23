@@ -1,17 +1,24 @@
-//! Folder watcher - Phase 1 skeleton.
+//! Folder watcher - Phase 1 core.
 //!
 //! This module is compiled only when the `folder_watcher` feature flag is set.
-//! It holds the configuration struct and the entry-point function.
-//! No actual file watching is performed yet - Phase 2 will add the
-//! notify-based watcher loop and redaction pipeline.
+//! Phase 1 keeps the implementation Rust-only and in-memory:
+//! - allowlist predicates
+//! - notify subscription for one root path
+//! - filtered event buffering
+//! - no summarisation, redaction, disk writes, or Tauri commands yet
 //!
 //! Policy references (read before extending this module):
 //!   docs/folder-watcher-allowlist.md
 //!   docs/folder-watcher-redaction-policy.md
 //!   docs/memphant-bet.md
 
+use notify::{recommended_watcher, Event, RecommendedWatcher, RecursiveMode, Watcher};
 use std::fs;
-use std::path::{Component, Path};
+use std::path::{Component, Path, PathBuf};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc, Mutex,
+};
 
 const MAX_ALLOWED_FILE_SIZE_BYTES: u64 = 500 * 1024;
 const ALLOWED_EXTENSIONS: &[&str] = &[
@@ -63,10 +70,23 @@ pub struct WatcherConfig {
     pub enabled: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BufferedEvent {
+    pub relative_path: PathBuf,
+    pub kind: String,
+}
+
+pub struct FolderWatcher {
+    root: PathBuf,
+    running: Arc<AtomicBool>,
+    buffer: Arc<Mutex<Vec<BufferedEvent>>>,
+    watcher: Option<RecommendedWatcher>,
+}
+
 /// Start the folder watcher for a project.
 ///
 /// Phase 1: logs a startup message and returns immediately.
-/// Phase 2 will spawn the notify-based watch loop here.
+/// Phase 2 will wire this into a Tauri command lifecycle.
 ///
 /// Returns `Err` if the config is invalid (e.g. empty project_id).
 /// Returns `Ok(())` immediately if `config.enabled` is false.
@@ -82,6 +102,78 @@ pub fn start_watcher(config: WatcherConfig) -> Result<(), String> {
     eprintln!("[watcher] started for {}", config.project_id);
 
     Ok(())
+}
+
+impl FolderWatcher {
+    pub fn start(root: &Path) -> Result<Self, String> {
+        if !root.exists() {
+            return Err(format!("watcher root does not exist: {}", root.display()));
+        }
+
+        if !root.is_dir() {
+            return Err(format!("watcher root is not a directory: {}", root.display()));
+        }
+
+        let root = root
+            .canonicalize()
+            .map_err(|err| format!("failed to canonicalize watcher root: {err}"))?;
+        let running = Arc::new(AtomicBool::new(true));
+        let buffer = Arc::new(Mutex::new(Vec::new()));
+
+        let callback_root = root.clone();
+        let callback_running = Arc::clone(&running);
+        let callback_buffer = Arc::clone(&buffer);
+
+        let mut watcher = recommended_watcher(move |result: notify::Result<Event>| {
+            if !callback_running.load(Ordering::SeqCst) {
+                return;
+            }
+
+            let event = match result {
+                Ok(event) => event,
+                Err(_) => return,
+            };
+
+            buffer_allowed_paths(&callback_root, &callback_running, &callback_buffer, event);
+        })
+        .map_err(|err| format!("failed to create filesystem watcher: {err}"))?;
+
+        watcher
+            .watch(&root, RecursiveMode::Recursive)
+            .map_err(|err| format!("failed to watch {}: {err}", root.display()))?;
+
+        Ok(Self {
+            root,
+            running,
+            buffer,
+            watcher: Some(watcher),
+        })
+    }
+
+    pub fn stop(&mut self) -> Result<(), String> {
+        self.running.store(false, Ordering::SeqCst);
+
+        if let Some(mut watcher) = self.watcher.take() {
+            watcher
+                .unwatch(&self.root)
+                .map_err(|err| format!("failed to stop watching {}: {err}", self.root.display()))?;
+        }
+
+        Ok(())
+    }
+
+    pub fn drain(&self) -> Vec<BufferedEvent> {
+        match self.buffer.lock() {
+            Ok(mut guard) => std::mem::take(&mut *guard),
+            Err(_) => Vec::new(),
+        }
+    }
+}
+
+impl Drop for FolderWatcher {
+    fn drop(&mut self) {
+        let _ = self.stop();
+    }
 }
 
 pub fn is_path_allowed(root: &Path, candidate: &Path) -> bool {
@@ -162,12 +254,48 @@ pub fn is_file_size_allowed(path: &Path) -> bool {
     }
 }
 
+fn buffer_allowed_paths(
+    root: &Path,
+    running: &AtomicBool,
+    buffer: &Mutex<Vec<BufferedEvent>>,
+    event: Event,
+) {
+    if !running.load(Ordering::SeqCst) {
+        return;
+    }
+
+    let kind = format!("{:?}", event.kind);
+    let mut accepted = Vec::new();
+
+    for path in event.paths {
+        if !is_path_allowed(root, &path) || !is_file_size_allowed(&path) {
+            continue;
+        }
+
+        let relative_path = match path.strip_prefix(root) {
+            Ok(relative) => relative.to_path_buf(),
+            Err(_) => continue,
+        };
+
+        accepted.push(BufferedEvent {
+            relative_path,
+            kind: kind.clone(),
+        });
+    }
+
+    if accepted.is_empty() {
+        return;
+    }
+
+    if let Ok(mut guard) = buffer.lock() {
+        guard.extend(accepted);
+    }
+}
+
 fn relative_segments(path: &Path) -> Option<Vec<String>> {
     path.components()
         .map(|component| match component {
-            Component::Normal(segment) => {
-                segment.to_str().map(|value| value.to_ascii_lowercase())
-            }
+            Component::Normal(segment) => segment.to_str().map(|value| value.to_ascii_lowercase()),
             _ => None,
         })
         .collect()
@@ -188,11 +316,11 @@ fn is_explicitly_denied_filename(lower_file_name: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::env;
     use std::fs::{self, File};
     use std::io::Write;
-    use std::path::PathBuf;
-    use std::time::{SystemTime, UNIX_EPOCH};
+    use std::thread;
+    use std::time::{Duration, Instant};
+    use tempfile::TempDir;
 
     fn test_root() -> PathBuf {
         PathBuf::from("/repo")
@@ -202,12 +330,40 @@ mod tests {
         test_root().join(path)
     }
 
-    fn unique_temp_path(prefix: &str) -> PathBuf {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("clock should be after unix epoch")
-            .as_nanos();
-        env::temp_dir().join(format!("memphant-watcher-{prefix}-{nanos}"))
+    fn wait_for_events<F>(watcher: &FolderWatcher, predicate: F) -> Vec<BufferedEvent>
+    where
+        F: Fn(&[BufferedEvent]) -> bool,
+    {
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let mut collected = Vec::new();
+
+        while Instant::now() < deadline {
+            let drained = watcher.drain();
+            if !drained.is_empty() {
+                collected.extend(drained);
+                if predicate(&collected) {
+                    return collected;
+                }
+            }
+
+            thread::sleep(Duration::from_millis(50));
+        }
+
+        collected
+    }
+
+    fn relative(path: &str) -> PathBuf {
+        PathBuf::from(path)
+    }
+
+    fn write_file(path: &Path, contents: &[u8]) {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).expect("parent directory should be created");
+        }
+
+        let mut file = File::create(path).expect("file should be created");
+        file.write_all(contents).expect("file should be written");
+        file.sync_all().expect("file should be flushed");
     }
 
     #[test]
@@ -338,26 +494,138 @@ mod tests {
 
     #[test]
     fn file_size_check_allows_limit_and_denies_above_it() {
-        let temp_dir = unique_temp_path("size");
-        fs::create_dir_all(&temp_dir).expect("temp dir should be created");
+        let temp_dir = TempDir::new().expect("temp dir should be created");
+        let allowed_path = temp_dir.path().join("allowed.ts");
+        let denied_path = temp_dir.path().join("denied.ts");
 
-        let allowed_path = temp_dir.join("allowed.ts");
-        let denied_path = temp_dir.join("denied.ts");
-
-        let mut allowed_file = File::create(&allowed_path).expect("allowed file should be created");
-        allowed_file
-            .write_all(&vec![b'a'; MAX_ALLOWED_FILE_SIZE_BYTES as usize])
-            .expect("allowed file should be written");
-
-        let mut denied_file = File::create(&denied_path).expect("denied file should be created");
-        denied_file
-            .write_all(&vec![b'b'; (MAX_ALLOWED_FILE_SIZE_BYTES + 1) as usize])
-            .expect("denied file should be written");
+        write_file(&allowed_path, &vec![b'a'; MAX_ALLOWED_FILE_SIZE_BYTES as usize]);
+        write_file(
+            &denied_path,
+            &vec![b'b'; (MAX_ALLOWED_FILE_SIZE_BYTES + 1) as usize],
+        );
 
         assert!(is_file_size_allowed(&allowed_path));
         assert!(!is_file_size_allowed(&denied_path));
-        assert!(!is_file_size_allowed(&temp_dir.join("missing.ts")));
+        assert!(!is_file_size_allowed(&temp_dir.path().join("missing.ts")));
+    }
 
-        fs::remove_dir_all(&temp_dir).expect("temp dir should be removed");
+    #[test]
+    fn allowed_file_events_are_captured() {
+        let temp_dir = TempDir::new().expect("temp dir should be created");
+        let root = temp_dir.path();
+        let mut watcher = FolderWatcher::start(root).expect("watcher should start");
+
+        thread::sleep(Duration::from_millis(150));
+
+        let allowed_file = root.join("src").join("main.ts");
+        write_file(&allowed_file, b"export const ready = true;\n");
+
+        let events = wait_for_events(&watcher, |events| {
+            events
+                .iter()
+                .any(|event| event.relative_path == relative("src/main.ts"))
+        });
+
+        assert!(
+            events
+                .iter()
+                .any(|event| event.relative_path == relative("src/main.ts")),
+            "expected an event for src/main.ts, got {events:?}"
+        );
+
+        watcher.stop().expect("watcher should stop cleanly");
+    }
+
+    #[test]
+    fn denied_file_events_are_not_buffered() {
+        let temp_dir = TempDir::new().expect("temp dir should be created");
+        let root = temp_dir.path();
+        let mut watcher = FolderWatcher::start(root).expect("watcher should start");
+
+        thread::sleep(Duration::from_millis(150));
+
+        let denied_file = root.join("src").join("api_key_dump.ts");
+        write_file(&denied_file, b"const token = 'nope';\n");
+
+        thread::sleep(Duration::from_millis(400));
+
+        let events = watcher.drain();
+        assert!(
+            events.is_empty(),
+            "expected no buffered events for denied file, got {events:?}"
+        );
+
+        watcher.stop().expect("watcher should stop cleanly");
+    }
+
+    #[test]
+    fn stopping_the_watcher_stops_new_buffering() {
+        let temp_dir = TempDir::new().expect("temp dir should be created");
+        let root = temp_dir.path();
+        let mut watcher = FolderWatcher::start(root).expect("watcher should start");
+
+        thread::sleep(Duration::from_millis(150));
+
+        let first_file = root.join("src").join("before_stop.ts");
+        write_file(&first_file, b"export const beforeStop = true;\n");
+
+        let initial_events = wait_for_events(&watcher, |events| {
+            events
+                .iter()
+                .any(|event| event.relative_path == relative("src/before_stop.ts"))
+        });
+
+        assert!(
+            initial_events
+                .iter()
+                .any(|event| event.relative_path == relative("src/before_stop.ts")),
+            "expected an event before stop, got {initial_events:?}"
+        );
+
+        watcher.stop().expect("watcher should stop cleanly");
+
+        let second_file = root.join("src").join("after_stop.ts");
+        write_file(&second_file, b"export const afterStop = true;\n");
+
+        thread::sleep(Duration::from_millis(400));
+
+        let post_stop_events = watcher.drain();
+        assert!(
+            post_stop_events.is_empty(),
+            "expected no events after stop, got {post_stop_events:?}"
+        );
+    }
+
+    #[test]
+    fn draining_returns_buffered_events_and_clears_the_queue() {
+        let temp_dir = TempDir::new().expect("temp dir should be created");
+        let root = temp_dir.path();
+        let mut watcher = FolderWatcher::start(root).expect("watcher should start");
+
+        thread::sleep(Duration::from_millis(150));
+
+        let allowed_file = root.join("docs").join("note.md");
+        write_file(&allowed_file, b"# Note\n");
+
+        let drained_once = wait_for_events(&watcher, |events| {
+            events
+                .iter()
+                .any(|event| event.relative_path == relative("docs/note.md"))
+        });
+
+        assert!(
+            drained_once
+                .iter()
+                .any(|event| event.relative_path == relative("docs/note.md")),
+            "expected drained events to include docs/note.md, got {drained_once:?}"
+        );
+
+        let drained_twice = watcher.drain();
+        assert!(
+            drained_twice.is_empty(),
+            "expected second drain to be empty, got {drained_twice:?}"
+        );
+
+        watcher.stop().expect("watcher should stop cleanly");
     }
 }
