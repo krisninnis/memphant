@@ -8,6 +8,9 @@ use tauri::Manager;
 use tauri::tray::TrayIconBuilder;
 use tauri_plugin_autostart::ManagerExt;
 
+// VCP infrastructure — no Tauri commands registered in this slice.
+mod vcp;
+
 #[derive(Default)]
 struct TrayModeState {
     enabled: Mutex<bool>,
