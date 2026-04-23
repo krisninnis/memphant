@@ -239,6 +239,28 @@ function formatForClaude(project: ProjectMemory, task?: string): string {
   return lines.join('\n');
 }
 
+export function formatForClaudeWithManifest(
+  project: ProjectMemory,
+  manifestText: string,
+  manifestDigest: string,
+  task?: string,
+): string {
+  return [
+    formatForClaude(project, task),
+    '',
+    '<vcp_state_manifest>',
+    sanitize(manifestText),
+    '</vcp_state_manifest>',
+    '',
+    '<vcp_guidance>',
+    `Manifest digest: ${sanitize(manifestDigest)}`,
+    'Use the state manifest as the stable-ID index for project facts.',
+    'When referencing goals, rules, decisions, next steps, or open questions, cite the matching manifest IDs.',
+    'Do not invent IDs or claims; if the project context and manifest do not support something, say so.',
+    '</vcp_guidance>',
+  ].join('\n');
+}
+
 function formatForChatGPT(project: ProjectMemory, task?: string): string {
   const lines: string[] = [];
 
