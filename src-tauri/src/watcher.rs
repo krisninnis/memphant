@@ -1,10 +1,10 @@
-//! Folder watcher - Phase 1 core.
+//! Folder watcher - Phase 1 hardened core.
 //!
 //! This module is compiled only when the `folder_watcher` feature flag is set.
 //! Phase 1 keeps the implementation Rust-only and in-memory:
 //! - allowlist predicates
 //! - notify subscription for one root path
-//! - filtered event buffering
+//! - normalized filtered event buffering
 //! - no summarisation, redaction, disk writes, or Tauri commands yet
 //!
 //! Policy references (read before extending this module):
@@ -12,15 +12,20 @@
 //!   docs/folder-watcher-redaction-policy.md
 //!   docs/memphant-bet.md
 
-use notify::{recommended_watcher, Event, RecommendedWatcher, RecursiveMode, Watcher};
+use notify::{
+    event::{CreateKind, EventKind, ModifyKind, RemoveKind},
+    recommended_watcher, Event, RecommendedWatcher, RecursiveMode, Watcher,
+};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc, Mutex,
 };
+use std::time::{SystemTime, UNIX_EPOCH};
 
 const MAX_ALLOWED_FILE_SIZE_BYTES: u64 = 500 * 1024;
+const DEDUPE_WINDOW_MS: u64 = 200;
 const ALLOWED_EXTENSIONS: &[&str] = &[
     "ts", "tsx", "js", "jsx", "mjs", "cjs", "rs", "toml", "py", "go", "html", "css", "scss",
     "md", "mdx", "sql", "json", "yml", "yaml",
@@ -70,10 +75,20 @@ pub struct WatcherConfig {
     pub enabled: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BufferedOperation {
+    Added,
+    Modified,
+    Deleted,
+    Renamed,
+    Other,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BufferedEvent {
     pub relative_path: PathBuf,
-    pub kind: String,
+    pub operation: BufferedOperation,
+    pub timestamp_ms: u64,
 }
 
 pub struct FolderWatcher {
@@ -134,7 +149,8 @@ impl FolderWatcher {
                 Err(_) => return,
             };
 
-            buffer_allowed_paths(&callback_root, &callback_running, &callback_buffer, event);
+            let normalized = normalize_event(&callback_root, event, current_timestamp_ms());
+            push_deduped_events(&callback_buffer, normalized);
         })
         .map_err(|err| format!("failed to create filesystem watcher: {err}"))?;
 
@@ -254,21 +270,13 @@ pub fn is_file_size_allowed(path: &Path) -> bool {
     }
 }
 
-fn buffer_allowed_paths(
-    root: &Path,
-    running: &AtomicBool,
-    buffer: &Mutex<Vec<BufferedEvent>>,
-    event: Event,
-) {
-    if !running.load(Ordering::SeqCst) {
-        return;
-    }
+fn normalize_event(root: &Path, event: Event, timestamp_ms: u64) -> Vec<BufferedEvent> {
+    let operation = normalize_operation(&event.kind);
+    let candidate_paths = choose_candidate_paths(&event, operation);
+    let mut normalized = Vec::new();
 
-    let kind = format!("{:?}", event.kind);
-    let mut accepted = Vec::new();
-
-    for path in event.paths {
-        if !is_path_allowed(root, &path) || !is_file_size_allowed(&path) {
+    for path in candidate_paths {
+        if !path_passes_buffer_filters(root, path, operation) {
             continue;
         }
 
@@ -277,19 +285,82 @@ fn buffer_allowed_paths(
             Err(_) => continue,
         };
 
-        accepted.push(BufferedEvent {
+        normalized.push(BufferedEvent {
             relative_path,
-            kind: kind.clone(),
+            operation,
+            timestamp_ms,
         });
     }
 
-    if accepted.is_empty() {
+    normalized
+}
+
+fn normalize_operation(kind: &EventKind) -> BufferedOperation {
+    match kind {
+        EventKind::Create(CreateKind::Any)
+        | EventKind::Create(CreateKind::File)
+        | EventKind::Create(CreateKind::Folder) => BufferedOperation::Added,
+        EventKind::Modify(ModifyKind::Data(_))
+        | EventKind::Modify(ModifyKind::Metadata(_))
+        | EventKind::Modify(ModifyKind::Any) => BufferedOperation::Modified,
+        EventKind::Modify(ModifyKind::Name(_)) => BufferedOperation::Renamed,
+        EventKind::Remove(RemoveKind::Any)
+        | EventKind::Remove(RemoveKind::File)
+        | EventKind::Remove(RemoveKind::Folder) => BufferedOperation::Deleted,
+        _ => BufferedOperation::Other,
+    }
+}
+
+fn choose_candidate_paths<'a>(event: &'a Event, operation: BufferedOperation) -> Vec<&'a Path> {
+    match operation {
+        BufferedOperation::Renamed => event
+            .paths
+            .last()
+            .map(|path| vec![path.as_path()])
+            .unwrap_or_default(),
+        _ => event.paths.iter().map(|path| path.as_path()).collect(),
+    }
+}
+
+fn path_passes_buffer_filters(root: &Path, path: &Path, operation: BufferedOperation) -> bool {
+    if !is_path_allowed(root, path) {
+        return false;
+    }
+
+    match operation {
+        BufferedOperation::Deleted => true,
+        _ => match fs::metadata(path) {
+            Ok(_) => is_file_size_allowed(path),
+            Err(_) => true,
+        },
+    }
+}
+
+fn push_deduped_events(buffer: &Mutex<Vec<BufferedEvent>>, events: Vec<BufferedEvent>) {
+    if events.is_empty() {
         return;
     }
 
     if let Ok(mut guard) = buffer.lock() {
-        guard.extend(accepted);
+        for event in events {
+            let should_skip = guard.last().is_some_and(|last| {
+                last.relative_path == event.relative_path
+                    && last.operation == event.operation
+                    && event.timestamp_ms.saturating_sub(last.timestamp_ms) <= DEDUPE_WINDOW_MS
+            });
+
+            if !should_skip {
+                guard.push(event);
+            }
+        }
     }
+}
+
+fn current_timestamp_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_millis() as u64)
+        .unwrap_or(0)
 }
 
 fn relative_segments(path: &Path) -> Option<Vec<String>> {
@@ -316,6 +387,7 @@ fn is_explicitly_denied_filename(lower_file_name: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use notify::event::{EventAttributes, RenameMode};
     use std::fs::{self, File};
     use std::io::Write;
     use std::thread;
@@ -364,6 +436,14 @@ mod tests {
         let mut file = File::create(path).expect("file should be created");
         file.write_all(contents).expect("file should be written");
         file.sync_all().expect("file should be flushed");
+    }
+
+    fn synthetic_event(kind: EventKind, paths: Vec<PathBuf>) -> Event {
+        Event {
+            kind,
+            paths,
+            attrs: EventAttributes::default(),
+        }
     }
 
     #[test]
@@ -510,7 +590,7 @@ mod tests {
     }
 
     #[test]
-    fn allowed_file_events_are_captured() {
+    fn create_or_write_is_captured_as_added_or_modified() {
         let temp_dir = TempDir::new().expect("temp dir should be created");
         let root = temp_dir.path();
         let mut watcher = FolderWatcher::start(root).expect("watcher should start");
@@ -527,35 +607,109 @@ mod tests {
         });
 
         assert!(
-            events
-                .iter()
-                .any(|event| event.relative_path == relative("src/main.ts")),
-            "expected an event for src/main.ts, got {events:?}"
+            events.iter().any(|event| {
+                event.relative_path == relative("src/main.ts")
+                    && matches!(
+                        event.operation,
+                        BufferedOperation::Added | BufferedOperation::Modified
+                    )
+            }),
+            "expected added or modified event for src/main.ts, got {events:?}"
         );
 
         watcher.stop().expect("watcher should stop cleanly");
     }
 
     #[test]
-    fn denied_file_events_are_not_buffered() {
+    fn delete_is_captured_even_after_the_file_is_gone() {
         let temp_dir = TempDir::new().expect("temp dir should be created");
         let root = temp_dir.path();
         let mut watcher = FolderWatcher::start(root).expect("watcher should start");
 
         thread::sleep(Duration::from_millis(150));
 
-        let denied_file = root.join("src").join("api_key_dump.ts");
-        write_file(&denied_file, b"const token = 'nope';\n");
+        let allowed_file = root.join("src").join("gone.ts");
+        write_file(&allowed_file, b"export const alive = true;\n");
 
-        thread::sleep(Duration::from_millis(400));
+        let _ = wait_for_events(&watcher, |events| {
+            events
+                .iter()
+                .any(|event| event.relative_path == relative("src/gone.ts"))
+        });
+        let _ = watcher.drain();
 
-        let events = watcher.drain();
+        fs::remove_file(&allowed_file).expect("file should be deleted");
+        assert!(!allowed_file.exists(), "deleted file should be gone");
+
+        let events = wait_for_events(&watcher, |events| {
+            events.iter().any(|event| {
+                event.relative_path == relative("src/gone.ts")
+                    && event.operation == BufferedOperation::Deleted
+            })
+        });
+
         assert!(
-            events.is_empty(),
-            "expected no buffered events for denied file, got {events:?}"
+            events.iter().any(|event| {
+                event.relative_path == relative("src/gone.ts")
+                    && event.operation == BufferedOperation::Deleted
+            }),
+            "expected deleted event for src/gone.ts, got {events:?}"
         );
 
         watcher.stop().expect("watcher should stop cleanly");
+    }
+
+    #[test]
+    fn rename_is_captured_using_the_destination_path() {
+        let root = test_root();
+        let event = synthetic_event(
+            EventKind::Modify(ModifyKind::Name(RenameMode::Both)),
+            vec![candidate("src/old.ts"), candidate("src/new.ts")],
+        );
+
+        let normalized = normalize_event(&root, event, 1234);
+
+        assert_eq!(
+            normalized,
+            vec![BufferedEvent {
+                relative_path: relative("src/new.ts"),
+                operation: BufferedOperation::Renamed,
+                timestamp_ms: 1234,
+            }]
+        );
+    }
+
+    #[test]
+    fn duplicate_noisy_events_are_collapsed() {
+        let root = test_root();
+        let event = synthetic_event(
+            EventKind::Modify(ModifyKind::Data(notify::event::DataChange::Any)),
+            vec![candidate("src/main.ts")],
+        );
+
+        let first = normalize_event(&root, event.clone(), 1_000);
+        let second = normalize_event(&root, event, 1_100);
+        let buffer = Mutex::new(Vec::new());
+
+        push_deduped_events(&buffer, first);
+        push_deduped_events(&buffer, second);
+
+        let final_events = buffer.into_inner().expect("buffer should unlock cleanly");
+        assert_eq!(final_events.len(), 1, "expected duplicate events to collapse");
+        assert_eq!(final_events[0].relative_path, relative("src/main.ts"));
+        assert_eq!(final_events[0].operation, BufferedOperation::Modified);
+    }
+
+    #[test]
+    fn denied_paths_are_still_ignored() {
+        let root = test_root();
+        let event = synthetic_event(
+            EventKind::Create(CreateKind::File),
+            vec![candidate("src/api_key_dump.ts")],
+        );
+
+        let normalized = normalize_event(&root, event, 999);
+        assert!(normalized.is_empty(), "expected denied path to be ignored");
     }
 
     #[test]
