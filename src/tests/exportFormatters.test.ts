@@ -3,7 +3,11 @@
  * Covers: secret sanitisation, platform formatting, smart export.
  */
 
-import { formatForPlatform, setScannerLevel } from '../utils/exportFormatters';
+import {
+  formatForClaudeWithManifest,
+  formatForPlatform,
+  setScannerLevel,
+} from '../utils/exportFormatters';
 import type { ProjectMemory } from '../types/memphant-types';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -253,6 +257,25 @@ describe('claude format', () => {
   it('includes the response format prompt', () => {
     const output = formatForPlatform(makeProject(), 'claude');
     expect(output).toContain('memphant_update');
+  });
+
+  it('adds manifest text and guidance only in the explicit Claude manifest formatter', () => {
+    const project = makeProject();
+    const standard = formatForPlatform(project, 'claude');
+    const withManifest = formatForClaudeWithManifest(
+      project,
+      'state_digest: sha256:abc123\n- id: G-001',
+      'sha256:abc123',
+      'Keep the launch plan grounded',
+    );
+
+    expect(standard).not.toContain('<vcp_state_manifest>');
+    expect(withManifest).toContain('<project_context>');
+    expect(withManifest).toContain('<vcp_state_manifest>');
+    expect(withManifest).toContain('state_digest: sha256:abc123');
+    expect(withManifest).toContain('Manifest digest: sha256:abc123');
+    expect(withManifest).toContain('cite the matching manifest IDs');
+    expect(withManifest).toContain('Keep the launch plan grounded');
   });
 });
 
