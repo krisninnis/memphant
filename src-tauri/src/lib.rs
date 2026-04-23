@@ -14,6 +14,8 @@ mod vcp;
 // No Tauri commands registered yet; Phase 2 will add them.
 #[cfg(feature = "folder_watcher")]
 mod watcher;
+#[cfg(feature = "folder_watcher")]
+mod summariser;
 
 #[derive(serde::Serialize)]
 struct StateManifestPreview {
