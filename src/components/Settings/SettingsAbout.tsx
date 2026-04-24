@@ -236,22 +236,6 @@ export function SettingsAbout() {
           </button>
         </div>
 
-        <div className="setting-row">
-          <div className="setting-info">
-            <div className="setting-label">Report a bug</div>
-            <div className="setting-description">Open an issue on GitHub if something is not working.</div>
-          </div>
-          <button
-            className="setting-btn"
-            onClick={() =>
-              openLink(
-                'https://github.com/krisninnis/memphant/issues/new?template=bug_report.md&labels=bug',
-              )
-            }
-          >
-            Report a bug
-          </button>
-        </div>
       </div>
 
       {!isTauri() && (
