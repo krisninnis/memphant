@@ -48,6 +48,7 @@ export function useRecentActivity(
     }
 
     let disposed = false;
+    let initialLoadTimeoutId: number | null = null;
 
     const loadRecentActivity = async () => {
       const requestId = ++requestIdRef.current;
@@ -81,13 +82,18 @@ export function useRecentActivity(
       }
     };
 
-    void loadRecentActivity();
+    initialLoadTimeoutId = window.setTimeout(() => {
+      void loadRecentActivity();
+    }, 5000);
     const intervalId = window.setInterval(() => {
       void loadRecentActivity();
     }, pollIntervalMs);
 
     return () => {
       disposed = true;
+      if (initialLoadTimeoutId !== null) {
+        window.clearTimeout(initialLoadTimeoutId);
+      }
       window.clearInterval(intervalId);
     };
   }, [projectId, folderPath, autoMemoryUpdateInterval, pollIntervalMs]);
