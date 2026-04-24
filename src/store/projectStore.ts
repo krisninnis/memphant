@@ -69,6 +69,7 @@ function persistSettingsToStorage(settings: AppSettings): void {
     window.localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
   } catch (err) {
     console.warn('[Memphant] Failed to persist settings:', err);
+    useProjectStore.getState().showToast('Settings could not be saved.', 'error');
   }
 }
 
@@ -333,3 +334,4 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       .map(([platform]) => platform);
   },
 }));
+// watcher
