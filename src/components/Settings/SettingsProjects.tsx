@@ -33,6 +33,29 @@ export function SettingsProjects() {
             onChange={(v) => update({ autoRescanOnOpen: v })}
           />
         </div>
+
+        <div className="setting-row">
+          <div className="setting-info">
+            <div className="setting-label">Auto-update project memory</div>
+            <div className="setting-description">
+              Automatically refresh your project context while you work
+            </div>
+          </div>
+          <select
+            className="setting-select"
+            value={p.autoMemoryUpdateInterval}
+            onChange={(e) =>
+              update({
+                autoMemoryUpdateInterval:
+                  e.target.value as typeof p.autoMemoryUpdateInterval,
+              })}
+          >
+            <option value="off">Off</option>
+            <option value="15min">Every 15 minutes</option>
+            <option value="30min">Every 30 minutes</option>
+            <option value="1hour">Every hour</option>
+          </select>
+        </div>
       </div>
 
       <div className="settings-group">
