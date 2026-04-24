@@ -1,5 +1,6 @@
 import { Component, type ReactNode, type ErrorInfo, useEffect } from 'react';
 import AppShell from './components/Layout/AppShell';
+import OnboardingModal from './components/Layout/OnboardingModal';
 import { PWAUpdatePrompt } from './components/PWAUpdatePrompt';
 import { PWAProvider } from './hooks/usePWA';
 import { useProjectStore } from './store/projectStore';
@@ -99,6 +100,8 @@ function isTauri(): boolean {
 function App() {
   const activeProject = useProjectStore((s) => s.activeProject());
   const autoGitSync = useProjectStore((s) => s.settings.general.autoGitSync);
+  const settings = useProjectStore((s) => s.settings);
+  const isLoading = useProjectStore((s) => s.isLoading);
   const showToast = useProjectStore((s) => s.showToast);
 
   useEffect(() => {
@@ -146,6 +149,7 @@ function App() {
       <PWAProvider>
         <AppShell />
         <PWAUpdatePrompt />
+        {!isLoading && !settings.general.hasSeenOnboarding && <OnboardingModal />}
       </PWAProvider>
     </ErrorBoundary>
   );
