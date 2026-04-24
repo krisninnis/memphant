@@ -1,6 +1,7 @@
-{
+﻿{
   "version": 2,
   "routes": [
+    { "src": "/download", "destination": "https://github.com/krisninnis/memphant/releases", "status": 302 },
     { "src": "/api/(.*)",        "dest": "/api/$1" },
     { "src": "/success",         "dest": "/public/success.html" },
     { "src": "/cancel",          "dest": "/public/cancel.html" },
