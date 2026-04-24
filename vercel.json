@@ -3,10 +3,10 @@
   "version": 2,
   "rewrites": [
     { "source": "/api/:path*", "destination": "/api/:path*" },
-    { "source": "/success", "destination": "/public/success.html" },
-    { "source": "/cancel", "destination": "/public/cancel.html" },
+    { "source": "/success", "destination": "/success.html" },
+    { "source": "/cancel", "destination": "/cancel.html" },
     { "source": "/auth/callback", "destination": "/api/auth-callback" },
-    { "source": "/", "destination": "/public/index.html" },
-    { "source": "/:path*", "destination": "/public/:path*" }
+    { "source": "/", "destination": "/index.html" },
+    { "source": "/:path*", "destination": "/:path*" }
   ]
 }
