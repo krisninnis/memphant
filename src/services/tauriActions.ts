@@ -539,6 +539,38 @@ export function toOldFormat(project: ProjectMemory): Record<string, unknown> {
   };
 }
 
+function stripPortablePrivateFields(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(stripPortablePrivateFields);
+  }
+
+  if (!value || typeof value !== 'object') {
+    return value;
+  }
+
+  const result: Record<string, unknown> = {};
+
+  for (const [key, nestedValue] of Object.entries(value as Record<string, unknown>)) {
+    if (key === 'linkedProjectPath') {
+      continue;
+    }
+
+    if (key === 'linkedFolder' && nestedValue && typeof nestedValue === 'object') {
+      const safeLinkedFolder = { ...(nestedValue as Record<string, unknown>) };
+      delete safeLinkedFolder.path;
+      result[key] = stripPortablePrivateFields(safeLinkedFolder);
+      continue;
+    }
+
+    result[key] = stripPortablePrivateFields(nestedValue);
+  }
+
+  return result;
+}
+
+function toPortableExportFormat(project: ProjectMemory): Record<string, unknown> {
+  return stripPortablePrivateFields(toOldFormat(project)) as Record<string, unknown>;
+}
 // ——————————————————————————————————————————————————————————————————————————————
 // Scan result types
 // ——————————————————————————————————————————————————————————————————————————————
@@ -1316,7 +1348,7 @@ export async function exportActiveProjectAsJson(): Promise<void> {
   }
 
   try {
-    const content = JSON.stringify(toOldFormat(activeProject), null, 2);
+    const content = JSON.stringify(toPortableExportFormat(activeProject), null, 2);
     const blob = new Blob([content], { type: 'application/json;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const safeName = canonicalTauriFileStem(activeProject.name || activeProject.id);
@@ -1422,7 +1454,7 @@ export async function downloadAllData(): Promise<void> {
     exported_at: new Date().toISOString(),
     app: 'Memephant',
     schema_version: 1,
-    projects: projects.map((project) => toOldFormat(project)),
+    projects: projects.map((project) => toPortableExportFormat(project)),
     settings,
   };
 

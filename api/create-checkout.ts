@@ -1,8 +1,14 @@
 import Stripe from 'stripe';
+import { createClient } from '@supabase/supabase-js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2026-03-25.dahlia',
 });
+
+const supabase = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+);
 
 export default async function handler(req: any, res: any) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -18,16 +24,38 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const { priceId, userId, email } = req.body ?? {};
+    const authHeader = req.headers['authorization'] ?? '';
+    const token = authHeader.replace(/^Bearer\s+/i, '').trim();
 
-    if (!priceId || !userId || !email) {
-      return res.status(400).json({ error: 'priceId, userId and email are required' });
+    if (!token) {
+      return res.status(401).json({ error: 'Unauthorised' });
+    }
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser(token);
+
+    if (authError || !user) {
+      return res.status(401).json({ error: 'Invalid or expired token' });
+    }
+
+    const { priceId } = req.body ?? {};
+    const userId = user.id;
+    const email = user.email ?? '';
+
+    if (!priceId) {
+      return res.status(400).json({ error: 'priceId is required' });
+    }
+
+    if (!email) {
+      return res.status(400).json({ error: 'Authenticated user email is required' });
     }
 
     const allowedPrices = [
       process.env.STRIPE_PRO_PRICE_ID,
       process.env.STRIPE_TEAM_PRICE_ID,
-    ];
+    ].filter(Boolean);
 
     if (!allowedPrices.includes(priceId)) {
       return res.status(400).json({ error: 'Invalid price ID' });

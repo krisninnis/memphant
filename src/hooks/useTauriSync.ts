@@ -278,3 +278,4 @@ export function useTauriSync() {
     };
   }, [projects, activeProjectId]);
 }
+// test again 2

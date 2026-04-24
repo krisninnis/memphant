@@ -4,8 +4,8 @@
  * Creates a Stripe Customer Portal session so users can manage their subscription
  * (update payment method, cancel, view invoices) without us building any of that UI.
  *
- * Body: { userId: string }
- * Returns: { url: string }  — open in system browser
+ * Requires: Authorization: Bearer <Supabase access token>
+ * Returns: { url: string } — open in system browser
  */
 
 import Stripe from 'stripe';
@@ -30,13 +30,24 @@ export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    const { userId } = req.body ?? {};
+    const authHeader = req.headers['authorization'] ?? '';
+    const token = authHeader.replace(/^Bearer\s+/i, '').trim();
 
-    if (!userId) {
-      return res.status(400).json({ error: 'userId is required' });
+    if (!token) {
+      return res.status(401).json({ error: 'Unauthorised' });
     }
 
-    // Look up the Stripe customer ID from Supabase
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser(token);
+
+    if (authError || !user) {
+      return res.status(401).json({ error: 'Invalid or expired token' });
+    }
+
+    const userId = user.id;
+
     const { data, error } = await supabase
       .from('subscriptions')
       .select('stripe_customer_id')
@@ -47,13 +58,11 @@ export default async function handler(req: any, res: any) {
       return res.status(404).json({ error: 'No active subscription found for this user.' });
     }
 
-    const returnUrl = process.env.APP_URL
-      ? `${process.env.APP_URL}/success`
-      : 'https://memephant.com/success';
+    const baseUrl = process.env.APP_URL || 'https://memephant.com';
 
     const portalSession = await stripe.billingPortal.sessions.create({
-      customer:   data.stripe_customer_id,
-      return_url: returnUrl,
+      customer: data.stripe_customer_id,
+      return_url: `${baseUrl}/success`,
     });
 
     return res.status(200).json({ url: portalSession.url });
