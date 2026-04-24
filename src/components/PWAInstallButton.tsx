@@ -25,6 +25,27 @@ export function PWAInstallButton({ variant = 'header' }: Props) {
   }
 
   if (!isInstallable) {
+    if (variant === 'header') {
+      return (
+        <button
+          type="button"
+          onClick={() => window.open('https://memephant.com', '_blank', 'noopener,noreferrer')}
+          style={{
+            background: 'transparent',
+            color: 'rgba(255, 255, 255, 0.58)',
+            border: 'none',
+            padding: 0,
+            cursor: 'pointer',
+            fontSize: '0.8125rem',
+            fontWeight: 500,
+            textDecoration: 'none',
+          }}
+        >
+          Get the desktop app →
+        </button>
+      );
+    }
+
     return null;
   }
 
