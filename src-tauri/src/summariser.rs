@@ -8,6 +8,8 @@
 //! - no export integration yet
 
 use crate::watcher::{BufferedEvent, BufferedOperation};
+use std::path::Path;
+use std::process::Command;
 
 const MAX_ACTIVITY_LINES: usize = 8;
 const MAX_OUTPUT_CHARS: usize = 1_200;
@@ -23,6 +25,38 @@ struct FileActivity {
 
 pub fn summarize_recent_activity(events: &[BufferedEvent]) -> String {
     summarize_recent_activity_with_commits(events, &[])
+}
+
+pub fn load_recent_commit_messages(repo_root: &Path) -> Vec<String> {
+    if !repo_root.is_dir() || !repo_root.join(".git").exists() {
+        return Vec::new();
+    }
+
+    let output = match Command::new("git")
+        .args([
+            "-C",
+            &repo_root.to_string_lossy(),
+            "log",
+            "--format=%s",
+            &format!("-{}", MAX_COMMIT_ITEMS),
+        ])
+        .output()
+    {
+        Ok(output) => output,
+        Err(_) => return Vec::new(),
+    };
+
+    if !output.status.success() {
+        return Vec::new();
+    }
+
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .take(MAX_COMMIT_ITEMS)
+        .map(ToOwned::to_owned)
+        .collect()
 }
 
 pub fn summarize_recent_activity_with_commits(
@@ -189,7 +223,10 @@ fn would_exceed_char_budget(lines: &[String], next_line: &str) -> bool {
 mod tests {
     use super::*;
     use crate::watcher::{BufferedEvent, BufferedOperation};
+    use std::fs;
     use std::path::PathBuf;
+    use std::process::Command;
+    use tempfile::TempDir;
 
     fn event(path: &str, operation: BufferedOperation, timestamp_ms: u64) -> BufferedEvent {
         BufferedEvent {
@@ -199,11 +236,77 @@ mod tests {
         }
     }
 
+    fn git_is_available() -> bool {
+        Command::new("git")
+            .arg("--version")
+            .output()
+            .map(|output| output.status.success())
+            .unwrap_or(false)
+    }
+
+    fn git(repo_root: &Path, args: &[&str]) {
+        let output = Command::new("git")
+            .arg("-C")
+            .arg(repo_root)
+            .args(args)
+            .output()
+            .expect("git command should run");
+
+        assert!(
+            output.status.success(),
+            "git command failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    fn commit_file(repo_root: &Path, file_name: &str, contents: &str, message: &str) {
+        fs::write(repo_root.join(file_name), contents).expect("file should be written");
+        git(repo_root, &["add", file_name]);
+        git(repo_root, &["commit", "-m", message]);
+    }
+
     #[test]
     fn unchanged_empty_behavior() {
         let summary = summarize_recent_activity(&[]);
 
         assert_eq!(summary, "## Recent activity\n- No recent file activity.");
+    }
+
+    #[test]
+    fn recent_commit_messages_return_empty_for_non_repo() {
+        let temp_dir = TempDir::new().expect("temp dir should be created");
+
+        assert!(load_recent_commit_messages(temp_dir.path()).is_empty());
+    }
+
+    #[test]
+    fn recent_commit_messages_are_loaded_and_bounded() {
+        if !git_is_available() {
+            return;
+        }
+
+        let temp_dir = TempDir::new().expect("temp dir should be created");
+        let repo_root = temp_dir.path();
+
+        git(repo_root, &["init"]);
+        git(repo_root, &["config", "user.name", "Memphant Tests"]);
+        git(repo_root, &["config", "user.email", "tests@example.com"]);
+
+        commit_file(repo_root, "one.txt", "one", "First commit");
+        commit_file(repo_root, "two.txt", "two", "Second commit");
+        commit_file(repo_root, "three.txt", "three", "Third commit");
+        commit_file(repo_root, "four.txt", "four", "Fourth commit");
+
+        let messages = load_recent_commit_messages(repo_root);
+
+        assert_eq!(
+            messages,
+            vec![
+                "Fourth commit".to_string(),
+                "Third commit".to_string(),
+                "Second commit".to_string(),
+            ]
+        );
     }
 
     #[test]
