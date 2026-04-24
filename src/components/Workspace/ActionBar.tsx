@@ -119,12 +119,12 @@ export function ActionBar() {
     try {
       const preview = await generateStateManifest(activeProject);
       setManifestPreview(preview);
-      showToast('State manifest generated.', 'info');
+      showToast('Project snapshot ready.', 'info');
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       setManifestPreview(null);
-      setManifestError(message || 'Could not generate state manifest.');
-      showToast(message || 'Could not generate state manifest.', 'error');
+      setManifestError(message || 'Could not prepare the full context preview.');
+      showToast(message || 'Could not prepare the full context preview.', 'error');
     } finally {
       setManifestLoading(false);
     }
@@ -135,9 +135,9 @@ export function ActionBar() {
 
     try {
       await navigator.clipboard.writeText(manifestPreview.text);
-      showToast('State manifest copied.', 'info');
+      showToast('Copied with full context.', 'info');
     } catch {
-      showToast('Could not copy state manifest.', 'error');
+      showToast('Could not copy the full context.', 'error');
     }
   };
 
@@ -146,9 +146,9 @@ export function ActionBar() {
 
     try {
       await navigator.clipboard.writeText(manifestPreview.digest);
-      showToast('State digest copied.', 'info');
+      showToast('Reference ID copied.', 'info');
     } catch {
-      showToast('Could not copy state digest.', 'error');
+      showToast('Could not copy the reference ID.', 'error');
     }
   };
 
@@ -245,9 +245,9 @@ export function ActionBar() {
             className="action-bar__btn"
             onClick={() => void handlePreviewManifest()}
             disabled={manifestLoading}
-            title="Generate a preview-only VCP state manifest for this project"
+            title="Prepare a deeper full-context preview for this project"
           >
-            {manifestLoading ? 'Generating manifest...' : 'Preview state manifest'}
+            {manifestLoading ? 'Preparing full context...' : 'Preview full context'}
           </button>
         )}
 
@@ -286,7 +286,7 @@ export function ActionBar() {
         <div className="state-manifest-preview">
           <div className="state-manifest-preview__header">
             <div>
-              <div className="state-manifest-preview__title">State manifest preview</div>
+              <div className="state-manifest-preview__title">Full context preview</div>
               <div className="state-manifest-preview__subtitle">
                 Preview only. Normal AI export and import flows are unchanged.
               </div>
@@ -298,7 +298,7 @@ export function ActionBar() {
                 setManifestPreview(null);
                 setManifestError(null);
               }}
-              aria-label="Close state manifest preview"
+              aria-label="Close full context preview"
             >
               Close
             </button>
@@ -309,7 +309,7 @@ export function ActionBar() {
           ) : manifestPreview ? (
             <>
               <div className="state-manifest-preview__meta">
-                <span>Digest: {manifestPreview.digest}</span>
+                <span>Reference ID: {manifestPreview.digest}</span>
                 <span>{manifestPreview.item_count} item{manifestPreview.item_count === 1 ? '' : 's'}</span>
               </div>
               <textarea
@@ -317,7 +317,7 @@ export function ActionBar() {
                 value={manifestPreview.text}
                 readOnly
                 spellCheck={false}
-                aria-label="State manifest text"
+                aria-label="Full context text"
               />
               <div className="state-manifest-preview__actions">
                 <button
@@ -325,14 +325,14 @@ export function ActionBar() {
                   className="action-bar__btn"
                   onClick={() => void handleCopyManifestText()}
                 >
-                  Copy manifest
+                  Copy with full context
                 </button>
                 <button
                   type="button"
                   className="action-bar__btn"
                   onClick={() => void handleCopyManifestDigest()}
                 >
-                  Copy digest
+                  Copy reference ID
                 </button>
               </div>
             </>
