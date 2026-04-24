@@ -65,7 +65,7 @@ pub async fn get_recent_activity(
             manager.start(&requested_root)?;
         }
 
-        let events = manager.drain();
+        let events = manager.peek();
         let commits = load_recent_commit_messages(&requested_root);
 
         Ok(summarize_recent_activity_with_commits(&events, &commits))
