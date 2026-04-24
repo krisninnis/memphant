@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from 'react';
 import { useProjectStore } from '../../store/projectStore';
 import { useActiveProject } from '../../hooks/useActiveProject';
 import { useRecentActivity } from '../../hooks/useRecentActivity';
@@ -15,6 +22,7 @@ import {
   getEnabledPlatforms,
   getPlatformConfig,
 } from '../../utils/platformRegistry';
+import type { ExportMode } from '../../types/memphant-types';
 
 function formatSyncAge(isoString: string): string {
   const diffMs = Date.now() - new Date(isoString).getTime();
@@ -38,10 +46,20 @@ function formatCheckpointTime(isoString: string): string {
   });
 }
 
+type CopyOption = {
+  id: 'full' | 'delta' | 'specialist' | 'deep-state';
+  label: string;
+  busyLabel?: string;
+  onSelect: () => Promise<void>;
+  disabled?: boolean;
+};
+
 export function ExportButtons() {
   const [copied, setCopied] = useState(false);
   const [manifestCopied, setManifestCopied] = useState(false);
   const [manifestLoading, setManifestLoading] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
 
   const targetPlatform = useProjectStore((s) => s.targetPlatform);
   const setTargetPlatform = useProjectStore((s) => s.setTargetPlatform);
@@ -60,7 +78,6 @@ export function ExportButtons() {
     [settings.platforms],
   );
 
-  // Ensure valid platform selection
   useEffect(() => {
     const nextPlatformId = ensureValidPlatformId(
       targetPlatform,
@@ -72,6 +89,30 @@ export function ExportButtons() {
       setTargetPlatform(nextPlatformId);
     }
   }, [targetPlatform, settings, setTargetPlatform]);
+
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleEscape);
+
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [menuOpen]);
 
   const selectedPlatformId = ensureValidPlatformId(
     targetPlatform,
@@ -131,7 +172,7 @@ export function ExportButtons() {
     }
   };
 
-  const handleCopy = useCallback(async () => {
+  const handleCopyMode = useCallback(async (mode: ExportMode) => {
     if (!activeProject) {
       showToast('Open a project first', 'error');
       return;
@@ -144,7 +185,7 @@ export function ExportButtons() {
         activeProject,
         selectedPlatform.id,
         currentTask,
-        settings.projects.defaultExportMode,
+        mode,
         selectedPlatform,
         recentActivity,
       );
@@ -152,7 +193,13 @@ export function ExportButtons() {
       await copyExportToClipboard(exportText, selectedPlatform.id);
 
       setCopied(true);
-      showToast(`Copied for ${selectedPlatform.name}`);
+      const modeLabel =
+        mode === 'delta'
+          ? 'just the essentials'
+          : mode === 'specialist'
+            ? 'a specific task'
+            : 'full context';
+      showToast(`Copied ${modeLabel} for ${selectedPlatform.name}`);
 
       setTimeout(() => setCopied(false), 1800);
     } catch (err) {
@@ -164,11 +211,11 @@ export function ExportButtons() {
     currentTask,
     recentActivity,
     selectedPlatform,
-    settings,
+    settings.privacy.secretsScannerLevel,
     showToast,
   ]);
 
-  const handleCopyClaudeWithManifest = useCallback(async () => {
+  const handleCopyDeepState = useCallback(async () => {
     if (!activeProject) {
       showToast('Open a project first', 'error');
       return;
@@ -190,14 +237,14 @@ export function ExportButtons() {
       await copyExportToClipboard(exportText, 'claude');
 
       setManifestCopied(true);
-      showToast('Copied for Claude with state manifest');
+      showToast('Copied with full context and deeper project memory');
 
       setTimeout(() => setManifestCopied(false), 1800);
     } catch (err) {
-      console.error('Claude manifest export failed:', err);
+      console.error('Claude deep state export failed:', err);
       const message = err instanceof Error
         ? err.message
-        : 'Failed to generate Claude export with state manifest';
+        : 'Failed to prepare the deeper context copy';
       showToast(message, 'error');
     } finally {
       setManifestLoading(false);
@@ -209,6 +256,42 @@ export function ExportButtons() {
     settings.privacy.secretsScannerLevel,
     showToast,
   ]);
+
+  const handlePrimaryCopy = useCallback(async () => {
+    await handleCopyMode('full');
+  }, [handleCopyMode]);
+
+  const menuOptions = useMemo<CopyOption[]>(() => {
+    const options: CopyOption[] = [
+      {
+        id: 'full',
+        label: 'Copy with full context',
+        onSelect: () => handleCopyMode('full'),
+      },
+      {
+        id: 'delta',
+        label: 'Copy just the essentials',
+        onSelect: () => handleCopyMode('delta'),
+      },
+      {
+        id: 'specialist',
+        label: 'Copy for a specific task',
+        onSelect: () => handleCopyMode('specialist'),
+      },
+    ];
+
+    if (selectedPlatform.id === 'claude') {
+      options.push({
+        id: 'deep-state',
+        label: 'Copy with full context + deep state',
+        busyLabel: 'Preparing deeper context...',
+        onSelect: handleCopyDeepState,
+        disabled: manifestLoading,
+      });
+    }
+
+    return options;
+  }, [handleCopyDeepState, handleCopyMode, manifestLoading, selectedPlatform.id]);
 
   const renderPillGroup = (platforms: typeof enabledPlatforms) =>
     platforms.map((platform) => {
@@ -223,10 +306,10 @@ export function ExportButtons() {
           className={`export-pill${isActive ? ' export-pill--active' : ''}`}
           style={{ '--pill-color': platform.color ?? '#64748b' } as CSSProperties}
           onClick={() => handleSelectPlatform(platform.id)}
-          title={age ? `${platform.name} — last copied ${age}` : `Select ${platform.name}`}
+          title={age ? `${platform.name} last copied ${age}` : `Select ${platform.name}`}
           aria-pressed={isActive}
         >
-          <span className="export-pill__icon">{platform.icon ?? '🧩'}</span>
+          <span className="export-pill__icon">{platform.icon ?? 'AI'}</span>
           <span className="export-pill__label">{platform.name}</span>
           {age && <span className="export-pill__age">{age}</span>}
         </button>
@@ -235,51 +318,175 @@ export function ExportButtons() {
 
   return (
     <div className="export-controls" data-tour="export">
-      <button
-        type="button"
-        className={`export-copy-btn${copied ? ' export-copy-btn--copied' : ''}`}
-        style={{ '--pill-color': selectedPlatform.color ?? '#64748b' } as CSSProperties}
-        onClick={() => void handleCopy()}
-        disabled={!activeProject}
+      <div
+        ref={menuRef}
+        style={{
+          position: 'relative',
+          display: 'flex',
+          alignItems: 'stretch',
+          gap: '8px',
+          width: '100%',
+        }}
       >
-        {copied ? (
-          <>
-            <span className="export-copy-btn__icon">OK</span>
-            <span className="export-copy-btn__text">
-              Copied. Paste into {selectedPlatform.name}.
-            </span>
-          </>
-        ) : (
-          <>
-            <span className="export-copy-btn__icon">{selectedPlatform.icon ?? '🧩'}</span>
-            <span className="export-copy-btn__text">
-              Copy for AI
-              <span className="export-copy-btn__target">{selectedPlatform.name}</span>
-              {syncLabel && <span className="export-copy-btn__age">{syncLabel}</span>}
-            </span>
-          </>
-        )}
-      </button>
-
-      {selectedPlatform.id === 'claude' && (
-        <button
-          type="button"
-          className={`export-manifest-btn${manifestCopied ? ' export-manifest-btn--copied' : ''}`}
-          onClick={() => void handleCopyClaudeWithManifest()}
-          disabled={!activeProject || manifestLoading}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0, 1fr) 58px',
+            gap: '2px',
+            width: '100%',
+            padding: '2px',
+            borderRadius: '20px',
+            background: `${selectedPlatform.color ?? '#64748b'}33`,
+            boxShadow: `0 10px 24px ${selectedPlatform.color ?? '#64748b'}29`,
+          }}
         >
-          <span className="export-manifest-btn__label">
-            {manifestLoading
-              ? 'Generating state manifest...'
-              : manifestCopied
-                ? 'Copied Claude + manifest'
-                : 'Copy for Claude + manifest'}
-          </span>
-          <span className="export-manifest-btn__hint">
-            Adds VCP state manifest from Rust
-          </span>
-        </button>
-      )}
+          <button
+            type="button"
+            className={`export-copy-btn${copied ? ' export-copy-btn--copied' : ''}`}
+            style={{
+              '--pill-color': selectedPlatform.color ?? '#64748b',
+              borderTopRightRadius: '16px',
+              borderBottomRightRadius: '16px',
+            } as CSSProperties}
+            onClick={() => void handlePrimaryCopy()}
+            disabled={!activeProject}
+            title={`Copy with full context for ${selectedPlatform.name}`}
+          >
+            {copied ? (
+              <>
+                <span className="export-copy-btn__icon">OK</span>
+                <span className="export-copy-btn__text">
+                  Copied. Paste into {selectedPlatform.name}.
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="export-copy-btn__icon">{selectedPlatform.icon ?? 'AI'}</span>
+                <span className="export-copy-btn__text">
+                  Copy for AI
+                  <span className="export-copy-btn__target">{selectedPlatform.name}</span>
+                  {syncLabel && <span className="export-copy-btn__age">{syncLabel}</span>}
+                </span>
+              </>
+            )}
+          </button>
+
+          <button
+            type="button"
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            aria-label="Choose a copy option"
+            disabled={!activeProject}
+            onClick={() => setMenuOpen((open) => !open)}
+            style={{
+              border: 'none',
+              borderRadius: '16px',
+              background: copied
+                ? 'linear-gradient(180deg, #0f9f6e 0%, #0a7f57 100%)'
+                : `linear-gradient(180deg, ${selectedPlatform.color ?? '#64748b'} 0%, ${selectedPlatform.color ?? '#64748b'}dd 100%)`,
+              color: '#fffaf2',
+              fontSize: '1rem',
+              fontWeight: 800,
+              cursor: activeProject ? 'pointer' : 'not-allowed',
+              opacity: activeProject ? 1 : 0.6,
+              boxShadow: copied
+                ? '0 10px 24px rgba(15, 159, 110, 0.24)'
+                : `0 10px 24px ${selectedPlatform.color ?? '#64748b'}47`,
+            }}
+            title="Choose how much context to copy"
+          >
+            ▾
+          </button>
+        </div>
+
+        {menuOpen && activeProject && (
+          <div
+            role="menu"
+            aria-label="Copy options"
+            style={{
+              position: 'absolute',
+              top: 'calc(100% + 10px)',
+              right: 0,
+              minWidth: '280px',
+              padding: '10px',
+              borderRadius: '18px',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              background: 'rgba(20, 20, 20, 0.96)',
+              boxShadow:
+                '0 20px 40px rgba(0, 0, 0, 0.28), 0 4px 12px rgba(0, 0, 0, 0.18)',
+              backdropFilter: 'blur(14px)',
+              zIndex: 30,
+            }}
+          >
+            {menuOptions.slice(0, 3).map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setMenuOpen(false);
+                  void option.onSelect();
+                }}
+                style={{
+                  display: 'block',
+                  width: '100%',
+                  padding: '12px 14px',
+                  border: 'none',
+                  borderRadius: '14px',
+                  background: 'transparent',
+                  color: '#f8fafc',
+                  textAlign: 'left',
+                  fontSize: '0.96rem',
+                  lineHeight: 1.45,
+                  cursor: 'pointer',
+                }}
+              >
+                {option.label}
+              </button>
+            ))}
+
+            {selectedPlatform.id === 'claude' && (
+              <>
+                <div
+                  role="separator"
+                  style={{
+                    height: '1px',
+                    margin: '8px 4px',
+                    background: 'rgba(255, 255, 255, 0.12)',
+                  }}
+                />
+                {menuOptions.slice(3).map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    role="menuitem"
+                    disabled={option.disabled}
+                    onClick={() => {
+                      setMenuOpen(false);
+                      void option.onSelect();
+                    }}
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      padding: '12px 14px',
+                      border: 'none',
+                      borderRadius: '14px',
+                      background: manifestCopied ? 'rgba(15, 159, 110, 0.14)' : 'transparent',
+                      color: option.disabled ? 'rgba(248, 250, 252, 0.6)' : '#f8fafc',
+                      textAlign: 'left',
+                      fontSize: '0.96rem',
+                      lineHeight: 1.45,
+                      cursor: option.disabled ? 'wait' : 'pointer',
+                    }}
+                  >
+                    {option.disabled ? option.busyLabel ?? option.label : option.label}
+                  </button>
+                ))}
+              </>
+            )}
+          </div>
+        )}
+      </div>
 
       <div className="export-platform-pills" role="tablist">
         {chatPlatforms.length > 0 && (
