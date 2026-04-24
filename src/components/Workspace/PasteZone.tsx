@@ -371,7 +371,7 @@ const recentChanges = deduplicateChanges(allRecentChanges);
     };
   };
 
-  const handleApply = (allowRiskyOverwrites: boolean) => {
+  const handleApply = async (allowRiskyOverwrites: boolean) => {
     if (!activeProject || !detectedUpdate) {
       return;
     }
@@ -400,7 +400,11 @@ const recentChanges = deduplicateChanges(allRecentChanges);
     }
 
     updateProject(activeProject.id, mergedProject);
-    void saveToDisk(mergedProject);
+    try {
+      await saveToDisk(mergedProject);
+    } catch {
+      showToast('Your changes could not be saved. Please try again.', 'error');
+    }
 
     const totalChanges = countDiffs(diffs);
     const riskyCount = countRiskyDiffs(diffs);
