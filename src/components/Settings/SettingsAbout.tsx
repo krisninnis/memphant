@@ -415,6 +415,32 @@ export function SettingsAbout() {
         {showPrivacy && <div className="about-privacy-body">{PRIVACY_SUMMARY}</div>}
       </div>
 
+      <div className="settings-group">
+        <div className="settings-group-title">Help improve Memephant</div>
+
+        <div
+          style={{
+            display: 'flex',
+            gap: 10,
+            flexWrap: 'wrap',
+          }}
+        >
+          <button
+            className="setting-btn"
+            onClick={() => openLink('https://tally.so/r/memephant')}
+          >
+            ✉ Send feedback
+          </button>
+
+          <button
+            className="setting-btn"
+            onClick={() => openLink('https://github.com/krisninnis/memphant/issues/new')}
+          >
+            🐛 Report a bug
+          </button>
+        </div>
+      </div>
+
       <div className="settings-trust-box" style={{ marginTop: 8 }}>
         Your project memory stays local first. Cloud backup is optional, and AI exports only happen
         when you explicitly copy them.
