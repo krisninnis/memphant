@@ -16,6 +16,7 @@ pub struct WatcherCommandState {
     #[cfg(feature = "folder_watcher")]
     pub manager: Mutex<crate::watcher::WatcherManager>,
     #[cfg(not(feature = "folder_watcher"))]
+    #[allow(dead_code)]
     pub disabled: Mutex<()>,
 }
 
