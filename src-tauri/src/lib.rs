@@ -16,6 +16,7 @@ mod vcp;
 mod watcher;
 #[cfg(feature = "folder_watcher")]
 mod summariser;
+mod watcher_commands;
 
 #[derive(serde::Serialize)]
 struct StateManifestPreview {
@@ -1004,6 +1005,7 @@ fn setup_tray(app: &tauri::AppHandle) -> Result<(), tauri::Error> {
 pub fn run() {
     tauri::Builder::default()
         .manage(TrayModeState::default())
+        .manage(watcher_commands::WatcherCommandState::default())
         .setup(|app| {
             setup_tray(app.handle())?;
             Ok(())
@@ -1045,6 +1047,7 @@ pub fn run() {
             backup_project_file,
             write_text_file,
             generate_state_manifest,
+            watcher_commands::get_recent_activity,
             enable_autostart,
             disable_autostart,
             toggle_tray_mode,
