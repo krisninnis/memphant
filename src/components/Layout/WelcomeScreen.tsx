@@ -149,7 +149,7 @@ export function WelcomeScreen() {
   };
 
   const openDesktopDownload = () => {
-    window.open('https://github.com/krisninnis/memphant/releases', '_blank', 'noopener,noreferrer');
+    window.open('https://memephant.com/download', '_blank', 'noopener,noreferrer');
   };
 
   if (mode === 'landing') {
