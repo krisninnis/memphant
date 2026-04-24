@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { useProjectStore } from '../store/projectStore';
 import { isDesktopApp } from '../utils/runtime';
 
 type RecentActivityState = {
@@ -8,22 +9,29 @@ type RecentActivityState = {
   error: string | null;
 };
 
-const POLL_INTERVAL_MS = 30_000;
-
 export function useRecentActivity(
   projectId: string,
   folderPath: string,
 ): RecentActivityState {
+  const autoMemoryUpdateInterval = useProjectStore(
+    (s) => s.settings.projects.autoMemoryUpdateInterval
+  );
   const [markdown, setMarkdown] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const requestIdRef = useRef(0);
+  const pollIntervalMs = {
+    off: 0,
+    '15min': 900_000,
+    '30min': 1_800_000,
+    '1hour': 3_600_000,
+  }[autoMemoryUpdateInterval] ?? 1_800_000;
 
   useEffect(() => {
     const trimmedFolderPath = folderPath.trim();
     const trimmedProjectId = projectId.trim();
 
-    if (!trimmedFolderPath) {
+    if (!trimmedFolderPath || autoMemoryUpdateInterval === 'off') {
       requestIdRef.current += 1;
       setMarkdown('');
       setLoading(false);
@@ -76,13 +84,13 @@ export function useRecentActivity(
     void loadRecentActivity();
     const intervalId = window.setInterval(() => {
       void loadRecentActivity();
-    }, POLL_INTERVAL_MS);
+    }, pollIntervalMs);
 
     return () => {
       disposed = true;
       window.clearInterval(intervalId);
     };
-  }, [projectId, folderPath]);
+  }, [projectId, folderPath, autoMemoryUpdateInterval, pollIntervalMs]);
 
   return { markdown, loading, error };
 }
