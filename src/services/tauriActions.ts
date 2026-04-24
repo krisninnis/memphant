@@ -1112,7 +1112,11 @@ export async function rescanLinkedFolder(): Promise<void> {
     );
 
     store().updateProject(activeProject.id, updatedProject);
-    void saveToDisk(updatedProject);
+    try {
+      await saveToDisk(updatedProject);
+    } catch {
+      store().showToast('Your changes could not be saved. Please try again.', 'error');
+    }
     store().showToast('Rescan complete. Restore available.');
   } catch (err) {
     console.error('Rescan failed:', err);
@@ -1402,7 +1406,11 @@ export async function copyExportToClipboard(
   };
 
   updateProject(project.id, clearedProject);
-  void saveToDisk(clearedProject);
+  try {
+    await saveToDisk(clearedProject);
+  } catch {
+    showToast('Your changes could not be saved. Please try again.', 'error');
+  }
 
   showToast(`Copied for ${platform} — paste into your AI to get started`);
 }
