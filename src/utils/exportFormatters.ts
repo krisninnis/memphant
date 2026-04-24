@@ -131,31 +131,36 @@ function recentGitCommitsBlock(commits: GitCommit[] | undefined, indent = '  '):
 export const MEMPHANT_UPDATE_SCHEMA_VERSION = '1.1.0';
 
 const RESPONSE_FORMAT = `
-When you finish, include a project update block at the end of your response like this:
+---
+When you finish your response, you MUST include a project update 
+block. This is not optional — Memephant uses it to automatically 
+sync what changed in this session back into the app.
+
+Fill in every field that changed. Do not wait for the user to 
+tell you what changed — you just worked on this project, so you 
+know what changed.
 
 memphant_update
 \`\`\`json
 {
   "schemaVersion": "1.1.0",
-  "summary": "one-sentence summary of the project",
-  "currentState": "what is true right now after your work",
-  "inProgress": ["task you are actively mid-work on right now"],
-  "lastSessionSummary": "2–4 sentence recap of what just happened in this session",
-  "openQuestion": "the key decision or question you want help with next",
-  "goals": ["any new goals to add"],
-  "decisions": [{"decision": "any new decisions", "rationale": "why"}],
-  "nextSteps": ["any new next steps to add"]
+  "currentState": "Write 1-2 sentences describing what is true right now after this session. What was built, fixed, or decided?",
+  "lastSessionSummary": "Write 2-4 sentences recapping exactly what happened in this session. Be specific — mention file names, decisions made, problems solved.",
+  "inProgress": ["List only things actively being worked on right now — not done, not future"],
+  "nextSteps": ["List the immediate next actions that should happen after this session"],
+  "openQuestion": "The single most important unresolved question or decision needed to move forward",
+  "goals": ["Only include if a genuinely new goal emerged this session"],
+  "decisions": [{"decision": "Only include genuinely new decisions made this session", "rationale": "Why this decision was made"}]
 }
 \`\`\`
 
-Rules for the memphant_update block:
-- Only include fields you are confident changed based on the project context provided.
-- Do not invent roadmap items, goals, decisions, or next steps that are not supported by the provided context.
-- If something is uncertain, omit it rather than guess.
-- inProgress replaces the current in-progress list only when you are explicitly confident it changed.
-- lastSessionSummary should be a short factual recap of the work just completed in this response.
-- openQuestion should contain only the single most relevant current question if one is clearly present.
-- Omit inProgress, lastSessionSummary, or openQuestion if they are not applicable.`;
+Rules:
+- currentState and lastSessionSummary are ALWAYS required — fill them in based on what you just did
+- nextSteps should reflect what logically comes next, not a copy of what was already listed
+- Only include goals and decisions if something genuinely new was decided this session
+- Never include duplicate nextSteps — if it was already listed, omit it
+- Keep all values concise — one sentence per item maximum
+- The JSON must be valid — no trailing commas, no comments inside the JSON`;
 
 function formatForClaude(project: ProjectMemory, task?: string, recentActivity?: string): string {
   const lines: string[] = [];
