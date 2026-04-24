@@ -36,7 +36,7 @@ notify = "6.1.1"
 tempfile = "3"
 
 [features]
-# Compile the folder-watcher skeleton into the binary.
-# Nothing runs unless start_watcher() is explicitly called from a Tauri command.
-# To enable: cargo build --features folder_watcher
+# Folder watcher is enabled by default in all builds.
+# To build without it: cargo build --no-default-features
+default = ["folder_watcher"]
 folder_watcher = []
