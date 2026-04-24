@@ -18,7 +18,7 @@ import TaskField from './TaskField';
 const ACTIVATION_PROMPT = `After every response, please include a project update block at the end so I can sync your changes back to my Memephant app:
 
 memphant_update
-```json
+\`\`\`json
 {
   "schemaVersion": "1.1.0",
   "currentState": "what is true right now after your work",
@@ -29,7 +29,7 @@ memphant_update
   "goals": ["any new goals that emerged this session"],
   "decisions": [{"decision": "any new decisions", "rationale": "why"}]
 }
-```
+\`\`\`
 
 Only include fields that changed. Keep the JSON valid.
 currentState and lastSessionSummary are always required.`;
@@ -201,9 +201,9 @@ export function ActionBar() {
           type="button"
           className={`action-bar__btn action-bar__btn--activation${activationCopied ? ' action-bar__btn--copied' : ''}`}
           onClick={() => void handleCopyActivation()}
-          title="Copy a setup prompt to paste into your AI so it sends updates back automatically"
+          title="Copy this once into your AI chat so it automatically sends updates back to Memephant"
         >
-          {activationCopied ? 'Activation copied' : 'Activate update loop'}
+          {activationCopied ? 'Copied — paste into your AI' : 'Set up auto-updates'}
         </button>
 
         {desktopApp && (
