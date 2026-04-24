@@ -18,16 +18,21 @@ import TaskField from './TaskField';
 const ACTIVATION_PROMPT = `After every response, please include a project update block at the end so I can sync your changes back to my Memephant app:
 
 memphant_update
+```json
 {
-  "summary": "one-sentence summary of the project",
+  "schemaVersion": "1.1.0",
   "currentState": "what is true right now after your work",
-  "goals": ["any new goals to add"],
-  "decisions": [{"decision": "any new decisions", "rationale": "why"}],
-  "nextSteps": ["any new next steps to add"],
-  "openQuestions": ["any unresolved questions"]
+  "lastSessionSummary": "2-4 sentence recap of what just happened",
+  "inProgress": ["what you are actively working on right now"],
+  "nextSteps": ["immediate next actions after this session"],
+  "openQuestion": "the single most important unresolved question",
+  "goals": ["any new goals that emerged this session"],
+  "decisions": [{"decision": "any new decisions", "rationale": "why"}]
 }
+```
 
-Only include fields that changed. Keep the JSON valid.`;
+Only include fields that changed. Keep the JSON valid.
+currentState and lastSessionSummary are always required.`;
 
 type GitSyncState = 'idle' | 'syncing' | 'found' | 'up_to_date';
 
