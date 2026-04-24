@@ -267,6 +267,7 @@ export function useTauriSync() {
       } catch (err) {
         console.error('Auto-save failed:', err);
         useProjectStore.getState().setSyncStatus('error');
+        useProjectStore.getState().showToast('Auto-save failed. Your changes may not be saved.', 'error');
       }
     }, 500);
 
