@@ -10,6 +10,10 @@ import {
 } from '../../services/tauriActions';
 import { PROJECT_TEMPLATES } from '../../utils/projectTemplates';
 import type { ProjectTemplate } from '../../utils/projectTemplates';
+import {
+  ensureValidPlatformId,
+  getPlatformConfig,
+} from '../../utils/platformRegistry';
 import ProjectCard from './ProjectCard';
 import ConfirmDialog from '../Shared/ConfirmDialog';
 
@@ -39,6 +43,8 @@ const Sidebar = ({ onNavigate }: SidebarProps) => {
   const projects = useProjectStore((s) => s.projects);
   const cloudUser = useProjectStore((s) => s.cloudUser);
   const activeProjectId = useProjectStore((s) => s.activeProjectId);
+  const targetPlatform = useProjectStore((s) => s.targetPlatform);
+  const settings = useProjectStore((s) => s.settings);
 
   const setActiveProject = useProjectStore((s) => s.setActiveProject);
   const setCurrentView = useProjectStore((s) => s.setCurrentView);
@@ -62,6 +68,15 @@ const Sidebar = ({ onNavigate }: SidebarProps) => {
   const importFileRef = useRef<HTMLInputElement>(null);
 
   const desktopApp = isDesktopApp();
+  const selectedPlatformId = ensureValidPlatformId(
+    targetPlatform,
+    settings.platforms,
+    settings.general.defaultPlatform,
+  );
+  const selectedPlatform = getPlatformConfig(
+    selectedPlatformId,
+    settings.platforms,
+  );
 
   useEffect(() => {
     if (desktopApp) return;
@@ -162,7 +177,7 @@ const Sidebar = ({ onNavigate }: SidebarProps) => {
   };
 
   const openDesktopDownload = () => {
-    window.open('https://memephant.com/download', '_blank', 'noopener,noreferrer');
+    window.open('https://github.com/krisninnis/memphant/releases', '_blank', 'noopener,noreferrer');
   };
 
   const pendingDeleteProject = pendingDeleteId
@@ -210,6 +225,7 @@ const Sidebar = ({ onNavigate }: SidebarProps) => {
               className="sidebar-action-btn sidebar-action-btn--primary"
               data-tour="new-project"
               onClick={handleNewProjectClick}
+              style={{ background: selectedPlatform.color ?? '#64748b' }}
             >
               + New Project
             </button>
