@@ -1,17 +1,17 @@
-﻿{
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
-  "routes": [
+  "redirects": [
     {
-      "src": "/download",
-      "headers": { "Location": "https://github.com/krisninnis/memphant/releases" },
-      "status": 302,
-      "continue": false
-    },
-    { "src": "/api/(.*)", "dest": "/api/$1" },
-    { "src": "/success", "dest": "/public/success.html" },
-    { "src": "/cancel", "dest": "/public/cancel.html" },
-    { "src": "/auth/callback", "dest": "/api/auth-callback" },
-    { "src": "/", "dest": "/public/index.html" },
-    { "src": "/(.*)", "dest": "/public/$1" }
+      "source": "/download",
+      "destination": "https://github.com/krisninnis/memphant/releases",
+      "permanent": false
+    }
+  ],
+  "rewrites": [
+    { "source": "/success", "destination": "/success.html" },
+    { "source": "/cancel", "destination": "/cancel.html" },
+    { "source": "/auth/callback", "destination": "/api/auth-callback" },
+    { "source": "/", "destination": "/index.html" }
   ]
 }
