@@ -12,7 +12,6 @@
 //!   docs/folder-watcher-redaction-policy.md
 //!   docs/memphant-bet.md
 
-use crate::summariser::summarize_recent_activity_with_commits;
 use notify::{
     event::{CreateKind, EventKind, ModifyKind, RemoveKind},
     recommended_watcher, Event, RecommendedWatcher, RecursiveMode, Watcher,
@@ -58,24 +57,6 @@ const DENIED_PATH_SEGMENTS: &[&str] = &[
     "internal",
 ];
 
-/// Configuration for a per-project folder watcher instance.
-///
-/// One `WatcherConfig` is created per linked project when the watcher is started.
-/// `root_path` must be the absolute path to the project's linked folder -
-/// the same path stored in `linkedFolder.path` on the TypeScript side.
-/// It is NEVER written to any memory file or export (see redaction policy).
-#[derive(Debug, Clone)]
-pub struct WatcherConfig {
-    /// Stable project identifier - used for log lines and memory-file routing.
-    pub project_id: String,
-    /// Absolute path to the project root being watched. Never exported or logged
-    /// to any user-visible surface - local audit log only.
-    pub root_path: String,
-    /// When false, `start_watcher` is a no-op. Allows the caller to pass a config
-    /// unconditionally and let the watcher decide whether to start.
-    pub enabled: bool,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BufferedOperation {
     Added,
@@ -102,27 +83,6 @@ pub struct FolderWatcher {
 #[derive(Default)]
 pub struct WatcherManager {
     active: Option<FolderWatcher>,
-}
-
-/// Start the folder watcher for a project.
-///
-/// Phase 1: logs a startup message and returns immediately.
-/// Phase 2 will wire this into a Tauri command lifecycle.
-///
-/// Returns `Err` if the config is invalid (e.g. empty project_id).
-/// Returns `Ok(())` immediately if `config.enabled` is false.
-pub fn start_watcher(config: WatcherConfig) -> Result<(), String> {
-    if config.project_id.trim().is_empty() {
-        return Err("start_watcher: project_id must not be empty".to_string());
-    }
-
-    if !config.enabled {
-        return Ok(());
-    }
-
-    eprintln!("[watcher] started for {}", config.project_id);
-
-    Ok(())
 }
 
 impl FolderWatcher {
@@ -191,6 +151,13 @@ impl FolderWatcher {
         }
     }
 
+    pub fn peek(&self) -> Vec<BufferedEvent> {
+        self.buffer
+            .lock()
+            .map(|guard| guard.clone())
+            .unwrap_or_default()
+    }
+
     pub fn root(&self) -> &Path {
         &self.root
     }
@@ -203,10 +170,6 @@ impl Drop for FolderWatcher {
 }
 
 impl WatcherManager {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
     pub fn start(&mut self, root: &Path) -> Result<(), String> {
         self.stop()?;
         let watcher = FolderWatcher::start(root)?;
@@ -229,18 +192,17 @@ impl WatcherManager {
             .unwrap_or_default()
     }
 
+    pub fn peek(&self) -> Vec<BufferedEvent> {
+        self.active
+            .as_ref()
+            .map(|watcher| watcher.peek())
+            .unwrap_or_default()
+    }
+
     pub fn active_root(&self) -> Option<&Path> {
         self.active.as_ref().map(|watcher| watcher.root())
     }
 
-    pub fn drain_summary(&self) -> String {
-        self.drain_summary_with_commits(&[])
-    }
-
-    pub fn drain_summary_with_commits(&self, commits: &[String]) -> String {
-        let events = self.drain();
-        summarize_recent_activity_with_commits(&events, commits)
-    }
 }
 
 pub fn is_path_allowed(root: &Path, candidate: &Path) -> bool {
@@ -444,6 +406,7 @@ mod tests {
     use std::thread;
     use std::time::{Duration, Instant};
     use tempfile::TempDir;
+    use crate::summariser::summarize_recent_activity_with_commits;
 
     fn test_root() -> PathBuf {
         PathBuf::from("/repo")
@@ -498,40 +461,10 @@ mod tests {
     }
 
     #[test]
-    fn start_watcher_ok_when_enabled() {
-        let config = WatcherConfig {
-            project_id: "test_project".to_string(),
-            root_path: "/tmp/fake_root".to_string(),
-            enabled: true,
-        };
-        assert!(start_watcher(config).is_ok());
-    }
-
-    #[test]
-    fn start_watcher_ok_when_disabled() {
-        let config = WatcherConfig {
-            project_id: "test_project".to_string(),
-            root_path: "/tmp/fake_root".to_string(),
-            enabled: false,
-        };
-        assert!(start_watcher(config).is_ok());
-    }
-
-    #[test]
-    fn start_watcher_err_on_empty_project_id() {
-        let config = WatcherConfig {
-            project_id: "".to_string(),
-            root_path: "/tmp/fake_root".to_string(),
-            enabled: true,
-        };
-        assert!(start_watcher(config).is_err());
-    }
-
-    #[test]
     fn manager_starts_with_one_root() {
         let temp_dir = TempDir::new().expect("temp dir should be created");
         let root = temp_dir.path().canonicalize().expect("root should canonicalize");
-        let mut manager = WatcherManager::new();
+        let mut manager = WatcherManager::default();
 
         manager.start(&root).expect("manager should start watcher");
 
@@ -552,7 +485,7 @@ mod tests {
             .path()
             .canonicalize()
             .expect("second root should canonicalize");
-        let mut manager = WatcherManager::new();
+        let mut manager = WatcherManager::default();
 
         manager
             .start(&first_root)
@@ -571,7 +504,7 @@ mod tests {
     fn manager_stop_leaves_no_active_watcher() {
         let temp_dir = TempDir::new().expect("temp dir should be created");
         let root = temp_dir.path().canonicalize().expect("root should canonicalize");
-        let mut manager = WatcherManager::new();
+        let mut manager = WatcherManager::default();
 
         manager.start(&root).expect("manager should start watcher");
         manager.stop().expect("manager stop should succeed");
@@ -581,7 +514,7 @@ mod tests {
 
     #[test]
     fn drain_on_empty_manager_returns_empty() {
-        let manager = WatcherManager::new();
+        let manager = WatcherManager::default();
 
         assert!(manager.drain().is_empty());
     }
@@ -590,7 +523,7 @@ mod tests {
     fn manager_generates_summary_from_buffered_events() {
         let temp_dir = TempDir::new().expect("temp dir should be created");
         let root = temp_dir.path().canonicalize().expect("root should canonicalize");
-        let mut manager = WatcherManager::new();
+        let mut manager = WatcherManager::default();
 
         manager.start(&root).expect("manager should start watcher");
         thread::sleep(Duration::from_millis(150));
@@ -599,7 +532,7 @@ mod tests {
         write_file(&allowed_file, b"export const ready = true;\n");
         thread::sleep(Duration::from_millis(400));
 
-        let summary = manager.drain_summary();
+        let summary = summarize_recent_activity_with_commits(&manager.drain(), &[]);
         assert!(summary.starts_with("## Recent activity\n"));
         assert!(summary.contains("src/main.ts"));
 
@@ -610,7 +543,7 @@ mod tests {
     fn manager_summary_drain_clears_buffered_events() {
         let temp_dir = TempDir::new().expect("temp dir should be created");
         let root = temp_dir.path().canonicalize().expect("root should canonicalize");
-        let mut manager = WatcherManager::new();
+        let mut manager = WatcherManager::default();
 
         manager.start(&root).expect("manager should start watcher");
         thread::sleep(Duration::from_millis(150));
@@ -619,10 +552,10 @@ mod tests {
         write_file(&allowed_file, b"# Note\n");
         thread::sleep(Duration::from_millis(400));
 
-        let first_summary = manager.drain_summary();
+        let first_summary = summarize_recent_activity_with_commits(&manager.drain(), &[]);
         assert!(first_summary.contains("docs/note.md"));
 
-        let second_summary = manager.drain_summary();
+        let second_summary = summarize_recent_activity_with_commits(&manager.drain(), &[]);
         assert_eq!(second_summary, "## Recent activity\n- No recent file activity.");
 
         manager.stop().expect("manager stop should succeed");
@@ -630,10 +563,10 @@ mod tests {
 
     #[test]
     fn empty_manager_returns_existing_empty_summary_block() {
-        let manager = WatcherManager::new();
+        let manager = WatcherManager::default();
 
         assert_eq!(
-            manager.drain_summary(),
+            summarize_recent_activity_with_commits(&manager.drain(), &[]),
             "## Recent activity\n- No recent file activity."
         );
     }
