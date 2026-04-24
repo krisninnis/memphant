@@ -222,6 +222,7 @@ export interface AppSettings {
     autoRescanOnOpen: boolean;
     snapshotCount: number;
     defaultExportMode: ExportMode;
+    autoMemoryUpdateInterval: 'off' | '15min' | '30min' | '1hour';
   };
   platforms: {
     enabled: Record<string, boolean>;
@@ -253,6 +254,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     autoRescanOnOpen: false,
     snapshotCount: 20,
     defaultExportMode: 'full',
+    autoMemoryUpdateInterval: '30min',
   },
   platforms: {
     enabled: {
