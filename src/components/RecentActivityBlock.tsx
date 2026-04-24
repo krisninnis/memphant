@@ -24,6 +24,19 @@ export function RecentActivityBlock({
         background: 'rgba(255, 255, 255, 0.04)',
       }}
     >
+      <div
+        style={{
+          marginBottom: '10px',
+          fontSize: '0.72rem',
+          fontWeight: 700,
+          letterSpacing: '0.08em',
+          textTransform: 'uppercase',
+          color: 'rgba(255, 255, 255, 0.6)',
+        }}
+      >
+        What changed recently
+      </div>
+
       {loading ? (
         <div
           style={{
