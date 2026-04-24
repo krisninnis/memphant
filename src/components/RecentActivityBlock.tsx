@@ -9,7 +9,7 @@ export function RecentActivityBlock({
   loading,
   error,
 }: RecentActivityBlockProps) {
-  if (!markdown && !loading) {
+  if (!markdown && !loading && !error) {
     return null;
   }
 

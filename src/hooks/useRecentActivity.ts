@@ -46,6 +46,10 @@ export function useRecentActivity(
       setLoading(true);
 
       try {
+        console.log('[useRecentActivity] calling get_recent_activity', {
+          projectId: trimmedProjectId,
+          folderPath: trimmedFolderPath,
+        });
         const nextMarkdown = await invoke<string>('get_recent_activity', {
           projectId: trimmedProjectId,
           folderPath: trimmedFolderPath,
@@ -62,6 +66,7 @@ export function useRecentActivity(
           return;
         }
 
+        console.error('[useRecentActivity] invoke failed:', err);
         const message = err instanceof Error ? err.message : String(err);
         setMarkdown('');
         setError(message);
@@ -85,3 +90,4 @@ export function useRecentActivity(
 
   return { markdown, loading, error };
 }
+
