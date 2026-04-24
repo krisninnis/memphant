@@ -205,6 +205,7 @@ export interface AppSettings {
     runOnStartup: boolean;
     systemTray: boolean;
     autoGitSync: boolean;
+    hasSeenOnboarding: boolean;
   };
   privacy: {
     cloudSyncEnabled: boolean;
@@ -238,6 +239,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     runOnStartup: false,
     systemTray: false,
     autoGitSync: false,
+    hasSeenOnboarding: false,
   },
   privacy: {
     cloudSyncEnabled: false,
