@@ -157,7 +157,7 @@ Rules for the memphant_update block:
 - openQuestion should contain only the single most relevant current question if one is clearly present.
 - Omit inProgress, lastSessionSummary, or openQuestion if they are not applicable.`;
 
-function formatForClaude(project: ProjectMemory, task?: string): string {
+function formatForClaude(project: ProjectMemory, task?: string, recentActivity?: string): string {
   const lines: string[] = [];
 
   lines.push(`<project_context>`);
@@ -220,6 +220,11 @@ function formatForClaude(project: ProjectMemory, task?: string): string {
     lines.push(`  </important_assets>`);
   }
 
+  if (recentActivity) {
+    lines.push('');
+    lines.push(recentActivity);
+  }
+
   if (task && task.trim()) {
     lines.push(`  <task>`);
     lines.push(`    <description>${sanitize(task)}</description>`);
@@ -244,9 +249,10 @@ export function formatForClaudeWithManifest(
   manifestText: string,
   manifestDigest: string,
   task?: string,
+  recentActivity?: string,
 ): string {
   return [
-    formatForClaude(project, task),
+    formatForClaude(project, task, recentActivity),
     '',
     '<vcp_state_manifest>',
     sanitize(manifestText),
@@ -261,7 +267,7 @@ export function formatForClaudeWithManifest(
   ].join('\n');
 }
 
-function formatForChatGPT(project: ProjectMemory, task?: string): string {
+function formatForChatGPT(project: ProjectMemory, task?: string, recentActivity?: string): string {
   const lines: string[] = [];
 
   lines.push(`# Project: ${sanitize(project.name)}`);
@@ -334,6 +340,11 @@ function formatForChatGPT(project: ProjectMemory, task?: string): string {
     lines.push(`## Important Files & Assets`);
     lines.push(bulletList(safeAssets));
     lines.push('');
+  }
+
+  if (recentActivity) {
+    lines.push('');
+    lines.push(recentActivity);
   }
 
   if (task && task.trim()) {
@@ -702,6 +713,7 @@ function formatSmartExport(
   platform: Platform,
   task?: string,
   platformConfig?: AIPlatformConfig,
+  recentActivity?: string,
 ): string {
   const condensed = distillProject(project);
 
@@ -722,10 +734,10 @@ function formatSmartExport(
   let body: string;
   switch (platform) {
     case 'claude':
-      body = formatForClaude(condensed, task);
+      body = formatForClaude(condensed, task, recentActivity);
       break;
     case 'chatgpt':
-      body = formatForChatGPT(condensed, task);
+      body = formatForChatGPT(condensed, task, recentActivity);
       break;
     case 'grok':
       body = formatForGrok(condensed, task);
@@ -827,16 +839,17 @@ export function formatForPlatform(
   task?: string,
   mode: ExportMode = 'full',
   platformConfig?: AIPlatformConfig,
+  recentActivity?: string,
 ): string {
   if (mode === 'delta') return formatDelta(project, task);
   if (mode === 'specialist') return formatSpecialist(project, task);
-  if (mode === 'smart') return formatSmartExport(project, platform, task, platformConfig);
+  if (mode === 'smart') return formatSmartExport(project, platform, task, platformConfig, recentActivity);
 
   switch (platform) {
     case 'claude':
-      return formatForClaude(project, task);
+      return formatForClaude(project, task, recentActivity);
     case 'chatgpt':
-      return formatForChatGPT(project, task);
+      return formatForChatGPT(project, task, recentActivity);
     case 'grok':
       return formatForGrok(project, task);
     case 'perplexity':

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { useProjectStore } from '../../store/projectStore';
 import { useActiveProject } from '../../hooks/useActiveProject';
+import { useRecentActivity } from '../../hooks/useRecentActivity';
 import { copyExportToClipboard, generateStateManifest } from '../../services/tauriActions';
 import {
   formatForClaudeWithManifest,
@@ -49,6 +50,10 @@ export function ExportButtons() {
   const settings = useProjectStore((s) => s.settings);
 
   const activeProject = useActiveProject();
+  const { markdown: recentActivity } = useRecentActivity(
+    activeProject?.id ?? '',
+    activeProject?.linkedFolder?.path ?? '',
+  );
 
   const enabledPlatforms = useMemo(
     () => getEnabledPlatforms(settings.platforms),
@@ -141,6 +146,7 @@ export function ExportButtons() {
         currentTask,
         settings.projects.defaultExportMode,
         selectedPlatform,
+        recentActivity,
       );
 
       await copyExportToClipboard(exportText, selectedPlatform.id);
@@ -156,6 +162,7 @@ export function ExportButtons() {
   }, [
     activeProject,
     currentTask,
+    recentActivity,
     selectedPlatform,
     settings,
     showToast,
@@ -177,6 +184,7 @@ export function ExportButtons() {
         manifest.text,
         manifest.digest,
         currentTask,
+        recentActivity,
       );
 
       await copyExportToClipboard(exportText, 'claude');
@@ -197,6 +205,7 @@ export function ExportButtons() {
   }, [
     activeProject,
     currentTask,
+    recentActivity,
     settings.privacy.secretsScannerLevel,
     showToast,
   ]);
