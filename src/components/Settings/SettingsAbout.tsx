@@ -20,7 +20,7 @@ Cloud backup is optional. There is no tracking or analytics.
 When you click "Copy for [Platform]", text goes to your clipboard only.
 Memephant does not connect to ChatGPT, Claude, or any AI service directly.
 
-Open source under the MIT license - inspect the code on GitHub.`;
+Source available under BSL 1.1 - inspect the code on GitHub.`;
 
 type UpdatePhase =
   | 'idle'
@@ -219,7 +219,7 @@ export function SettingsAbout() {
         <div className="setting-row">
           <div className="setting-info">
             <div className="setting-label">License</div>
-            <div className="setting-description">MIT - free and open source</div>
+            <div className="setting-description">BSL 1.1 — free for personal use</div>
           </div>
         </div>
 
