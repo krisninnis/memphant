@@ -46,10 +46,6 @@ export function useRecentActivity(
       setLoading(true);
 
       try {
-        console.log('[useRecentActivity] calling get_recent_activity', {
-          projectId: trimmedProjectId,
-          folderPath: trimmedFolderPath,
-        });
         const nextMarkdown = await invoke<string>('get_recent_activity', {
           projectId: trimmedProjectId,
           folderPath: trimmedFolderPath,
