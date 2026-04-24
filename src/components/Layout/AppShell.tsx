@@ -12,7 +12,6 @@ import Toast from './Toast';
 import WelcomeScreen from './WelcomeScreen';
 import SettingsPage from '../Settings/SettingsPage';
 import TourOverlay from '../Tour/TourOverlay';
-import { IntroModal } from './IntroModal';
 import { CommandPalette } from '../CommandPalette/CommandPalette';
 import { PWAInstallButton } from '../PWAInstallButton';
 
@@ -23,7 +22,6 @@ export function AppShell() {
   const currentView = useProjectStore((s) => s.currentView);
   const setCurrentView = useProjectStore((s) => s.setCurrentView);
   const projects = useProjectStore((s) => s.projects);
-  const setTourActive = useProjectStore((s) => s.setTourActive);
   const activeProject = useActiveProject();
 
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
@@ -150,7 +148,6 @@ export function AppShell() {
       )}
 
       <Toast />
-      <IntroModal onStartTour={() => setTourActive(true)} />
       <TourOverlay />
       <CommandPalette />
     </div>
