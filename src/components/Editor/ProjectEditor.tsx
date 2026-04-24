@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useProjectStore } from '../../store/projectStore';
 import { useActiveProject } from '../../hooks/useActiveProject';
+import { useRecentActivity } from '../../hooks/useRecentActivity';
 import EditableField from './EditableField';
 import EditableList from './EditableList';
 import { DecisionList } from './DecisionCard';
@@ -8,6 +9,7 @@ import { generateSuggestions } from '../../utils/autoSuggest';
 import { GitHubScanPreview } from './GitHubScanPreview';
 import { scanGitHubRepo, mergeScanResult, parseGitHubUrl } from '../../services/githubScanner';
 import { restoreProjectFromHistory } from '../../services/tauriActions';
+import { RecentActivityBlock } from '../RecentActivityBlock';
 import type { GitHubScanResult } from '../../services/githubScanner';
 
 type ScanState = 'idle' | 'scanning' | 'preview' | 'error';
@@ -32,6 +34,12 @@ export function ProjectEditor() {
   const [restoringId, setRestoringId] = useState<string | null>(null);
 
   const project = activeProject;
+
+  const { markdown, loading, error } = useRecentActivity(
+    project?.id ?? '',
+    project?.linkedFolder?.path ?? '',
+  );
+
   const recentRestorePoints = project
     ? [...(project.restorePoints ?? [])]
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
@@ -349,6 +357,12 @@ export function ProjectEditor() {
         onChange={(v) => update('aiInstructions', v)}
         multiline
         placeholder="Any specific instructions for how AIs should work on this project."
+      />
+
+      <RecentActivityBlock
+        markdown={markdown}
+        loading={loading}
+        error={error}
       />
     </div>
   );
