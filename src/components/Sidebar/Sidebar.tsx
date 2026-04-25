@@ -16,6 +16,7 @@ import {
 } from '../../utils/platformRegistry';
 import ProjectCard from './ProjectCard';
 import ConfirmDialog from '../Shared/ConfirmDialog';
+import LaunchpadWizard from '../Launchpad/LaunchpadWizard';
 
 interface SidebarProps {
   onNavigate?: () => void;
@@ -51,6 +52,7 @@ const Sidebar = ({ onNavigate }: SidebarProps) => {
   const setSettingsTab = useProjectStore((s) => s.setSettingsTab);
 
   const [createMode, setCreateMode] = useState<CreateMode>('none');
+  const [showLaunchpad, setShowLaunchpad] = useState(false);
   const [newName, setNewName] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [showDesktopPrompt, setShowDesktopPrompt] = useState(false);
@@ -143,8 +145,8 @@ const Sidebar = ({ onNavigate }: SidebarProps) => {
   };
 
   const handleNewProjectClick = () => {
-    setCreateMode('name');
-    setTimeout(() => nameInputRef.current?.focus(), 50);
+  resetCreate();
+  setShowLaunchpad(true);
   };
 
   const handleImportClick = () => {
@@ -501,6 +503,21 @@ const Sidebar = ({ onNavigate }: SidebarProps) => {
           onCancel={() => setPendingDeleteId(null)}
         />
       )}
+      {showLaunchpad && (
+  <LaunchpadWizard
+    onClose={() => setShowLaunchpad(false)}
+    onScanExisting={() => {
+      setShowLaunchpad(false);
+      void createProjectFromFolder();
+      onNavigate?.();
+    }}
+    onCreateBlankMemory={() => {
+      setShowLaunchpad(false);
+      setCreateMode('name');
+      setTimeout(() => nameInputRef.current?.focus(), 50);
+    }}
+  />
+)}
     </div>
   );
 };
