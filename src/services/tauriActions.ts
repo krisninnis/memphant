@@ -87,9 +87,9 @@ export function getUnavailableFeatureMessage(
 ): string {
   switch (feature) {
     case 'folderScan':
-      return 'Opening or scanning a local project folder requires the desktop app.';
+      return 'Selecting or scanning a local project folder requires the desktop app.';
     case 'folderLink':
-      return 'Linking a local project folder requires the desktop app.';
+      return 'Selecting a local project folder requires the desktop app.';
     case 'rescan':
       return 'Rescanning a linked folder requires the desktop app.';
     case 'gitSync':
@@ -174,7 +174,7 @@ async function openFolderDialog(): Promise<string | null> {
     const selected = await open({
       directory: true,
       multiple: false,
-      title: 'Select a project folder',
+      title: 'Open Folder',
     });
 
     if (Array.isArray(selected)) {

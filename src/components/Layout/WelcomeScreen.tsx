@@ -211,8 +211,8 @@ export function WelcomeScreen() {
                 >
                   <span>📂</span>
                   <span className="welcome-btn__text">
-                    Open a project folder
-                    <small className="welcome-btn__subtitle">Start from an existing codebase</small>
+                    Select a project folder
+                    <small className="welcome-btn__subtitle">Scan an existing codebase</small>
                   </span>
                 </button>
 
@@ -234,7 +234,7 @@ export function WelcomeScreen() {
                 </button>
 
                 <button className="welcome-btn welcome-btn--secondary" onClick={handleImportClick}>
-                  Import project
+                  Import project JSON
                 </button>
                 <input
                   ref={importFileRef}
@@ -258,6 +258,10 @@ export function WelcomeScreen() {
                     Use the desktop app
                   </button>
                 </div>
+                <p className="welcome-privacy">
+                  Folder scanning is available in the desktop app. The web app can import exported
+                  Memephant JSON files.
+                </p>
               </>
             )}
           </div>
