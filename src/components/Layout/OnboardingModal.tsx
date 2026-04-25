@@ -64,8 +64,8 @@ export function OnboardingModal() {
   };
 
   const handleLinkFolder = async () => {
-    await linkFolder();
     completeOnboarding();
+    await linkFolder();
   };
 
   return (
