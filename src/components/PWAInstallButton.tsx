@@ -28,7 +28,7 @@ export function PWAInstallButton({ variant = 'header' }: Props) {
     if (variant === 'settings') {
       return (
         <a
-          href="https://memephant.com"
+          href="https://memephant.com/download"
           target="_blank"
           rel="noopener noreferrer"
           style={{ fontSize: 14, color: '#888' }}
@@ -42,7 +42,9 @@ export function PWAInstallButton({ variant = 'header' }: Props) {
       return (
         <button
           type="button"
-          onClick={() => window.open('https://memephant.com', '_blank', 'noopener,noreferrer')}
+          onClick={() =>
+            window.open('https://memephant.com/download', '_blank', 'noopener,noreferrer')
+          }
           style={{
             background: 'transparent',
             color: 'rgba(255, 255, 255, 0.58)',
