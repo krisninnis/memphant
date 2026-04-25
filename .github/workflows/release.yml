@@ -37,7 +37,7 @@ jobs:
         run: pnpm exec eslint src --ext .ts,.tsx --max-warnings 0
 
       - name: Unit tests
-        run: pnpm test -- --passWithNoTests
+        run: pnpm exec jest --passWithNoTests
 
   build:
     name: Build — ${{ matrix.platform }}
