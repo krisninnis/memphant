@@ -1194,7 +1194,14 @@ export async function restoreProjectFromHistory(
   );
 
   store().updateProject(project.id, restoredProject);
-  await saveToDisk(restoredProject);
+  try {
+    await saveToDisk(restoredProject);
+  } catch {
+    showToast(
+      'Restore saved to memory but could not write to disk. Restart the app if the issue persists.',
+      'error'
+    );
+  }
   store().showToast('Project restored from history.');
   return true;
 }
