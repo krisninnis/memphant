@@ -1,10 +1,470 @@
-﻿<!DOCTYPE html>
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-<meta http-equiv="refresh" content="0;url=https://github.com/krisninnis/memphant/releases/latest/download/Memephant_0.2.5_x64-setup.exe">
-<title>Downloading Memephant...</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Download Memephant</title>
+  <meta
+    name="description"
+    content="Download the latest version of Memephant for Windows, macOS, or Linux."
+  />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d0d1a;
+      --card: #12121f;
+      --border: #2a2a40;
+      --text: #e0e0f0;
+      --muted: #a0a0b8;
+      --subtle: #60607a;
+      --accent: #d97706;
+      --accent-hover: #c66d05;
+      --secondary: #1a1a2b;
+      --secondary-hover: #23233a;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 720px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 48px 40px;
+      text-align: center;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
+    }
+
+    .logo {
+      font-size: 46px;
+      margin-bottom: 16px;
+    }
+
+    h1 {
+      font-size: 36px;
+      font-weight: 800;
+      margin-bottom: 10px;
+      color: #fff;
+      letter-spacing: -0.02em;
+    }
+
+    .subtitle {
+      font-size: 17px;
+      color: var(--muted);
+      line-height: 1.6;
+      margin-bottom: 8px;
+    }
+
+    .meta {
+      font-size: 14px;
+      color: var(--subtle);
+      margin-bottom: 32px;
+    }
+
+    .version {
+      color: #f4b667;
+      font-weight: 700;
+    }
+
+    .status {
+      min-height: 120px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .spinner {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      border: 4px solid rgba(217, 119, 6, 0.18);
+      border-top-color: var(--accent);
+      animation: spin 0.85s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .loading-text,
+    .error-text {
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.6;
+    }
+
+    .downloads {
+      display: none;
+      text-align: left;
+    }
+
+    .downloads.visible {
+      display: block;
+    }
+
+    .hero-download {
+      background: linear-gradient(135deg, rgba(217, 119, 6, 0.18), rgba(217, 119, 6, 0.08));
+      border: 1px solid rgba(217, 119, 6, 0.34);
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 22px;
+    }
+
+    .hero-label {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #f4b667;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+
+    .hero-title {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: #fff;
+    }
+
+    .hero-copy {
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.6;
+      margin-bottom: 18px;
+    }
+
+    .download-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+      text-decoration: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 700;
+      transition: background 0.15s ease, transform 0.15s ease, border-color 0.15s ease;
+    }
+
+    .download-button:hover {
+      transform: translateY(-1px);
+    }
+
+    .download-button.primary {
+      background: var(--accent);
+      color: #fff;
+      padding: 15px 18px;
+    }
+
+    .download-button.primary:hover {
+      background: var(--accent-hover);
+    }
+
+    .other-title {
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--subtle);
+      margin-bottom: 14px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .small-button {
+      display: block;
+      text-decoration: none;
+      background: var(--secondary);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 12px;
+      padding: 14px 16px;
+      transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+    }
+
+    .small-button:hover {
+      background: var(--secondary-hover);
+      border-color: #444461;
+      transform: translateY(-1px);
+    }
+
+    .small-title {
+      display: block;
+      font-size: 15px;
+      font-weight: 700;
+      margin-bottom: 4px;
+      color: #fff;
+    }
+
+    .small-copy {
+      display: block;
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .footer {
+      margin-top: 28px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .footer-copy {
+      font-size: 13px;
+      color: var(--subtle);
+    }
+
+    .footer a,
+    .error-actions a {
+      color: #f4b667;
+      text-decoration: none;
+    }
+
+    .footer a:hover,
+    .error-actions a:hover {
+      text-decoration: underline;
+    }
+
+    .error-actions {
+      margin-top: 8px;
+      font-size: 14px;
+    }
+
+    @media (max-width: 640px) {
+      .card {
+        padding: 36px 22px;
+      }
+
+      h1 {
+        font-size: 30px;
+      }
+
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      .footer {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+    }
+  </style>
 </head>
 <body>
-<p>Redirecting to download... <a href="https://github.com/krisninnis/memphant/releases/latest/download/Memephant_0.2.5_x64-setup.exe">Click here if not redirected</a></p>
+  <main class="card">
+    <div class="logo">🐘</div>
+    <h1>Download Memephant</h1>
+    <p class="subtitle">Get the latest desktop build for Windows, macOS, or Linux.</p>
+    <p class="meta">
+      <span id="version-text">Checking latest version...</span>
+      <span aria-hidden="true"> · </span>
+      <span>Free — no account required</span>
+    </p>
+
+    <section id="loading-state" class="status">
+      <div class="spinner" aria-hidden="true"></div>
+      <p class="loading-text">Looking up the latest Memephant release...</p>
+    </section>
+
+    <section id="error-state" class="status" style="display:none;">
+      <p class="error-text">
+        We could not load the latest release details right now.
+      </p>
+      <p class="error-actions">
+        <a href="https://github.com/krisninnis/memphant/releases/latest">Open latest GitHub release</a>
+      </p>
+    </section>
+
+    <section id="downloads" class="downloads" aria-live="polite">
+      <div id="hero-download" class="hero-download"></div>
+      <div>
+        <div class="other-title">Other downloads</div>
+        <div id="other-downloads" class="grid"></div>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <div class="footer-copy">Need the homepage instead?</div>
+      <a href="https://memephant.com/">Back to memephant.com</a>
+    </footer>
+  </main>
+
+  <script>
+    const API_URL = 'https://api.github.com/repos/krisninnis/memphant/releases/latest';
+    const FALLBACK_URL = 'https://github.com/krisninnis/memphant/releases/latest';
+
+    const versionText = document.getElementById('version-text');
+    const loadingState = document.getElementById('loading-state');
+    const errorState = document.getElementById('error-state');
+    const downloads = document.getElementById('downloads');
+    const heroDownload = document.getElementById('hero-download');
+    const otherDownloads = document.getElementById('other-downloads');
+
+    function detectPlatform() {
+      const ua = navigator.userAgent || '';
+      const platform = navigator.platform || '';
+      const combined = `${ua} ${platform}`.toLowerCase();
+
+      if (combined.includes('win')) return 'windows';
+      if (combined.includes('mac')) return 'mac';
+      if (combined.includes('linux') || combined.includes('x11')) return 'linux';
+      return 'unknown';
+    }
+
+    function classifyAssets(assets) {
+      return {
+        windows: assets.find((asset) => asset.name.endsWith('_x64-setup.exe')) || null,
+        macAppleSilicon: assets.find((asset) => asset.name.endsWith('_aarch64.dmg')) || null,
+        macIntel: assets.find((asset) => asset.name.endsWith('_x64.dmg')) || null,
+        linuxAppImage: assets.find((asset) => asset.name.endsWith('.AppImage')) || null,
+        linuxDeb: assets.find((asset) => asset.name.endsWith('.deb')) || null
+      };
+    }
+
+    function platformChoice(map, os) {
+      if (os === 'windows' && map.windows) {
+        return {
+          key: 'windows',
+          title: 'Windows',
+          subtitle: 'Recommended for your device',
+          asset: map.windows
+        };
+      }
+
+      if (os === 'mac' && (map.macAppleSilicon || map.macIntel)) {
+        const preferred = map.macAppleSilicon || map.macIntel;
+        return {
+          key: 'mac',
+          title: preferred === map.macAppleSilicon ? 'macOS (Apple Silicon)' : 'macOS (Intel)',
+          subtitle: 'Recommended for your device',
+          asset: preferred
+        };
+      }
+
+      if (os === 'linux' && (map.linuxAppImage || map.linuxDeb)) {
+        const preferred = map.linuxAppImage || map.linuxDeb;
+        return {
+          key: 'linux',
+          title: preferred === map.linuxAppImage ? 'Linux AppImage' : 'Linux .deb',
+          subtitle: 'Recommended for your device',
+          asset: preferred
+        };
+      }
+
+      const firstAvailable =
+        map.windows ||
+        map.macAppleSilicon ||
+        map.macIntel ||
+        map.linuxAppImage ||
+        map.linuxDeb;
+
+      if (!firstAvailable) return null;
+
+      return {
+        key: 'fallback',
+        title: 'Latest Memephant build',
+        subtitle: 'Pick the installer that matches your device',
+        asset: firstAvailable
+      };
+    }
+
+    function otherOptions(map, primaryAsset) {
+      const options = [
+        { title: 'Windows', copy: 'Windows installer (.exe)', asset: map.windows },
+        { title: 'macOS (Apple Silicon)', copy: 'Native Apple Silicon build (.dmg)', asset: map.macAppleSilicon },
+        { title: 'macOS (Intel)', copy: 'Intel Mac build (.dmg)', asset: map.macIntel },
+        { title: 'Linux AppImage', copy: 'Portable Linux build (.AppImage)', asset: map.linuxAppImage },
+        { title: 'Linux .deb', copy: 'Debian and Ubuntu package (.deb)', asset: map.linuxDeb }
+      ];
+
+      return options.filter((option) => option.asset && option.asset !== primaryAsset);
+    }
+
+    function renderDownloads(release, assets) {
+      const os = detectPlatform();
+      const primary = platformChoice(assets, os);
+
+      if (!primary) {
+        throw new Error('No supported release assets found.');
+      }
+
+      versionText.innerHTML = `Latest version: <span class="version">${release.tag_name}</span>`;
+
+      heroDownload.innerHTML = `
+        <div class="hero-label">${primary.subtitle}</div>
+        <div class="hero-title">${primary.title}</div>
+        <div class="hero-copy">Download ${primary.asset.name}</div>
+        <a class="download-button primary" href="${primary.asset.browser_download_url}">
+          Download now
+        </a>
+      `;
+
+      const others = otherOptions(assets, primary.asset);
+      otherDownloads.innerHTML = others
+        .map((option) => `
+          <a class="small-button" href="${option.asset.browser_download_url}">
+            <span class="small-title">${option.title}</span>
+            <span class="small-copy">${option.copy}</span>
+          </a>
+        `)
+        .join('');
+
+      loadingState.style.display = 'none';
+      errorState.style.display = 'none';
+      downloads.classList.add('visible');
+    }
+
+    function showError() {
+      versionText.textContent = 'Latest version unavailable';
+      loadingState.style.display = 'none';
+      downloads.classList.remove('visible');
+      errorState.style.display = 'flex';
+    }
+
+    async function loadRelease() {
+      try {
+        const response = await fetch(API_URL, {
+          headers: {
+            Accept: 'application/vnd.github+json'
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error(`GitHub API returned ${response.status}`);
+        }
+
+        const release = await response.json();
+        const assets = classifyAssets(Array.isArray(release.assets) ? release.assets : []);
+        renderDownloads(release, assets);
+      } catch (error) {
+        console.error('Failed to load Memephant release info:', error);
+        showError();
+      }
+    }
+
+    loadRelease();
+  </script>
 </body>
 </html>
