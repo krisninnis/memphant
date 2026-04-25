@@ -10,6 +10,7 @@ import {
 } from '../../services/updater';
 import type { UpdateInfo } from '../../services/updater';
 
+
 function isTauri(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 }

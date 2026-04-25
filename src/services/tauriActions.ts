@@ -1516,14 +1516,12 @@ export async function downloadAllData(): Promise<void> {
 // Launchpad service functions
 // ————————————————————————————————————————————————————————————————————————————
 
-/**
- * Ask the Rust backend to scaffold a new project folder from a template,
- * then return the folder path, the list of files written, and a scan hash
- * the caller can store on the new project's linkedFolder.
- *
- * Desktop-only — throws if called outside the Tauri context.
- * Args are mapped from camelCase to snake_case to match the Rust command signature.
- */
+type RawCreateTemplateFolderResult = {
+  folder_path: string;
+  files_created: string[];
+  scan_hash: string;
+};
+
 export async function createTemplateProjectFolder(
   input: CreateTemplateFolderInput,
 ): Promise<CreateTemplateFolderResult> {
@@ -1531,23 +1529,25 @@ export async function createTemplateProjectFolder(
     throw new Error('Creating a project folder requires the desktop app.');
   }
 
-  return tauriInvoke<CreateTemplateFolderResult>('create_project_from_template_folder', {
-    input: {
-      project_name: input.projectName,
-      description: input.description,
-      template_id: input.templateId,
-      target_parent_folder: input.targetParentFolder,
+  const result = await tauriInvoke<RawCreateTemplateFolderResult>(
+    'create_project_from_template_folder',
+    {
+      input: {
+        project_name: input.projectName,
+        description: input.description,
+        template_id: input.templateId,
+        target_parent_folder: input.targetParentFolder,
+      },
     },
-  });
+  );
+
+  return {
+    folderPath: result.folder_path,
+    filesCreated: result.files_created,
+    scanHash: result.scan_hash,
+  };
 }
 
-/**
- * Ask the OS to reveal the newly created project folder in the native file manager.
- * Uses the Rust open_project_folder command so the path never touches
- * any web-facing surface.
- *
- * Desktop-only — silently no-ops in browser context.
- */
 export async function openCreatedProjectFolder(folderPath: string): Promise<void> {
   if (!isDesktopApp()) {
     console.warn('[Memphant] openCreatedProjectFolder: desktop app required.');
@@ -1555,3 +1555,4 @@ export async function openCreatedProjectFolder(folderPath: string): Promise<void
   }
 
   await tauriInvoke('open_project_folder', { folderPath });
+}
