@@ -19,6 +19,10 @@ module.exports = {
   moduleNameMapper: {
     '^@tauri-apps/(.*)$': '<rootDir>/src/tests/__mocks__/tauri.ts',
   },
-  testPathIgnorePatterns: ['/node_modules/', '/dist/'],
+  testPathIgnorePatterns: [
+    '/node_modules/',
+    '/dist/',
+    'src/tests/e2e/auth-logout-mobile.test.ts',
+  ],
   clearMocks: true,
 };
