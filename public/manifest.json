@@ -74,15 +74,6 @@
       "purpose": "maskable"
     }
   ],
-  "screenshots": [
-    {
-      "src": "/screenshots/mobile-home.png",
-      "sizes": "390x844",
-      "type": "image/png",
-      "form_factor": "narrow",
-      "label": "Memephant on mobile"
-    }
-  ],
   "shortcuts": [
     {
       "name": "New Project",
