@@ -1,4 +1,4 @@
-import { useProjectStore } from '../../store/projectStore';
+﻿import { useProjectStore } from '../../store/projectStore';
 import Toggle from '../Shared/Toggle';
 
 export function SettingsProjects() {
@@ -36,9 +36,9 @@ export function SettingsProjects() {
 
         <div className="setting-row">
           <div className="setting-info">
-            <div className="setting-label">Auto-update project memory</div>
+            <div className="setting-label">Check for recent file changes</div>
             <div className="setting-description">
-              Automatically refresh your project context while you work
+              How often to refresh the recent activity block while you work
             </div>
           </div>
           <select
@@ -93,9 +93,9 @@ export function SettingsProjects() {
             value={p.defaultExportMode}
             onChange={(e) => update({ defaultExportMode: e.target.value as typeof p.defaultExportMode })}
           >
-            <option value="full">Full — everything</option>
+            <option value="full">Full â€” everything</option>
             <option value="smart" disabled={!isPro}>
-              Smart — auto-condensed{isPro ? '' : ' (Pro)'}
+              Smart â€” auto-condensed{isPro ? '' : ' (Pro)'}
             </option>
             <option value="delta">Changes only</option>
             <option value="specialist">Specialist task</option>
@@ -110,3 +110,4 @@ export function SettingsProjects() {
 }
 
 export default SettingsProjects;
+
