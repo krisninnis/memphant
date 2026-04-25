@@ -1455,7 +1455,7 @@ export async function copyExportToClipboard(
 }
 
 export async function downloadAllData(): Promise<void> {
-  const { projects, settings, showToast } = store();
+  const { projects, settings } = store();
 
   const payload = {
     exported_at: new Date().toISOString(),
