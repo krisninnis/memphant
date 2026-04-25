@@ -1,6 +1,6 @@
-/**
+﻿/**
  * Standalone Tauri action functions that operate on the Zustand store.
- * These are NOT hooks — they can be called from anywhere.
+ * These are NOT hooks â€” they can be called from anywhere.
  *
  * Browser fallback: when running in a regular browser (phone preview / web mode)
  * all Tauri invoke() calls fall back to localStorage so the app remains usable.
@@ -21,15 +21,15 @@ import { pushProject, deleteCloudProject } from './cloudSync';
 import { suggestEmptyFields } from '../utils/autoSuggest';
 import type { ProjectTemplate } from '../utils/projectTemplates';
 
-// ——————————————————————————————————————————————————————————————————————————————
+// â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”
 // Free tier limit
-// ——————————————————————————————————————————————————————————————————————————————
+// â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”
 
 const MAX_RESTORE_POINTS = 5;
 
-// ——————————————————————————————————————————————————————————————————————————————
+// â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”
 // Runtime / platform capability helpers
-// ——————————————————————————————————————————————————————————————————————————————
+// â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”
 
 export { isDesktopApp, isBrowserApp } from '../utils/runtime';
 
@@ -101,9 +101,9 @@ export function getUnavailableFeatureMessage(
   }
 }
 
-// ——————————————————————————————————————————————————————————————————————————————
+// â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”
 // Browser localStorage fallback storage
-// ——————————————————————————————————————————————————————————————————————————————
+// â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”
 
 const LS_PREFIX = 'mph_project:';
 
@@ -154,9 +154,9 @@ const browserStore = {
   },
 };
 
-// ——————————————————————————————————————————————————————————————————————————————
+// â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”
 // Tauri lazy imports (only loaded in Tauri context)
-// ——————————————————————————————————————————————————————————————————————————————
+// â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”
 
 async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   const { invoke } = await import('@tauri-apps/api/core');
@@ -230,9 +230,9 @@ export async function generateStateManifest(
   return tauriInvoke<StateManifestPreview>('generate_state_manifest', { project });
 }
 
-// ——————————————————————————————————————————————————————————————————————————————
-// Old ↔ New format conversion
-// ——————————————————————————————————————————————————————————————————————————————
+// â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”
+// Old â†” New format conversion
+// â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”
 
 type LegacyLinkedFolder = {
   path?: string;
@@ -310,7 +310,7 @@ export function normalizeOldProject(raw: Record<string, unknown>): ProjectMemory
   return {
     // Stamp current schema version so the project is upgraded on next disk write.
     // Projects without a schema_version (or with the legacy numeric 1) are treated
-    // as pre-1.1.0 and silently migrated — no field values are changed.
+    // as pre-1.1.0 and silently migrated â€” no field values are changed.
     schema_version: SCHEMA_VERSION,
     id:
       (typeof legacy.id === 'string' && legacy.id) ||
@@ -463,7 +463,7 @@ export function normalizeOldProject(raw: Record<string, unknown>): ProjectMemory
           }),
         )
       : {},
-    // ── 1.1.0 optional fields — undefined when not present in raw data ────────
+    // â”€â”€ 1.1.0 optional fields â€” undefined when not present in raw data â”€â”€â”€â”€â”€â”€â”€â”€
     inProgress: Array.isArray(raw.inProgress)
       ? (raw.inProgress as unknown[]).filter((s): s is string => typeof s === 'string' && s.trim().length > 0)
       : undefined,
@@ -571,9 +571,9 @@ function stripPortablePrivateFields(value: unknown): unknown {
 function toPortableExportFormat(project: ProjectMemory): Record<string, unknown> {
   return stripPortablePrivateFields(toOldFormat(project)) as Record<string, unknown>;
 }
-// ——————————————————————————————————————————————————————————————————————————————
+// â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”
 // Scan result types
-// ——————————————————————————————————————————————————————————————————————————————
+// â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”
 
 type PackageInfo = {
   name?: string;
@@ -718,9 +718,9 @@ function serializeProjectAsMarkdown(project: ProjectMemory): string {
   ].join('\n');
 }
 
-// ——————————————————————————————————————————————————————————————————————————————
+// â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”
 // Core storage operations (with browser fallback)
-// ——————————————————————————————————————————————————————————————————————————————
+// â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”
 
 function projectUpdatedAt(project: ProjectMemory): string {
   if (project.updatedAt) return project.updatedAt;
@@ -913,9 +913,9 @@ export async function loadAllFromDisk(): Promise<ProjectMemory[]> {
   return Array.from(loadedById.values()).map((v) => v.project);
 }
 
-// ——————————————————————————————————————————————————————————————————————————————
+// â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”
 // Actions
-// ——————————————————————————————————————————————————————————————————————————————
+// â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”
 
 const store = () => useProjectStore.getState();
 
@@ -1105,7 +1105,7 @@ export async function rescanLinkedFolder(): Promise<void> {
     });
 
     if (!result.folder_exists) {
-      store().showToast('Linked folder not found — it may have been moved.', 'error');
+      store().showToast('Linked folder not found â€” it may have been moved.', 'error');
       return;
     }
 
@@ -1387,13 +1387,13 @@ export async function copyExportToClipboard(
   try {
     await navigator.clipboard.writeText(exportText);
   } catch {
-    showToast('Could not copy to clipboard — please try again.', 'error');
+    store().showToast('Could not copy to clipboard â€” please try again.', 'error');
     return;
   }
 
   const project = projects.find((item) => item.id === activeProjectId);
   if (!project) {
-    showToast(`Copied for ${platform}.`);
+    store().showToast(`Copied for ${platform}.`);
     return;
   }
 
@@ -1448,10 +1448,10 @@ export async function copyExportToClipboard(
   try {
     await saveToDisk(clearedProject);
   } catch {
-    showToast('Your changes could not be saved. Please try again.', 'error');
+    store().showToast('Your changes could not be saved. Please try again.', 'error');
   }
 
-  showToast(`Copied for ${platform} — paste into your AI to get started`);
+  showToast(`Copied for ${platform} â€” paste into your AI to get started`);
 }
 
 export async function downloadAllData(): Promise<void> {
@@ -1478,9 +1478,9 @@ export async function downloadAllData(): Promise<void> {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-    showToast('Data export downloaded.');
+    store().showToast('Data export downloaded.');
   } catch (err) {
     console.error('downloadAllData failed:', err);
-    showToast('Could not export your data.', 'error');
+    store().showToast('Could not export your data.', 'error');
   }
 }
