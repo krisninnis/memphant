@@ -111,6 +111,14 @@ export function WelcomeScreen() {
     if (step === 2) setStep(3);
   };
 
+  const resetWizard = () => {
+    setMode('landing');
+    setStep(1);
+    setName('');
+    setSummary('');
+    setFirstStep('');
+  };
+
   const handleCreate = async () => {
     if (!canFinish || creating) return;
     setCreating(true);
@@ -363,7 +371,32 @@ export function WelcomeScreen() {
 
   return (
     <div className="welcome-screen">
-      <div className="welcome-card welcome-card--wizard">
+      <div className="welcome-card welcome-card--wizard" style={{ position: 'relative' }}>
+        <button
+          type="button"
+          aria-label="Close wizard"
+          onClick={resetWizard}
+          style={{
+            position: 'absolute',
+            top: 16,
+            right: 16,
+            width: 36,
+            height: 36,
+            borderRadius: 999,
+            border: '1px solid rgba(148, 163, 184, 0.25)',
+            background: 'rgba(15, 23, 42, 0.72)',
+            color: '#94a3b8',
+            cursor: 'pointer',
+            fontSize: 20,
+            lineHeight: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          ×
+        </button>
+
         <div className="wizard-progress">
           <div className="wizard-progress__fill" style={{ width: `${progressPct + 33}%` }} />
         </div>
@@ -453,13 +486,7 @@ export function WelcomeScreen() {
 
         <button
           className="wizard-cancel"
-          onClick={() => {
-            setMode('landing');
-            setStep(1);
-            setName('');
-            setSummary('');
-            setFirstStep('');
-          }}
+          onClick={resetWizard}
         >
           Cancel
         </button>
