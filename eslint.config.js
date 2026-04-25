@@ -73,4 +73,17 @@ export default [
       'no-console': ['warn', { allow: ['warn', 'error'] }],
     },
   },
+
+  {
+    files: ['chrome-extension/**/*.js'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      globals: {
+        ...globals.browser,
+        ...globals.webextensions,
+        ...globals.es2021,
+      },
+    },
+  },
 ];
