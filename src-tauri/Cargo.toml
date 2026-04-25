@@ -1,6 +1,6 @@
 [package]
 name = "memephant-desktop"
-version = "0.2.5"
+version = "0.2.22"
 description = "Remember your projects so your AIs don't have to"
 authors = ["Kris Ninnis"]
 edition = "2021"
