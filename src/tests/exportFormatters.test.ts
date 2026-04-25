@@ -343,12 +343,13 @@ describe('custom platform format', () => {
   });
 });
 describe('response format guardrails', () => {
-  it('tells AIs to omit uncertain fields rather than guess', () => {
+  it('tells AIs to fill changed fields and only add genuinely new items', () => {
     const output = formatForPlatform(makeProject(), 'chatgpt');
 
-    expect(output).toContain('Only include fields you are confident changed');
-    expect(output).toContain('Do not invent roadmap items, goals, decisions, or next steps');
-    expect(output).toContain('If something is uncertain, omit it rather than guess');
+    expect(output).toContain('Fill in every field that changed');
+    expect(output).toContain('Do not wait for the user to');
+    expect(output).toContain('tell you what changed');
+    expect(output).toContain('Only include goals and decisions if something genuinely new was decided this session');
   });
 
   it('uses schemaVersion 1.1.0 in the response format example', () => {
