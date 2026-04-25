@@ -12,6 +12,7 @@ import { useState, useEffect } from 'react';
 import './IntroModal.css';
 
 const INTRO_KEY = 'mph_intro_done';
+const DOWNLOAD_URL = 'https://memephant.com/download/';
 
 interface IntroModalProps {
   /** Called when user clicks "Show me how" — starts the tour */
@@ -93,17 +94,8 @@ export function IntroModal({ onStartTour }: IntroModalProps) {
     if (startTour) onStartTour();
   }
 
-  async function handleInstall() {
-    if (!installPrompt) return;
-
-    await installPrompt.prompt();
-    const choice = await installPrompt.userChoice;
-
-    if (choice.outcome === 'accepted') {
-      setIsInstalled(true);
-    }
-
-    setInstallPrompt(null);
+  function handleInstall() {
+    window.location.href = DOWNLOAD_URL;
   }
 
   const showInstallButton = !isInstalled && !!installPrompt;
@@ -162,7 +154,7 @@ export function IntroModal({ onStartTour }: IntroModalProps) {
           {showInstallButton && (
             <button
               className="intro-btn intro-btn--secondary"
-              onClick={() => void handleInstall()}
+              onClick={handleInstall}
             >
               Install app
             </button>
