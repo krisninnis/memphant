@@ -23,6 +23,7 @@ struct FileActivity {
     total_events: usize,
 }
 
+#[allow(dead_code)]
 #[cfg(test)]
 pub fn summarize_recent_activity(events: &[BufferedEvent]) -> String {
     summarize_recent_activity_with_commits(events, &[])

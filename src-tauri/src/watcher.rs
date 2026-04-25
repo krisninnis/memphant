@@ -144,6 +144,7 @@ impl FolderWatcher {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn drain(&self) -> Vec<BufferedEvent> {
         match self.buffer.lock() {
             Ok(mut guard) => std::mem::take(&mut *guard),
@@ -185,6 +186,7 @@ impl WatcherManager {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn drain(&self) -> Vec<BufferedEvent> {
         self.active
             .as_ref()
