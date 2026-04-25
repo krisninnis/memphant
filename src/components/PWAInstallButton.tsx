@@ -25,6 +25,19 @@ export function PWAInstallButton({ variant = 'header' }: Props) {
   }
 
   if (!isInstallable) {
+    if (variant === 'settings') {
+      return (
+        <a
+          href="https://memephant.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ fontSize: 14, color: '#888' }}
+        >
+          Get the desktop app →
+        </a>
+      );
+    }
+
     if (variant === 'header') {
       return (
         <button
@@ -45,8 +58,6 @@ export function PWAInstallButton({ variant = 'header' }: Props) {
         </button>
       );
     }
-
-    return null;
   }
 
   if (variant === 'header') {
