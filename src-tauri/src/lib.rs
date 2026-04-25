@@ -9,6 +9,7 @@ use tauri::tray::TrayIconBuilder;
 use tauri_plugin_autostart::ManagerExt;
 
 mod vcp;
+mod project_launchpad;
 
 // Folder watcher — compiled only when the `folder_watcher` feature flag is set.
 // No Tauri commands registered yet; Phase 2 will add them.
@@ -1038,6 +1039,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             scan_project_folder,
             rescan_linked_folder,
+            project_launchpad::create_project_from_template_folder,
+            project_launchpad::open_project_folder,
             get_git_log,
             save_project_file,
             load_projects,
