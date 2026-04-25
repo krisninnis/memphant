@@ -164,14 +164,22 @@ async function tauriInvoke<T>(cmd: string, args?: Record<string, unknown>): Prom
 }
 
 async function openFolderDialog(): Promise<string | null> {
-  if (!canScanFolders()) {
+  if (!isDesktopApp()) {
     console.warn(getUnavailableFeatureMessage('folderScan'));
     return null;
   }
 
   try {
     const { open } = await import('@tauri-apps/plugin-dialog');
-    const selected = await open({ directory: true, multiple: false });
+    const selected = await open({
+      directory: true,
+      multiple: false,
+      title: 'Select a project folder',
+    });
+
+    if (Array.isArray(selected)) {
+      return typeof selected[0] === 'string' ? selected[0] : null;
+    }
 
     return typeof selected === 'string' ? selected : null;
   } catch (err) {
