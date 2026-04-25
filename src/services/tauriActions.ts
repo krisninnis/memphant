@@ -1197,7 +1197,7 @@ export async function restoreProjectFromHistory(
   try {
     await saveToDisk(restoredProject);
   } catch {
-    showToast(
+    store().showToast(
       'Restore saved to memory but could not write to disk. Restart the app if the issue persists.',
       'error'
     );
