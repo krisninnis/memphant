@@ -430,55 +430,50 @@ async function ensureSessionFresh(reason: SyncReason): Promise<void> {
 
   await runExclusiveAuthOp('auth', 'ensure_session_fresh', async () => {
     // Quick cached read — 500ms max. With autoRefreshToken:false this never hangs.
-    let needsRefresh = false
     try {
-  const sb = getSupabase()
+      const sb = getSupabase()
 
-  const { data } = await Promise.race([
-    sb.auth.getSession(),
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('session quick-check timed out')), 500),
-    ),
-  ])
+      const { data } = await Promise.race([
+        sb.auth.getSession(),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('session quick-check timed out')), 500),
+        ),
+      ])
 
-  const exp = data?.session?.expires_at ?? 0
-  const nowSec = Math.floor(Date.now() / 1000)
-  const secsLeft = exp - nowSec
+      const exp = data?.session?.expires_at ?? 0
+      const nowSec = Math.floor(Date.now() / 1000)
+      const secsLeft = exp - nowSec
       if (exp === 0 || secsLeft < SESSION_EXPIRY_BUFFER_SEC) {
-        needsRefresh = true
         logSync('push', 'session_stale', { reason, secsLeft })
       } else {
         logSync('push', 'session_fresh', { reason, secsLeft })
         return
       }
     } catch {
-      needsRefresh = true
       logSync('push', 'session_check_timed_out', { reason })
     }
 
-    if (!needsRefresh) return
-
     logSync('push', 'session_refresh_start', { reason })
-try {
-  const sb = getSupabase()
+    try {
+      const sb = getSupabase()
 
-  const { data, error } = await Promise.race([
-    sb.auth.refreshSession(),
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('session refresh timed out after 6 s')), 6000),
-    ),
-  ])
+      const { data, error } = await Promise.race([
+        sb.auth.refreshSession(),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('session refresh timed out after 6 s')), 6000),
+        ),
+      ])
 
-  if (error) {
-    logSyncError('push', 'session_refresh_error', error, { reason })
-  } else {
-    const newExp = data.session?.expires_at ?? 0
-    logSync('push', 'session_refresh_success', {
-      reason,
-      newSecsLeft: newExp - Math.floor(Date.now() / 1000),
-    })
-  }
-} catch (err) {
+      if (error) {
+        logSyncError('push', 'session_refresh_error', error, { reason })
+      } else {
+        const newExp = data.session?.expires_at ?? 0
+        logSync('push', 'session_refresh_success', {
+          reason,
+          newSecsLeft: newExp - Math.floor(Date.now() / 1000),
+        })
+      }
+    } catch (err) {
       // Timed out or network error. Proceed anyway — upsert will get a fast 401
       // (with autoRefreshToken:false) rather than hanging indefinitely.
       logSyncError('push', 'session_refresh_failed', err, { reason })

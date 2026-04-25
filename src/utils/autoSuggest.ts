@@ -183,14 +183,12 @@ export function generateSuggestions(project: ProjectMemory): AutoSuggestions {
   const techStack = detectTechStack(project);
 
   // ── Summary ────────────────────────────────────────────────────────────────
-  let summary = '';
-
   const typeLabel = projectType?.label ?? 'project';
   const techLabel = techStack.length > 0
     ? techStack.slice(0, 3).join(' + ') + ' '
     : '';
 
-  summary = `${name} is a ${techLabel}${typeLabel}. Add a brief description of what it does and who it's for.`;
+  const summary = `${name} is a ${techLabel}${typeLabel}. Add a brief description of what it does and who it's for.`;
 
   // ── Current state ──────────────────────────────────────────────────────────
   const hasContent =

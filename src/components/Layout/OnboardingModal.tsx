@@ -187,7 +187,7 @@ export function OnboardingModal() {
                       className="onboarding-btn onboarding-btn--primary"
                       onClick={() => void handleLinkFolder()}
                     >
-                      Link a folder
+                      Select a folder
                     </button>
 
                     <button

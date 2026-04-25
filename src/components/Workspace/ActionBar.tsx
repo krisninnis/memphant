@@ -214,7 +214,7 @@ export function ActionBar() {
               onClick={() => void linkFolder()}
               title="Link a local project folder to enable rescans and Git-aware exports"
             >
-              Link project folder
+              Select project folder
             </button>
           ) : (
             <button

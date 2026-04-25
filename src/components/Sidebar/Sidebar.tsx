@@ -241,13 +241,13 @@ const Sidebar = ({ onNavigate }: SidebarProps) => {
             </button>
 
             {desktopApp ? (
-              <button
-                type="button"
-                className="sidebar-action-btn"
-                onClick={() => void createProjectFromFolder()}
-              >
-                📂 Open folder
-              </button>
+                <button
+                  type="button"
+                  className="sidebar-action-btn"
+                  onClick={() => void createProjectFromFolder()}
+                >
+                  📂 Select folder
+                </button>
             ) : (
               <>
                 <button
@@ -255,7 +255,7 @@ const Sidebar = ({ onNavigate }: SidebarProps) => {
                   className="sidebar-action-btn"
                   onClick={handleImportClick}
                 >
-                  📥 Import project
+                  📥 Import project JSON
                 </button>
                 <input
                   ref={importFileRef}
