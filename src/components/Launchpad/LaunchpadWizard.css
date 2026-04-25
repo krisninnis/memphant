@@ -123,7 +123,8 @@
 }
 
 .launchpad-form input,
-.launchpad-form textarea {
+.launchpad-form textarea,
+.launchpad-form select {
   width: 100%;
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 14px;
@@ -193,6 +194,13 @@
 .launchpad-success p {
   margin: 0;
   color: rgba(248, 250, 252, 0.68);
+}
+
+.launchpad-success__note {
+  display: block;
+  color: rgba(248, 250, 252, 0.56);
+  font-size: 0.9rem;
+  line-height: 1.5;
 }
 
 .launchpad-success__path,
@@ -321,3 +329,4 @@
   background: rgba(255,255,255,0.08);
   border-color: rgba(244, 182, 103, 0.28);
 }
+

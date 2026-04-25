@@ -203,28 +203,58 @@ export function LaunchpadWizard({
 
   const handleStartAiHandoff = async () => {
     const template = templateOptions.find((option) => option.id === templateId);
+    const projectDescription =
+      description.trim() || 'A new project created from Memephant Launchpad.';
+    const filesCreated =
+      createdFiles.length > 0
+        ? createdFiles.map((file) => `- ${file}`).join('\n')
+        : '- No starter files were recorded.';
     const handoff = `# Memephant AI handoff
 
 ## Project
 - Name: ${projectName.trim()}
+- Description: ${projectDescription}
 - Template: ${template?.title ?? templateId}
 - Folder: ${createdFolderPath}
 
-## What I'm building
-${description.trim() || 'A new project created from Memephant Launchpad.'}
+## Files created
+${filesCreated}
 
-## Starter files
-${createdFiles.map((file) => `- ${file}`).join('\n')}
+## Current state
+The local project folder has been created, starter files are in place, and Memephant is already tracking this project for AI handoff.
 
-## What I need next
-- Review this starter project structure
+## Important
+You are CONTINUING this project - do not reset, simplify, or replace it.
+Work with the structure and files above.
+
+## Continue this project
+- Review the project structure and starter files
 - Suggest the best next implementation steps
-- Help me turn this into a working first version
+- Help turn this into a working first version
+- Keep updates structured so they can be synced back into Memephant
+
+## Output rules
+- Be practical and implementation-focused
+- Do not invent missing files, systems, APIs, or environment variables
+- Do not request secrets, tokens, or .env values
+- Keep changes realistic and incremental
+- Only include fields that actually changed. Omit uncertain fields.
+
+## memphant_update required
+memphant_update
+\`\`\`json
+{
+  "schemaVersion": "1.1.0",
+  "currentState": "What is true after your response",
+  "lastSessionSummary": "Briefly summarize what happened in this AI session",
+  "nextSteps": ["Next concrete step"]
+}
+\`\`\`
 `;
 
     try {
       await navigator.clipboard.writeText(handoff);
-      showToast('AI handoff copied â€” paste it into your AI tool.');
+      showToast('AI handoff copied — paste it into your AI tool.');
       onClose();
     } catch {
       showToast('Could not copy AI handoff to clipboard.', 'error');
@@ -245,7 +275,7 @@ ${createdFiles.map((file) => `- ${file}`).join('\n')}
           </div>
 
           <button type="button" className="launchpad-close" onClick={onClose} aria-label="Close">
-            Ã—
+            ×
           </button>
         </div>
 
@@ -339,7 +369,7 @@ ${createdFiles.map((file) => `- ${file}`).join('\n')}
                 disabled={loading || !projectName.trim() || !targetParentFolder.trim()}
                 onClick={() => void handleCreateTemplateProject()}
               >
-                {loading ? 'Creatingâ€¦' : 'Create project'}
+                {loading ? 'Creating…' : 'Create project'}
               </button>
             </div>
           </>
@@ -348,9 +378,16 @@ ${createdFiles.map((file) => `- ${file}`).join('\n')}
         {step === 'success' && (
           <>
             <div className="launchpad-success">
-              <div className="launchpad-success__icon">âœ…</div>
+              <div className="launchpad-success__icon">?</div>
               <h3>Project created and linked</h3>
-              <p>Memephant created your local folder and linked it for AI handoff from day one.</p>
+              <p>
+                Your project is ready. Copy the AI handoff and paste it into ChatGPT, Claude, or
+                any AI tool to continue instantly.
+              </p>
+              <small className="launchpad-success__note">
+                Memephant created and linked your local folder so this project can keep its context
+                from day one.
+              </small>
 
               <div className="launchpad-success__path">{createdFolderPath}</div>
 
@@ -388,3 +425,10 @@ ${createdFiles.map((file) => `- ${file}`).join('\n')}
 }
 
 export default LaunchpadWizard;
+
+
+
+
+
+
+

@@ -17,6 +17,7 @@ import {
 import type { ProjectMemory } from '../../types/memphant-types';
 import { PROJECT_TEMPLATES } from '../../utils/projectTemplates';
 import type { ProjectTemplate } from '../../utils/projectTemplates';
+import LaunchpadWizard from '../Launchpad/LaunchpadWizard';
 import './WelcomeScreen.css';
 
 type Mode = 'landing' | 'wizard' | 'templates';
@@ -82,6 +83,7 @@ export function WelcomeScreen() {
   const [creating, setCreating] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<ProjectTemplate | null>(null);
   const [templateName, setTemplateName] = useState('');
+  const [showLaunchpad, setShowLaunchpad] = useState(false);
 
   const addProject = useProjectStore((s) => s.addProject);
   const setActiveProject = useProjectStore((s) => s.setActiveProject);
@@ -160,10 +162,29 @@ export function WelcomeScreen() {
     window.open('https://memephant.com/download', '_blank', 'noopener,noreferrer');
   };
 
+  const launchpadModal = showLaunchpad ? (
+    <LaunchpadWizard
+      onClose={() => setShowLaunchpad(false)}
+      onScanExisting={() => {
+        setShowLaunchpad(false);
+        void createProjectFromFolder();
+      }}
+      onCreateBlankMemory={() => {
+        setShowLaunchpad(false);
+        setMode('wizard');
+        setStep(1);
+        setName('');
+        setSummary('');
+        setFirstStep('');
+      }}
+    />
+  ) : null;
+
   if (mode === 'landing') {
     return (
-      <div className="welcome-screen">
-        <div className="welcome-card">
+      <>
+        <div className="welcome-screen">
+          <div className="welcome-card">
           <div className="welcome-logo">
             <img src="/icons/icon-192.png" alt="Memephant logo" className="welcome-logo__image" />
           </div>
@@ -217,7 +238,7 @@ export function WelcomeScreen() {
                 </button>
 
                 {/* SECONDARY: Create blank project */}
-                <button className="welcome-btn welcome-btn--secondary" onClick={() => setMode('wizard')}>
+                <button className="welcome-btn welcome-btn--secondary" onClick={() => setShowLaunchpad(true)}>
                   + New Project
                 </button>
 
@@ -229,7 +250,7 @@ export function WelcomeScreen() {
             ) : (
               <>
                 {/* Web: New project is the primary action */}
-                <button className="welcome-btn welcome-btn--primary" onClick={() => setMode('wizard')}>
+                <button className="welcome-btn welcome-btn--primary" onClick={() => setShowLaunchpad(true)}>
                   + New Project
                 </button>
 
@@ -284,8 +305,10 @@ export function WelcomeScreen() {
               Sign in to back up and sync across devices
             </button>
           )}
+          </div>
         </div>
-      </div>
+        {launchpadModal}
+      </>
     );
   }
 
