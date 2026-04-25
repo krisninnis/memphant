@@ -39,7 +39,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEVFM0Q4QzlEQzMwMkNBMUIKUldRYnlnTERuWXc5N3RwZll1Z0oyM29YV0Q2UWZQaXNrUEkxdFV5SGNlam9ROWR3ZEEwU2RFU08K",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDk5QzE1RjczMkQ3MzA4NDEKUldSQkNITXRjMS9CbWFXT1lHZ01qL1NDeTdIbCsray9hVzBEQjV2KytlQXE0cWFQYXNENXRtaDYK",
       "endpoints": [
         "https://github.com/krisninnis/memphant/releases/latest/download/latest.json"
       ]
