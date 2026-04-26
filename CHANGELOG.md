@@ -36,10 +36,9 @@ Versions follow [Semantic Versioning](https://semver.org/).
 #### Cloud & billing
 - Optional cloud backup via Supabase — sync projects across devices
 - Sign in / sign up / forgot password
-- Stripe billing — Pro and Team plans
-- Stripe Customer Portal — manage subscription, update payment method, cancel
-- Free tier: up to 3 projects without an account
-- Pro tier: Smart export, unlimited projects, priority support
+- Early access is currently free while beta testing continues
+- Stripe billing and paid plans are prepared but not active for public users yet
+- Cloud backup is optional
 
 #### Infrastructure
 - Auto-updater — checks for new releases on startup, installs with one click

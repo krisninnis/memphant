@@ -102,7 +102,7 @@ export function SettingsAbout() {
       return;
     }
 
-    setInstalledVersion('0.2.0');
+    setInstalledVersion(import.meta.env.VITE_APP_VERSION || '0.2.22');
   }, []);
 
   useEffect(() => {

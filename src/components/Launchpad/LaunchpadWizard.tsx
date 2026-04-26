@@ -127,12 +127,69 @@ export function LaunchpadWizard({
     }
   };
 
-  const handleCreateTemplateProject = async () => {
-    if (!projectName.trim()) {
-      setError('Project name is required.');
-      return;
-    }
+  const handleStartAiHandoff = async () => {
+    const template = templateOptions.find((option) => option.id === templateId);
+    const templateLabel = template?.title ?? templateId;
+    const projectDescription =
+      description.trim() || 'A new project created from Memephant Launchpad.';
+    const filesList =
+      createdFiles.length > 0
+        ? createdFiles.map((file) => `- ${file}`).join('\n')
+        : '- No starter files recorded';
 
+    const handoff = `# Memephant AI handoff
+
+## Project
+- Name: ${projectName.trim()}
+- Description: ${projectDescription}
+- Template: ${templateLabel}
+- Folder: ${createdFolderPath}
+
+## Files created
+${filesList}
+
+## Current state
+The local project folder has been created, starter files are in place, and Memephant is already tracking this project for AI handoff.
+
+## Important
+You are CONTINUING this project - do not reset, simplify, or replace it.
+Work with the structure and files above.
+
+## Continue this project
+- Review the project structure and starter files
+- Suggest the best next implementation steps
+- Help turn this into a working first version
+- Keep updates structured so they can be synced back into Memephant
+
+## Output rules
+- Be practical and implementation-focused
+- Do not invent missing files, systems, APIs, or environment variables
+- Do not request secrets, tokens, or .env values
+- Keep changes realistic and incremental
+- Only include fields that actually changed. Omit uncertain fields.
+
+## memphant_update required
+memphant_update
+\`\`\`json
+{
+  "schemaVersion": "1.1.0",
+  "currentState": "What is true after your response",
+  "lastSessionSummary": "Briefly summarize what happened in this AI session",
+  "nextSteps": ["Next concrete step"]
+}
+\`\`\`
+`;
+
+    try {
+      await navigator.clipboard.writeText(handoff);
+      showToast('AI handoff copied â€” paste it into your AI tool.');
+      onClose();
+    } catch {
+      showToast('Could not copy AI handoff to clipboard.', 'error');
+    }
+  };
+
+  const handleCreateTemplateProject = async () => {
     if (!targetParentFolder.trim()) {
       setError('Choose where to save the project first.');
       return;
@@ -147,7 +204,7 @@ export function LaunchpadWizard({
         description: description.trim() || `A new project called ${projectName.trim()}.`,
         templateId,
         targetParentFolder,
-      });
+            });
 
       const now = new Date().toISOString();
       const project: ProjectMemory = {
@@ -201,66 +258,6 @@ export function LaunchpadWizard({
     }
   };
 
-  const handleStartAiHandoff = async () => {
-    const template = templateOptions.find((option) => option.id === templateId);
-    const projectDescription =
-      description.trim() || 'A new project created from Memephant Launchpad.';
-    const filesCreated =
-      createdFiles.length > 0
-        ? createdFiles.map((file) => `- ${file}`).join('\n')
-        : '- No starter files were recorded.';
-    const handoff = `# Memephant AI handoff
-
-## Project
-- Name: ${projectName.trim()}
-- Description: ${projectDescription}
-- Template: ${template?.title ?? templateId}
-- Folder: ${createdFolderPath}
-
-## Files created
-${filesCreated}
-
-## Current state
-The local project folder has been created, starter files are in place, and Memephant is already tracking this project for AI handoff.
-
-## Important
-You are CONTINUING this project - do not reset, simplify, or replace it.
-Work with the structure and files above.
-
-## Continue this project
-- Review the project structure and starter files
-- Suggest the best next implementation steps
-- Help turn this into a working first version
-- Keep updates structured so they can be synced back into Memephant
-
-## Output rules
-- Be practical and implementation-focused
-- Do not invent missing files, systems, APIs, or environment variables
-- Do not request secrets, tokens, or .env values
-- Keep changes realistic and incremental
-- Only include fields that actually changed. Omit uncertain fields.
-
-## memphant_update required
-memphant_update
-\`\`\`json
-{
-  "schemaVersion": "1.1.0",
-  "currentState": "What is true after your response",
-  "lastSessionSummary": "Briefly summarize what happened in this AI session",
-  "nextSteps": ["Next concrete step"]
-}
-\`\`\`
-`;
-
-    try {
-      await navigator.clipboard.writeText(handoff);
-      showToast('AI handoff copied — paste it into your AI tool.');
-      onClose();
-    } catch {
-      showToast('Could not copy AI handoff to clipboard.', 'error');
-    }
-  };
-
   return (
     <div className="launchpad-backdrop" role="presentation">
       <div className="launchpad-modal" role="dialog" aria-modal="true" aria-label="Create a new project">
@@ -275,7 +272,7 @@ memphant_update
           </div>
 
           <button type="button" className="launchpad-close" onClick={onClose} aria-label="Close">
-            ×
+            Ã—
           </button>
         </div>
 
@@ -369,7 +366,7 @@ memphant_update
                 disabled={loading || !projectName.trim() || !targetParentFolder.trim()}
                 onClick={() => void handleCreateTemplateProject()}
               >
-                {loading ? 'Creating…' : 'Create project'}
+                {loading ? 'Creatingâ€¦' : 'Create project'}
               </button>
             </div>
           </>
@@ -378,16 +375,9 @@ memphant_update
         {step === 'success' && (
           <>
             <div className="launchpad-success">
-              <div className="launchpad-success__icon">?</div>
+              <div className="launchpad-success__icon">âœ…</div>
               <h3>Project created and linked</h3>
-              <p>
-                Your project is ready. Copy the AI handoff and paste it into ChatGPT, Claude, or
-                any AI tool to continue instantly.
-              </p>
-              <small className="launchpad-success__note">
-                Memephant created and linked your local folder so this project can keep its context
-                from day one.
-              </small>
+              <p>Memephant created your local folder and linked it for AI handoff from day one.</p>
 
               <div className="launchpad-success__path">{createdFolderPath}</div>
 
@@ -399,6 +389,7 @@ memphant_update
                   ))}
                 </ul>
               </div>
+
             </div>
 
             <div className="launchpad-footer">
@@ -416,6 +407,7 @@ memphant_update
               >
                 Copy AI handoff
               </button>
+
             </div>
           </>
         )}
@@ -425,10 +417,3 @@ memphant_update
 }
 
 export default LaunchpadWizard;
-
-
-
-
-
-
-
