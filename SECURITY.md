@@ -4,7 +4,7 @@
 
 | Version | Supported |
 |---------|-----------|
-| 0.1.x   | ✓ Current |
+| 0.2.x   | ✓ Current |
 
 Older pre-release versions receive no security patches. Please update to the latest release.
 
