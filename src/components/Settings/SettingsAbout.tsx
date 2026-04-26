@@ -184,7 +184,7 @@ export function SettingsAbout() {
     ? 'Checking for the latest version of Memephant...'
     : updateAvailable
       ? 'A newer version is ready. Refresh or reinstall the app to use the latest version.'
-      : 'Make sure youâ€™re using the latest version of Memephant.';
+      : "Make sure you're using the latest version of Memephant.";
 
   const webUpdateButtonText = isChecking
     ? 'Checking...'
@@ -195,7 +195,7 @@ export function SettingsAbout() {
   return (
     <div>
       <div className="about-header">
-        <div className="about-header__icon">ðŸ˜</div>
+        <div className="about-header__icon">🐘</div>
         <h2 className="settings-section-title about-header__title">Memephant</h2>
         <p className="about-header__subtitle">Keep your project context ready for any AI.</p>
       </div>
@@ -274,7 +274,7 @@ export function SettingsAbout() {
 
           {!isChecking && !updateAvailable && lastChecked && (
             <div className="settings-trust-box" style={{ marginTop: 12 }}>
-              Youâ€™re already on the latest version.
+              You're already on the latest version.
             </div>
           )}
 
@@ -335,7 +335,7 @@ export function SettingsAbout() {
 
           {phase === 'up-to-date' && (
             <div className="settings-trust-box" style={{ marginTop: 12 }}>
-              Youâ€™re already on the latest version.
+              You're already on the latest version.
             </div>
           )}
 
@@ -353,7 +353,7 @@ export function SettingsAbout() {
 
           {phase === 'available' && updateInfo?.body && (
             <div className="about-release-notes">
-              <div className="about-release-notes__title">Whatâ€™s new</div>
+              <div className="about-release-notes__title">What's new</div>
               <div className="about-release-notes__body">{updateInfo.body.slice(0, 600)}</div>
             </div>
           )}
@@ -367,7 +367,7 @@ export function SettingsAbout() {
 
           {phase === 'error' && (
             <div className="about-update-error">
-              Update check failed. Make sure youâ€™re connected to the internet, then try again.{` `}
+              Update check failed. Make sure you're connected to the internet, then try again.{` `}
               <button
                 className="about-update-error-retry"
                 onClick={() => {
@@ -414,14 +414,14 @@ export function SettingsAbout() {
             className="setting-btn"
             onClick={() => openLink('https://tally.so/r/RGZzL4')}
           >
-            âœ‰ Send feedback
+            ✉ Send feedback
           </button>
 
           <button
             className="setting-btn"
             onClick={() => openLink('https://github.com/krisninnis/memphant/issues/new')}
           >
-            ðŸ› Report a bug
+            🐛 Report a bug
           </button>
         </div>
       </div>
@@ -439,3 +439,5 @@ export function SettingsAbout() {
 }
 
 export default SettingsAbout;
+
+

@@ -93,9 +93,9 @@ export function SettingsProjects() {
             value={p.defaultExportMode}
             onChange={(e) => update({ defaultExportMode: e.target.value as typeof p.defaultExportMode })}
           >
-            <option value="full">Full â€” everything</option>
+            <option value="full">Full — everything</option>
             <option value="smart" disabled={!isPro}>
-              Smart â€” auto-condensed{isPro ? '' : ' (Pro)'}
+              Smart — auto-condensed{isPro ? '' : ' (Pro)'}
             </option>
             <option value="delta">Changes only</option>
             <option value="specialist">Specialist task</option>
@@ -110,4 +110,5 @@ export function SettingsProjects() {
 }
 
 export default SettingsProjects;
+
 
