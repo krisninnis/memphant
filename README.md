@@ -32,6 +32,12 @@ Memephant is a local-first app that helps you carry project memory between ChatG
 
 ## License
 
-BSL 1.1 — free for personal use.
+**Business Source License 1.1 (BUSL-1.1)** — source-available, free for personal use.
+
+- ✅ Personal and non-commercial use: free
+- 🚫 Commercial use: requires a separate license (email krisninnis@gmail.com)
+- 📅 Change License: **MIT on 2030-04-24**
+
+See [LICENSE](./LICENSE) for the full license text and [LICENSE-SUMMARY.md](./LICENSE-SUMMARY.md) for a plain-English explanation.
 
 https://memephant.com
