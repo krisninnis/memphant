@@ -34,6 +34,10 @@ jest.mock('../../services/supabaseClient', () => ({
   supabase: { auth: mockSupabaseAuth },
 }));
 
+jest.mock('../../utils/runtimeEnv', () => ({
+  getRuntimeEnv: () => ({}),
+}));
+
 // Mock IndexedDB
 const mockDeleteDatabase = jest.fn();
 const mockDatabases = jest.fn(async () => [
