@@ -9,7 +9,11 @@ import {
 import { useProjectStore } from '../../store/projectStore';
 import { useActiveProject } from '../../hooks/useActiveProject';
 import { useRecentActivity } from '../../hooks/useRecentActivity';
-import { copyExportToClipboard, generateStateManifest } from '../../services/tauriActions';
+import {
+  copyExportToClipboard,
+  generateStateManifest,
+  getFilesChangedSince,
+} from '../../services/tauriActions';
 import {
   formatForClaudeWithManifest,
   formatForPlatform,
@@ -71,6 +75,7 @@ const [switchReason, setSwitchReason] = useState('');
   const showToast = useProjectStore((s) => s.showToast);
   const settings = useProjectStore((s) => s.settings);
   const updateLastAiSession = useProjectStore((s) => s.updateLastAiSession);
+  const updateProject = useProjectStore((s) => s.updateProject);
 
   const activeProject = useActiveProject();
   const { markdown: recentActivity } = useRecentActivity(
@@ -195,8 +200,16 @@ const [switchReason, setSwitchReason] = useState('');
         recentActivity,
       );
 
-      const preamble = buildContinuityPreamble(activeProject.lastAiSession, selectedPlatform.id);
-await copyExportToClipboard(preamble + exportText, selectedPlatform.id);
+      const lastExportAt = activeProject.platformState?.[selectedPlatform.id]?.lastExportedAt;
+      const changedFiles = lastExportAt && activeProject.linkedFolder?.path
+        ? await getFilesChangedSince(activeProject.linkedFolder.path, lastExportAt)
+        : [];
+
+      const sessionForPreamble = activeProject.lastAiSession
+        ? { ...activeProject.lastAiSession, filesChangedSince: changedFiles }
+        : undefined;
+      const preamble = buildContinuityPreamble(sessionForPreamble, selectedPlatform.id);
+      await copyExportToClipboard(preamble + exportText, selectedPlatform.id);
 
       setCopied(true);
       const modeLabel =
@@ -213,6 +226,17 @@ await copyExportToClipboard(preamble + exportText, selectedPlatform.id);
         sessionAt: new Date().toISOString(),
         userTaskSummary: currentTask || undefined,
         userSwitchReason: switchReason || undefined,
+        filesChangedSince: changedFiles,
+      });
+
+      updateProject(activeProject.id, {
+        platformState: {
+          ...activeProject.platformState,
+          [selectedPlatform.id]: {
+            ...activeProject.platformState?.[selectedPlatform.id],
+            lastExportedAt: new Date().toISOString(),
+          },
+        },
       });
 
       setTimeout(() => setCopied(false), 1800);
@@ -230,6 +254,7 @@ await copyExportToClipboard(preamble + exportText, selectedPlatform.id);
   showToast,
   switchReason,
   updateLastAiSession,
+  updateProject,
 ]);
 
   const handleCopyDeepState = useCallback(async () => {
@@ -251,7 +276,15 @@ await copyExportToClipboard(preamble + exportText, selectedPlatform.id);
         recentActivity,
       );
 
-      const preamble = buildContinuityPreamble(activeProject.lastAiSession, selectedPlatform.id);
+      const lastExportAt = activeProject.platformState?.[selectedPlatform.id]?.lastExportedAt;
+      const changedFiles = lastExportAt && activeProject.linkedFolder?.path
+        ? await getFilesChangedSince(activeProject.linkedFolder.path, lastExportAt)
+        : [];
+
+      const sessionForPreamble = activeProject.lastAiSession
+        ? { ...activeProject.lastAiSession, filesChangedSince: changedFiles }
+        : undefined;
+      const preamble = buildContinuityPreamble(sessionForPreamble, selectedPlatform.id);
       await copyExportToClipboard(preamble + exportText, 'claude');
 
       setManifestCopied(true);
@@ -263,6 +296,17 @@ await copyExportToClipboard(preamble + exportText, selectedPlatform.id);
         sessionAt: new Date().toISOString(),
         userTaskSummary: currentTask || undefined,
         userSwitchReason: switchReason || undefined,
+        filesChangedSince: changedFiles,
+      });
+
+      updateProject(activeProject.id, {
+        platformState: {
+          ...activeProject.platformState,
+          [selectedPlatform.id]: {
+            ...activeProject.platformState?.[selectedPlatform.id],
+            lastExportedAt: new Date().toISOString(),
+          },
+        },
       });
 
       setTimeout(() => setManifestCopied(false), 1800);
@@ -285,6 +329,7 @@ await copyExportToClipboard(preamble + exportText, selectedPlatform.id);
     showToast,
     switchReason,
     updateLastAiSession,
+    updateProject,
   ]);
 
   const handlePrimaryCopy = useCallback(async () => {
