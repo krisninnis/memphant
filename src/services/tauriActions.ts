@@ -1556,3 +1556,21 @@ export async function openCreatedProjectFolder(folderPath: string): Promise<void
 
   await tauriInvoke('open_project_folder', { folderPath });
 }
+
+export async function getFilesChangedSince(
+  folderPath: string,
+  sinceIso: string,
+): Promise<string[]> {
+  if (!isDesktopApp()) {
+    return [];
+  }
+
+  try {
+    return await tauriInvoke<string[]>('get_files_changed_since', {
+      folderPath,
+      sinceIso,
+    });
+  } catch {
+    return [];
+  }
+}

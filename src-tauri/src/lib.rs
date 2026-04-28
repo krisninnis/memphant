@@ -1052,6 +1052,7 @@ pub fn run() {
             write_text_file,
             generate_state_manifest,
             watcher_commands::get_recent_activity,
+            watcher_commands::get_files_changed_since,
             enable_autostart,
             disable_autostart,
             toggle_tray_mode,
