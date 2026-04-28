@@ -16,6 +16,40 @@ export type BuiltInPlatformId =
 export type Platform = string;
 export type ExportMode = 'full' | 'delta' | 'specialist' | 'smart';
 export type PlatformCategory = 'chat' | 'dev' | 'local' | 'custom';
+
+// -- Agent Handoff -------------------------------------------------------------
+
+/**
+ * The role the next AI session should play.
+ * Drives the output contract prepended by buildContinuityPreamble():
+ *   'continue' -- pick up where the last session left off
+ *   'debug'    -- focus on diagnosing a specific problem
+ *   'review'   -- audit / critique the current state
+ */
+export type HandoffMode = 'continue' | 'debug' | 'review';
+
+/**
+ * Records the most recent AI session on this project.
+ * Written by updateLastAiSession() whenever the user copies an export.
+ * Read by buildContinuityPreamble() to produce the "last session" blurb.
+ */
+export interface LastAiSession {
+  /** Which platform the session was on. */
+  platform: Platform;
+  /** The role requested for the next AI session. */
+  mode: HandoffMode;
+  /** ISO-8601 timestamp of when the export was copied. */
+  sessionAt: string;
+  /** What the user was trying to accomplish (from the task input field). */
+  userTaskSummary?: string;
+  /** Why the user is switching platforms or starting a new session. */
+  userSwitchReason?: string;
+  /** Files changed since the last session -- populated by Slice 2, optional now. */
+  filesChangedSince?: string[];
+}
+
+// -----------------------------------------------------------------------------
+
 export type PlatformExportStyle = 'structured' | 'compact' | 'code-heavy';
 export type StableItemPrefix = 'D' | 'R' | 'G' | 'Q';
 
@@ -82,9 +116,9 @@ export interface PlatformState {
 }
 
 export interface GitHubScanInfo {
-  scannedAt: string;        // ISO timestamp
+  scannedAt: string;
   repoUrl: string;
-  keyFilesFound: string[];  // files successfully fetched during scan
+  keyFilesFound: string[];
 }
 
 export interface GitCommit {
@@ -104,22 +138,19 @@ export interface ProjectCheckpointSnapshot {
   updatedAt?: string;
   summary: string;
   goals: string[];
-  /** TODO(vcp-typed-items): replace parallel IDs with typed goal items. */
   goalIds?: string[];
   rules: string[];
-  /** TODO(vcp-typed-items): replace parallel IDs with typed rule items. */
   ruleIds?: string[];
   decisions: Decision[];
   currentState: string;
   nextSteps: string[];
   openQuestions: string[];
-  /** TODO(vcp-typed-items): replace parallel IDs with typed open-question items. */
   openQuestionIds?: string[];
   importantAssets: string[];
   aiInstructions?: string;
-  githubRepo?: string;          // Optional public GitHub repo URL — included in AI exports
-  detectedStack?: string[];     // Tech stack extracted from repo scan (e.g. ["React", "TypeScript"])
-  scanInfo?: GitHubScanInfo;    // Metadata from the last successful GitHub scan
+  githubRepo?: string;
+  detectedStack?: string[];
+  scanInfo?: GitHubScanInfo;
   linkedFolder?: LinkedFolder;
   lastGitSync?: {
     hash: string;
@@ -132,10 +163,12 @@ export interface ProjectCheckpointSnapshot {
   nextIds?: ProjectNextIds;
   /** Active work-in-flight right now. REPLACE-ALL on AI update. */
   inProgress?: string[];
-  /** ~2–4 sentence recap of what happened in the last session. REPLACE on AI update. */
+  /** ~2-4 sentence recap of what happened in the last session. REPLACE on AI update. */
   lastSessionSummary?: string;
   /** The current decision or question the user wants the AI to focus on. REPLACE on AI update. */
   openQuestion?: string;
+  /** Most recent AI session on this project. Written on every export copy. */
+  lastAiSession?: LastAiSession;
 }
 
 export interface ProjectCheckpoint {
@@ -306,7 +339,7 @@ export function cloneCheckpointSnapshot(project: ProjectCheckpointSnapshot): Pro
         }
       : undefined,
     linkedFolder: project.linkedFolder ? { ...project.linkedFolder } : undefined,
-        lastGitSync: project.lastGitSync
+    lastGitSync: project.lastGitSync
       ? {
           hash: project.lastGitSync.hash,
           timestamp: project.lastGitSync.timestamp,
@@ -327,6 +360,7 @@ export function cloneCheckpointSnapshot(project: ProjectCheckpointSnapshot): Pro
     inProgress: project.inProgress ? [...project.inProgress] : undefined,
     lastSessionSummary: project.lastSessionSummary,
     openQuestion: project.openQuestion,
+    lastAiSession: project.lastAiSession ? { ...project.lastAiSession } : undefined,
   };
 }
 
