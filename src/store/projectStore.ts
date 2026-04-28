@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ProjectMemory, Platform, AppSettings, GitCommit } from '../types/memphant-types';
+import type { ProjectMemory, Platform, AppSettings, GitCommit, LastAiSession } from '../types/memphant-types';
 import { DEFAULT_SETTINGS } from '../types/memphant-types';
 import type { CloudUser } from '../services/cloudSync';
 import { ensureValidPlatformId } from '../utils/platformRegistry';
@@ -87,7 +87,7 @@ interface ProjectStore {
   settings: AppSettings;
   currentView: 'projects' | 'settings';
 
-  // Rollback state — stores the project snapshot before last AI merge
+  // Rollback state -- stores the project snapshot before last AI merge
   preAiBackup: ProjectMemory | null;
 
   // Cloud sync state
@@ -151,7 +151,9 @@ interface ProjectStore {
     projectId: string,
     syncData: { hash: string; timestamp: string; commitCount: number } | undefined
   ) => void;
-  
+  /** Records the AI session that just occurred and persists it on the project. */
+  updateLastAiSession: (projectId: string, session: LastAiSession) => void;
+
   addProject: (project: ProjectMemory) => void;
   removeProject: (id: string) => void;
 
@@ -303,6 +305,19 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
           ? {
               ...p,
               lastGitSync: syncData,
+              updatedAt: new Date().toISOString(),
+            }
+          : p
+      ),
+    })),
+
+  updateLastAiSession: (projectId, session) =>
+    set((state) => ({
+      projects: state.projects.map((p) =>
+        p.id === projectId
+          ? {
+              ...p,
+              lastAiSession: session,
               updatedAt: new Date().toISOString(),
             }
           : p
