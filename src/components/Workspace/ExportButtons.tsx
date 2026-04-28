@@ -15,6 +15,7 @@ import {
   formatForPlatform,
   setScannerLevel,
 } from '../../utils/exportFormatters';
+import { buildContinuityPreamble } from '../../utils/platformConfig';
 import { getChangesSince } from '../../utils/getChangesSince';
 import { scoreExport } from '../../utils/exportQuality';
 import {
@@ -22,7 +23,7 @@ import {
   getEnabledPlatforms,
   getPlatformConfig,
 } from '../../utils/platformRegistry';
-import type { ExportMode } from '../../types/memphant-types';
+import type { ExportMode, HandoffMode } from '../../types/memphant-types';
 
 function formatSyncAge(isoString: string): string {
   const diffMs = Date.now() - new Date(isoString).getTime();
@@ -60,12 +61,16 @@ export function ExportButtons() {
   const [manifestLoading, setManifestLoading] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const [handoffMode, setHandoffMode] = useState<HandoffMode>('continue');
+const [contextOpen, setContextOpen] = useState(false);
+const [switchReason, setSwitchReason] = useState('');
 
   const targetPlatform = useProjectStore((s) => s.targetPlatform);
   const setTargetPlatform = useProjectStore((s) => s.setTargetPlatform);
   const currentTask = useProjectStore((s) => s.currentTask);
   const showToast = useProjectStore((s) => s.showToast);
   const settings = useProjectStore((s) => s.settings);
+  const updateLastAiSession = useProjectStore((s) => s.updateLastAiSession);
 
   const activeProject = useActiveProject();
   const { markdown: recentActivity } = useRecentActivity(
@@ -190,7 +195,8 @@ export function ExportButtons() {
         recentActivity,
       );
 
-      await copyExportToClipboard(exportText, selectedPlatform.id);
+      const preamble = buildContinuityPreamble(activeProject.lastAiSession, selectedPlatform.id);
+await copyExportToClipboard(preamble + exportText, selectedPlatform.id);
 
       setCopied(true);
       const modeLabel =
@@ -201,19 +207,30 @@ export function ExportButtons() {
             : 'full context';
       showToast(`Copied ${modeLabel} for ${selectedPlatform.name}`);
 
+      updateLastAiSession(activeProject.id, {
+        platform: selectedPlatform.id,
+        mode: handoffMode,
+        sessionAt: new Date().toISOString(),
+        userTaskSummary: currentTask || undefined,
+        userSwitchReason: switchReason || undefined,
+      });
+
       setTimeout(() => setCopied(false), 1800);
-    } catch (err) {
-      console.error('Export failed:', err);
-      showToast('Failed to copy export', 'error');
-    }
-  }, [
-    activeProject,
-    currentTask,
-    recentActivity,
-    selectedPlatform,
-    settings.privacy.secretsScannerLevel,
-    showToast,
-  ]);
+  } catch (err) {
+    console.error('Export failed:', err);
+    showToast('Failed to copy export', 'error');
+  }
+}, [
+  activeProject,
+  currentTask,
+  handoffMode,
+  recentActivity,
+  selectedPlatform,
+  settings.privacy.secretsScannerLevel,
+  showToast,
+  switchReason,
+  updateLastAiSession,
+]);
 
   const handleCopyDeepState = useCallback(async () => {
     if (!activeProject) {
@@ -234,10 +251,19 @@ export function ExportButtons() {
         recentActivity,
       );
 
-      await copyExportToClipboard(exportText, 'claude');
+      const preamble = buildContinuityPreamble(activeProject.lastAiSession, selectedPlatform.id);
+      await copyExportToClipboard(preamble + exportText, 'claude');
 
       setManifestCopied(true);
       showToast('Copied with full context and deeper project memory');
+
+      updateLastAiSession(activeProject.id, {
+        platform: selectedPlatform.id,
+        mode: handoffMode,
+        sessionAt: new Date().toISOString(),
+        userTaskSummary: currentTask || undefined,
+        userSwitchReason: switchReason || undefined,
+      });
 
       setTimeout(() => setManifestCopied(false), 1800);
     } catch (err) {
@@ -252,9 +278,13 @@ export function ExportButtons() {
   }, [
     activeProject,
     currentTask,
+    handoffMode,
     recentActivity,
+    selectedPlatform.id,
     settings.privacy.secretsScannerLevel,
     showToast,
+    switchReason,
+    updateLastAiSession,
   ]);
 
   const handlePrimaryCopy = useCallback(async () => {
@@ -488,6 +518,76 @@ export function ExportButtons() {
         )}
       </div>
 
+<div style={{ display: 'flex', gap: '6px', marginTop: '10px' }}>
+  {(['continue', 'debug', 'review'] as HandoffMode[]).map((m) => (
+    <button
+      key={m}
+      type="button"
+      onClick={() => setHandoffMode(m)}
+      style={{
+        flex: 1,
+        padding: '6px 0',
+        border: handoffMode === m
+          ? `1.5px solid ${selectedPlatform.color ?? '#64748b'}`
+          : '1.5px solid rgba(255,255,255,0.12)',
+        borderRadius: '10px',
+        background: handoffMode === m
+          ? `${selectedPlatform.color ?? '#64748b'}22`
+          : 'transparent',
+        color: handoffMode === m ? '#f8fafc' : 'rgba(248,250,252,0.5)',
+        fontSize: '0.82rem',
+        fontWeight: handoffMode === m ? 600 : 400,
+        cursor: 'pointer',
+        textTransform: 'capitalize',
+        transition: 'all 0.15s ease',
+      }}
+    >
+      {m}
+    </button>
+  ))}
+</div>
+
+<div style={{ marginTop: '6px' }}>
+  <button
+    type="button"
+    onClick={() => setContextOpen((o) => !o)}
+    aria-expanded={contextOpen}
+    style={{
+      background: 'none',
+      border: 'none',
+      color: 'rgba(248,250,252,0.45)',
+      fontSize: '0.8rem',
+      cursor: 'pointer',
+      padding: '2px 0',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '4px',
+    }}
+  >
+    <span>{contextOpen ? '▴' : '▾'}</span>
+    Add context (optional)
+  </button>
+  {contextOpen && (
+    <textarea
+      value={switchReason}
+      onChange={(e) => setSwitchReason(e.target.value)}
+      placeholder="Why are you switching platforms or starting a new session?"
+      rows={2}
+      style={{
+        width: '100%',
+        marginTop: '6px',
+        padding: '8px 10px',
+        borderRadius: '10px',
+        border: '1px solid rgba(255,255,255,0.12)',
+        background: 'rgba(255,255,255,0.05)',
+        color: '#f8fafc',
+        fontSize: '0.85rem',
+        resize: 'vertical',
+        boxSizing: 'border-box',
+      }}
+    />
+  )}
+</div>
       <div className="export-platform-pills" role="tablist">
         {chatPlatforms.length > 0 && (
           <div className="export-pill-group">{renderPillGroup(chatPlatforms)}</div>
