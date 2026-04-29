@@ -89,6 +89,10 @@ export function OnboardingModal() {
             <p className="onboarding-subtitle">
               Memephant keeps your project context ready for any AI — so you never explain yourself from scratch again.
             </p>
+            <p className="onboarding-subtitle">
+              Switch between ChatGPT, Claude, Codex, and more — Memephant carries the context so the next AI picks up
+              exactly where you left off.
+            </p>
 
             <div className="onboarding-actions">
               <button
