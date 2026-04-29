@@ -541,6 +541,7 @@ const recentChanges = deduplicateChanges(allRecentChanges);
           className="changes-since-toggle"
           onClick={() => setChangesExpanded((v) => !v)}
           aria-expanded={changesExpanded}
+          title="Show or hide the recent project changes"
         >
           <span className="changes-since-toggle__count">
             {recentChanges.length} changes since last export
@@ -587,6 +588,7 @@ const recentChanges = deduplicateChanges(allRecentChanges);
           }}
           onDragLeave={() => setIsDragOver(false)}
           onDrop={handleDrop}
+          title="Click here to paste or type an AI response"
         >
           {state === 'idle' ? (
             <>
@@ -607,6 +609,7 @@ const recentChanges = deduplicateChanges(allRecentChanges);
                 onChange={(e) => handleTextChange(e.target.value)}
                 onFocus={(e) => scrollFieldIntoView(e.currentTarget)}
                 placeholder="Paste your AI&apos;s response here…"
+                title="Paste the AI response you want Memephant to check"
                 rows={6}
               />
 
@@ -616,6 +619,7 @@ const recentChanges = deduplicateChanges(allRecentChanges);
                   className="paste-zone-analyse-btn"
                   onClick={() => void handleAnalyse()}
                   disabled={!pasteText.trim()}
+                  title="Check the pasted AI response for project updates"
                 >
                   Check for updates
                 </button>
@@ -623,6 +627,7 @@ const recentChanges = deduplicateChanges(allRecentChanges);
                   type="button"
                   className="paste-zone-clear-btn"
                   onClick={resetPasteState}
+                  title="Clear the pasted response"
                 >
                   Clear
                 </button>
@@ -635,6 +640,7 @@ const recentChanges = deduplicateChanges(allRecentChanges);
                     className="paste-zone-hint-btn"
                     onClick={() => void handleRunLocalAiAction('clean_response', 'Clean AI response')}
                     disabled={localAiActionBusy || !pasteText.trim()}
+                    title="Clean the pasted response using Local AI"
                   >
                     {localAiActionBusy && localAiActionTitle === 'Clean AI response'
                       ? 'Cleaning...'
@@ -645,6 +651,7 @@ const recentChanges = deduplicateChanges(allRecentChanges);
                     className="paste-zone-hint-btn"
                     onClick={() => void handleRunLocalAiAction('explain_changes', 'Explain changes')}
                     disabled={localAiActionBusy || !pasteText.trim()}
+                    title="Explain the detected changes using Local AI"
                   >
                     {localAiActionBusy && localAiActionTitle === 'Explain changes'
                       ? 'Explaining...'
@@ -655,6 +662,7 @@ const recentChanges = deduplicateChanges(allRecentChanges);
                     className="paste-zone-hint-btn"
                     onClick={() => void handleRunLocalAiAction('improve_summary', 'Improve summary')}
                     disabled={localAiActionBusy || !pasteText.trim()}
+                    title="Improve the pasted summary using Local AI"
                   >
                     {localAiActionBusy && localAiActionTitle === 'Improve summary'
                       ? 'Improving...'
@@ -678,6 +686,7 @@ const recentChanges = deduplicateChanges(allRecentChanges);
                       type="button"
                       className="paste-zone-hint-btn"
                       onClick={() => void handleCopyLocalAiOutput()}
+                      title="Copy the Local AI result"
                     >
                       Copy result
                     </button>
@@ -688,6 +697,7 @@ const recentChanges = deduplicateChanges(allRecentChanges);
                         setLocalAiActionTitle('');
                         setLocalAiActionOutput('');
                       }}
+                      title="Clear the Local AI result"
                     >
                       Clear result
                     </button>
@@ -702,6 +712,7 @@ const recentChanges = deduplicateChanges(allRecentChanges);
                     type="button"
                     className="paste-zone-hint-btn"
                     onClick={() => void handleCopyHint()}
+                    title="Copy a message that asks your AI to include a project update"
                   >
                     💡 Copy a prompt to ask your AI for an update
                   </button>
