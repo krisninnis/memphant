@@ -195,6 +195,7 @@ const Sidebar = ({ onNavigate }: SidebarProps) => {
           type="button"
           className="sidebar-desktop-prompt"
           onClick={openDesktopDownload}
+          title="Open the desktop app download page"
         >
           Want full project tracking? Use the desktop app
         </button>
@@ -212,7 +213,7 @@ const Sidebar = ({ onNavigate }: SidebarProps) => {
             setCurrentView('settings');
             onNavigate?.();
           }}
-          title="Settings"
+          title="Open Settings"
           aria-label="Open settings"
         >
           ⚙️
@@ -228,6 +229,7 @@ const Sidebar = ({ onNavigate }: SidebarProps) => {
               data-tour="new-project"
               onClick={handleNewProjectClick}
               style={{ background: selectedPlatform.color ?? '#64748b' }}
+              title="Start a new project memory"
             >
               + New Project
             </button>
@@ -238,6 +240,7 @@ const Sidebar = ({ onNavigate }: SidebarProps) => {
               onClick={() => {
                 setCreateMode('templates');
               }}
+              title="Create a project from a starter template"
             >
               📋 From template
             </button>
@@ -247,6 +250,7 @@ const Sidebar = ({ onNavigate }: SidebarProps) => {
                   type="button"
                   className="sidebar-action-btn"
                   onClick={() => void createProjectFromFolder()}
+                  title="Create a project by scanning a local folder"
                 >
                   📂 Select folder
                 </button>
@@ -256,6 +260,7 @@ const Sidebar = ({ onNavigate }: SidebarProps) => {
                   type="button"
                   className="sidebar-action-btn"
                   onClick={handleImportClick}
+                  title="Import a saved project JSON file"
                 >
                   📥 Import project JSON
                 </button>
@@ -265,6 +270,7 @@ const Sidebar = ({ onNavigate }: SidebarProps) => {
                   accept=".json,application/json"
                   style={{ display: 'none' }}
                   onChange={(e) => void handleImportFileChange(e)}
+                  title="Choose a project JSON file to import"
                 />
               </>
             )}
@@ -280,6 +286,7 @@ const Sidebar = ({ onNavigate }: SidebarProps) => {
               placeholder="Project name..."
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
+              title="Enter a name for the new project"
               onKeyDown={(e) => {
                 if (e.key === 'Enter') void handleCreate();
                 if (e.key === 'Escape') resetCreate();
@@ -290,10 +297,11 @@ const Sidebar = ({ onNavigate }: SidebarProps) => {
                 type="button"
                 className="sidebar-action-btn sidebar-action-btn--primary"
                 onClick={() => void handleCreate()}
+                title="Create this project"
               >
                 Create
               </button>
-              <button type="button" className="sidebar-action-btn" onClick={resetCreate}>
+              <button type="button" className="sidebar-action-btn" onClick={resetCreate} title="Cancel creating this project">
                 Cancel
               </button>
             </div>
@@ -313,12 +321,13 @@ const Sidebar = ({ onNavigate }: SidebarProps) => {
                   setCreateMode('template-name');
                   setTimeout(() => templateNameRef.current?.focus(), 50);
                 }}
+                title={`Use the ${t.label} template`}
               >
                 <span>{t.emoji}</span>
                 <span>{t.label}</span>
               </button>
             ))}
-            <button type="button" className="sidebar-action-btn" onClick={resetCreate}>
+            <button type="button" className="sidebar-action-btn" onClick={resetCreate} title="Cancel choosing a template">
               Cancel
             </button>
           </div>
@@ -336,6 +345,7 @@ const Sidebar = ({ onNavigate }: SidebarProps) => {
               placeholder="Project name..."
               value={templateName}
               onChange={(e) => setTemplateName(e.target.value)}
+              title="Enter a name for this template project"
               onKeyDown={(e) => {
                 if (e.key === 'Enter') void handleCreateFromTemplate();
                 if (e.key === 'Escape') resetCreate();
@@ -347,10 +357,11 @@ const Sidebar = ({ onNavigate }: SidebarProps) => {
                 className="sidebar-action-btn sidebar-action-btn--primary"
                 disabled={!templateName.trim()}
                 onClick={() => void handleCreateFromTemplate()}
+                title="Create this project from the selected template"
               >
                 Create
               </button>
-              <button type="button" className="sidebar-action-btn" onClick={resetCreate}>
+              <button type="button" className="sidebar-action-btn" onClick={resetCreate} title="Cancel creating this template project">
                 Cancel
               </button>
             </div>
@@ -365,7 +376,7 @@ const Sidebar = ({ onNavigate }: SidebarProps) => {
             <span>Back up your projects and sync across devices</span>
           </div>
           <div className="sidebar-cloud-nudge__actions">
-            <button className="sidebar-cloud-nudge__cta" onClick={openCloudBackup}>
+            <button className="sidebar-cloud-nudge__cta" onClick={openCloudBackup} title="Open Cloud Backup settings to sign in">
               Sign in free →
             </button>
             <button
@@ -375,6 +386,7 @@ const Sidebar = ({ onNavigate }: SidebarProps) => {
                 localStorage.setItem('mph_cloud_nudge_dismissed', '1');
                 setCloudNudgeDismissed(true);
               }}
+              title="Hide this cloud backup reminder"
             >
               ×
             </button>
@@ -390,6 +402,7 @@ const Sidebar = ({ onNavigate }: SidebarProps) => {
             placeholder="Search projects..."
             value={searchQuery}
             onChange={(e) => handleSearchChange(e.target.value)}
+            title="Search projects by name, summary, goals, decisions, or next steps"
           />
           {searchQuery && (
             <button
@@ -399,6 +412,7 @@ const Sidebar = ({ onNavigate }: SidebarProps) => {
                 setDebouncedSearch('');
               }}
               aria-label="Clear search"
+              title="Clear the project search"
             >
               ×
             </button>
@@ -452,6 +466,7 @@ const Sidebar = ({ onNavigate }: SidebarProps) => {
                   type="button"
                   className="sidebar-auth-btn sidebar-auth-btn--primary"
                   onClick={openCloudBackup}
+                  title="Open Cloud Backup settings to create an account"
                 >
                   Create account
                 </button>
@@ -460,6 +475,7 @@ const Sidebar = ({ onNavigate }: SidebarProps) => {
                   type="button"
                   className="sidebar-auth-btn sidebar-auth-btn--secondary"
                   onClick={openCloudBackup}
+                  title="Open Cloud Backup settings to sign in"
                 >
                   Sign in
                 </button>
@@ -471,7 +487,7 @@ const Sidebar = ({ onNavigate }: SidebarProps) => {
             type="button"
             className="sidebar-account-card"
             onClick={openCloudBackup}
-            title="Open account and cloud backup"
+            title="Open account and Cloud Backup settings"
           >
             <div className="sidebar-account-card__avatar">
               {getInitials(cloudUser.email)}
