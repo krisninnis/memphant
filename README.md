@@ -24,6 +24,26 @@ Memephant is a local-first app that helps you carry project memory between ChatG
 
 [Download Memephant](https://memephant.com)
 
+## Agent Handoff
+
+Agent Handoff helps you switch AI tools without re-explaining the project. When you copy context, Memephant can add a short note that tells the next AI where the last session happened, what you were doing, and why you are switching.
+
+Choose a mode before copying:
+- **Continue**: pick up the previous work.
+- **Debug**: focus on diagnosing a problem.
+- **Review**: check decisions, risks, and next steps.
+
+Codex and Claude Code are available as optional targets for code-heavy work. Turn them on in Settings -> Platforms.
+
+Example:
+```text
+--- Handoff from Claude (2 hours ago) ---
+Last task: Fix the export buttons
+Switching to Codex because: I want the repo checked
+Your role: review
+--- End handoff ---
+```
+
 ## Built with
 
 - Tauri
