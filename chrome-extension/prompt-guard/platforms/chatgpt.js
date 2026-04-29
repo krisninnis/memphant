@@ -11,9 +11,9 @@ window.PromptGuard = window.PromptGuard || {};
 
 const CHATGPT_INPUT_SELECTORS = [
   '#prompt-textarea',
-  '[data-testid="prompt-textarea"]',
-  'textarea',
+  'div[contenteditable="true"][aria-label="Chat with ChatGPT"]',
   'div[contenteditable="true"]',
+  'textarea',
 ];
 
 function findChatGptInput() {
@@ -27,6 +27,27 @@ function findChatGptInput() {
 
 window.PromptGuard.attachChatGptPasteListener = function (onPasteText) {
   let attachedInput = null;
+  let isPasting = false;
+
+  const handlePaste = () => {
+    isPasting = true;
+  };
+
+  const handleInput = () => {
+    if (!isPasting || !attachedInput) {
+      return;
+    }
+
+    isPasting = false;
+
+    const pastedText = attachedInput.innerText || attachedInput.textContent || attachedInput.value || '';
+
+    if (!pastedText.trim()) {
+      return;
+    }
+
+    onPasteText(pastedText);
+  };
 
   const attach = () => {
     const input = findChatGptInput();
@@ -37,20 +58,12 @@ window.PromptGuard.attachChatGptPasteListener = function (onPasteText) {
 
     if (attachedInput) {
       attachedInput.removeEventListener('paste', handlePaste);
+      attachedInput.removeEventListener('input', handleInput);
     }
 
     attachedInput = input;
     attachedInput.addEventListener('paste', handlePaste);
-  };
-
-  const handlePaste = (event) => {
-    const pastedText = event.clipboardData?.getData('text/plain') || '';
-
-    if (!pastedText.trim()) {
-      return;
-    }
-
-    onPasteText(pastedText);
+    attachedInput.addEventListener('input', handleInput);
   };
 
   attach();
@@ -67,6 +80,7 @@ window.PromptGuard.attachChatGptPasteListener = function (onPasteText) {
   return () => {
     if (attachedInput) {
       attachedInput.removeEventListener('paste', handlePaste);
+      attachedInput.removeEventListener('input', handleInput);
     }
 
     observer.disconnect();
