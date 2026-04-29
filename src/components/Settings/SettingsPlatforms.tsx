@@ -206,7 +206,7 @@ export function SettingsPlatforms() {
       <div className="settings-group">
         <div className="settings-group-title">Built-in platforms</div>
         {builtInPlatforms.map((platform) => (
-          <div className="setting-row" key={platform.id}>
+          <div className="setting-row" key={platform.id} title={`Show or hide ${platform.name} in export options`}>
             <div className="setting-info">
               <div className="setting-label">
                 <div className="platform-row">
@@ -258,18 +258,19 @@ export function SettingsPlatforms() {
                 )}
               </div>
 
-              <div className="settings-platform-actions">
+              <div className="settings-platform-actions" title={`Show or hide ${platform.name} in export options`}>
                 <Toggle
                   value={platform.enabled}
                   disabled={platform.enabled && enabledCount <= 1}
                   onChange={(value) => togglePlatform(platform.id, value)}
                 />
-                <button className="setting-btn" onClick={() => handleEditCustomPlatform(platform.id)}>
+                <button className="setting-btn" onClick={() => handleEditCustomPlatform(platform.id)} title="Edit this custom platform">
                   Edit
                 </button>
                 <button
                   className="setting-btn setting-btn--danger"
                   onClick={() => handleDeleteCustomPlatform(platform.id)}
+                  title="Delete this custom platform"
                 >
                   Delete
                 </button>
@@ -291,6 +292,7 @@ export function SettingsPlatforms() {
                 value={form.name}
                 onChange={(e) => setForm((current) => ({ ...current, name: e.target.value }))}
                 placeholder="My team AI"
+                title="Enter the custom platform name"
               />
             </label>
 
@@ -299,6 +301,7 @@ export function SettingsPlatforms() {
               <select
                 className="setting-select"
                 value={form.category}
+                title="Choose where this platform appears"
                 onChange={(e) =>
                   setForm((current) => ({
                     ...current,
@@ -318,6 +321,7 @@ export function SettingsPlatforms() {
               <select
                 className="setting-select"
                 value={form.exportStyle}
+                title="Choose how much context this platform receives"
                 onChange={(e) =>
                   setForm((current) => ({
                     ...current,
@@ -337,6 +341,7 @@ export function SettingsPlatforms() {
                 className="setting-select settings-platform-input"
                 value={form.icon}
                 onChange={(e) => setForm((current) => ({ ...current, icon: e.target.value }))}
+                title="Enter an icon or emoji for this platform"
                 placeholder="🧩"
               />
             </label>
@@ -347,6 +352,7 @@ export function SettingsPlatforms() {
             <textarea
               className="setting-select settings-platform-textarea"
               value={form.promptPrefix}
+              title="Tell this AI how to use copied project context"
               onChange={(e) =>
                 setForm((current) => ({
                   ...current,
@@ -358,11 +364,11 @@ export function SettingsPlatforms() {
           </label>
 
           <div className="settings-platform-actions settings-platform-actions--form">
-            <button className="setting-btn setting-btn--primary" onClick={handleSaveCustomPlatform}>
+            <button className="setting-btn setting-btn--primary" onClick={handleSaveCustomPlatform} title="Save this custom platform">
               {editingPlatformId ? 'Save platform' : 'Add platform'}
             </button>
             {editingPlatformId && (
-              <button className="setting-btn" onClick={resetForm}>
+              <button className="setting-btn" onClick={resetForm} title="Cancel editing this custom platform">
                 Cancel
               </button>
             )}

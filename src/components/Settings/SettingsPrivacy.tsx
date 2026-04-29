@@ -406,6 +406,7 @@ export function SettingsPrivacy() {
           <button
             className="setting-btn"
             onClick={() => setSettingsTab('sync')}
+            title="Open Cloud Backup settings"
           >
             Open Cloud Backup
           </button>
@@ -415,7 +416,7 @@ export function SettingsPrivacy() {
       <div className="settings-group">
         <div className="settings-group-title">Crash reporting</div>
 
-        <div className="setting-row">
+        <div className="setting-row" title="Send anonymous crash reports without project content">
           <div className="setting-info">
             <div className="setting-label">Send crash reports</div>
             <div className="setting-description">
@@ -455,6 +456,7 @@ export function SettingsPrivacy() {
           <select
             className="setting-select"
             value={p.secretsScannerLevel}
+            title="Choose how strongly Memephant scans exports for secrets"
             onChange={(e) => {
               update({ secretsScannerLevel: e.target.value as 'standard' | 'strict' });
               showToast('Security level updated');
@@ -469,7 +471,7 @@ export function SettingsPrivacy() {
       <div className="settings-group">
         <div className="settings-group-title">Local AI (Private Mode)</div>
 
-        <div className="setting-row">
+        <div className="setting-row" title="Use a local AI model on this device when available">
           <div className="setting-info">
             <div className="setting-label">Private Mode</div>
             <div className="setting-description">
@@ -531,6 +533,7 @@ export function SettingsPrivacy() {
             className="setting-btn"
             onClick={() => void handleAutoSetupLocalAi()}
             disabled={!inTauri || autoSetupBusy || localAiPulling}
+            title="Set up Private Mode with the recommended local model"
           >
             {autoSetupBusy ? 'Setting up...' : 'Auto setup'}
           </button>
@@ -549,6 +552,7 @@ export function SettingsPrivacy() {
             spellCheck={false}
             inputMode="url"
             disabled={!localAi.enabled || autoSetupBusy || localAiPulling}
+            title="Enter the local Ollama server address"
           />
         </div>
 
@@ -567,6 +571,7 @@ export function SettingsPrivacy() {
               value={localAi.model}
               onChange={(e) => updateLocalAi({ model: e.target.value })}
               disabled={!localAi.enabled || autoSetupBusy || localAiPulling}
+              title="Choose which local model Memephant should use"
             >
               {availableModels.map((modelName) => (
                 <option key={modelName} value={modelName}>
@@ -582,6 +587,7 @@ export function SettingsPrivacy() {
               placeholder="llama3.1:8b"
               spellCheck={false}
               disabled={!localAi.enabled || autoSetupBusy || localAiPulling}
+              title="Enter the local model name Memephant should use"
             />
           )}
         </div>
@@ -604,6 +610,7 @@ export function SettingsPrivacy() {
             className="setting-btn"
             onClick={() => void handleTestLocalAi()}
             disabled={!localAi.enabled || !inTauri || autoSetupBusy || localAiPulling}
+            title="Check whether Memephant can connect to Ollama"
           >
             {localAiStatus.status === 'checking' ? 'Checking...' : 'Test connection'}
           </button>
@@ -638,6 +645,7 @@ export function SettingsPrivacy() {
                     className="setting-btn"
                     onClick={() => void openExternalUrl('https://ollama.com/download')}
                     disabled={!localAi.enabled}
+                    title="Open the Ollama download page"
                   >
                     Download Ollama
                   </button>
@@ -651,6 +659,7 @@ export function SettingsPrivacy() {
                     className="setting-btn"
                     onClick={() => void handleDownloadModel()}
                     disabled={!localAi.enabled || localAiPulling || !localAi.model?.trim()}
+                    title="Download the selected local model"
                   >
                     {localAiPulling ? 'Downloading...' : 'Download model'}
                   </button>
@@ -687,6 +696,7 @@ export function SettingsPrivacy() {
           <button
             className="setting-btn"
             onClick={() => void handleViewStoredData()}
+            title="Show where Memephant stores projects on this device"
           >
             View stored data
           </button>
@@ -702,6 +712,7 @@ export function SettingsPrivacy() {
           <button
             className="setting-btn"
             onClick={() => void downloadAllData()}
+            title="Download all projects and settings as a JSON file"
           >
             Download data
           </button>
@@ -743,6 +754,7 @@ export function SettingsPrivacy() {
           <button
             className="setting-btn setting-btn--danger"
             onClick={() => setConfirmClear(true)}
+            title="Delete all projects from this device"
           >
             Clear all data
           </button>

@@ -53,6 +53,7 @@ export function SettingsGeneral() {
             className="setting-select"
             value={g.defaultPlatform}
             onChange={(e) => update({ defaultPlatform: e.target.value as typeof g.defaultPlatform })}
+            title="Choose which AI platform is selected when Memephant opens"
           >
             {availablePlatforms.map((platform) => (
               <option key={platform.id} value={platform.id}>
@@ -66,7 +67,7 @@ export function SettingsGeneral() {
       <div className="settings-group">
         <div className="settings-group-title">Behaviour</div>
 
-        <div className="setting-row">
+        <div className="setting-row" title="Automatically save project changes as you type">
           <div className="setting-info">
             <div className="setting-label">Auto-save</div>
             <div className="setting-description">Automatically save changes as you type</div>
@@ -77,7 +78,7 @@ export function SettingsGeneral() {
           />
         </div>
 
-        <div className="setting-row">
+        <div className="setting-row" title="Start Memephant automatically when you log in">
           <div className="setting-info">
             <div className="setting-label">Run on startup</div>
             <div className="setting-description">Start Memephant when you log in</div>
@@ -108,7 +109,7 @@ export function SettingsGeneral() {
           />
         </div>
 
-        <div className="setting-row">
+        <div className="setting-row" title="Keep Memephant running in the system tray when the window closes">
           <div className="setting-info">
             <div className="setting-label">System tray</div>
             <div className="setting-description">Hide the window instead of quitting when you close it</div>
@@ -138,7 +139,7 @@ export function SettingsGeneral() {
             }}
           />
         </div>
-        <div className="setting-row">
+        <div className="setting-row" title="Check the linked project for new Git commits when Memephant regains focus">
           <div className="setting-info">
             <div className="setting-label">Auto-sync Git on focus</div>
             <div className="setting-description">
@@ -157,6 +158,7 @@ export function SettingsGeneral() {
               update({ autoGitSync: v });
               showToast(v ? 'Auto Git sync enabled' : 'Auto Git sync disabled');
             }}
+            title="Replay the guided Memephant tour"
           />
         </div>
       </div>
@@ -192,6 +194,7 @@ export function SettingsGeneral() {
           <button
             className="setting-btn"
             onClick={() => showToast("You're on the latest version", 'success')}
+            title="Check whether Memephant is up to date"
           >
             Check Now
           </button>
