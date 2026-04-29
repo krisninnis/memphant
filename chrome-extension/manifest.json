@@ -34,6 +34,17 @@
       "js": ["content.js"],
       "css": ["content.css"],
       "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://chat.openai.com/*",
+        "https://chatgpt.com/*"
+      ],
+      "js": [
+        "prompt-guard/platforms/chatgpt.js",
+        "prompt-guard/index.js"
+      ],
+      "run_at": "document_idle"
     }
   ],
 
