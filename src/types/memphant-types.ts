@@ -301,6 +301,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
       cursor: false,
       'github-copilot': false,
       phind: false,
+      codex: false,
+      cowork: false,
       ollama: false,
       'lm-studio': false,
       jan: false,

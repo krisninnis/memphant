@@ -838,6 +838,141 @@ function formatSpecialist(project: ProjectMemory, task?: string): string {
   return lines.join('\n');
 }
 
+function formatForCodex(project: ProjectMemory, task?: string): string {
+  const lines: string[] = [];
+
+  lines.push(`PROJECT: ${sanitize(project.name)}`);
+  if (project.githubRepo) lines.push(`REPO: ${project.githubRepo}`);
+  if (project.detectedStack && project.detectedStack.length > 0) {
+    lines.push(`STACK: ${sanitize(project.detectedStack.join(', '))}`);
+  }
+  lines.push(`STATUS: ${sanitize(project.currentState || 'not set')}`);
+
+  if (project.pendingGitCommits?.length) {
+    lines.push(`RECENT_GIT_COMMITS:`);
+    project.pendingGitCommits.slice(0, 5).forEach((commit) => {
+      const dateOnly = commit.timestamp?.slice(0, 10) || '';
+      lines.push(`  - ${sanitize(commit.hash)} ${sanitize(dateOnly)}: ${sanitize(commit.message)}`);
+    });
+  }
+
+  if (hasItems(project.inProgress)) {
+    lines.push(`IN_PROGRESS: ${sanitizeList(project.inProgress).join(', ')}`);
+  }
+  if (hasContent(project.lastSessionSummary)) {
+    lines.push(`LAST_SESSION: ${sanitize(project.lastSessionSummary)}`);
+  }
+  if (hasContent(project.openQuestion)) {
+    lines.push(`OPEN_QUESTION: ${sanitize(project.openQuestion)}`);
+  }
+  if (task && task.trim()) lines.push(`TASK: ${sanitize(task)}`);
+  lines.push(`GOALS: ${sanitizeList(project.goals).join(', ') || 'none'}`);
+  lines.push(`RULES: ${sanitizeList(project.rules).join(', ') || 'none'}`);
+
+  if (project.decisions.length > 0) {
+    lines.push(`DECISIONS:`);
+    project.decisions.forEach((d) => {
+      lines.push(`  - ${sanitize(d.decision)}`);
+      if (d.rationale) lines.push(`    (${sanitize(d.rationale)})`);
+    });
+  }
+
+  lines.push(`NEXT: ${sanitizeList(project.nextSteps).join(', ') || 'none'}`);
+  lines.push(`QUESTIONS: ${sanitizeList(project.openQuestions).join(', ') || 'none'}`);
+  lines.push(`IMPORTANT_ASSETS: ${sanitizeList(project.importantAssets).join(', ') || 'none'}`);
+
+  if (task && task.trim()) {
+    lines.push(`SCOPE: Focus on the task above. Don't change anything else.`);
+  }
+
+  if (project.aiInstructions) {
+    lines.push('');
+    lines.push(sanitize(project.aiInstructions));
+  }
+
+  lines.push('');
+  lines.push(`Your task: verify the claims in the previous session against the actual codebase.`);
+  lines.push('');
+  lines.push(`Return:`);
+  lines.push(`1. For each claim from the previous session, mark it as`);
+  lines.push(`   VERIFIED, REFUTED, or UNVERIFIED with the file evidence.`);
+  lines.push(`2. Files you inspected (relative paths only — no absolute paths).`);
+  lines.push(`3. Bugs found that the previous session missed.`);
+  lines.push(`4. memphant_update JSON block.`);
+  lines.push('');
+  lines.push(RESPONSE_FORMAT);
+
+  return lines.join('\n');
+}
+
+function formatForCowork(project: ProjectMemory, task?: string): string {
+  const lines: string[] = [];
+
+  lines.push(`PROJECT: ${sanitize(project.name)}`);
+  if (project.githubRepo) lines.push(`REPO: ${project.githubRepo}`);
+  if (project.detectedStack && project.detectedStack.length > 0) {
+    lines.push(`STACK: ${sanitize(project.detectedStack.join(', '))}`);
+  }
+  lines.push(`STATUS: ${sanitize(project.currentState || 'not set')}`);
+
+  if (project.pendingGitCommits?.length) {
+    lines.push(`RECENT_GIT_COMMITS:`);
+    project.pendingGitCommits.slice(0, 5).forEach((commit) => {
+      const dateOnly = commit.timestamp?.slice(0, 10) || '';
+      lines.push(`  - ${sanitize(commit.hash)} ${sanitize(dateOnly)}: ${sanitize(commit.message)}`);
+    });
+  }
+
+  if (hasItems(project.inProgress)) {
+    lines.push(`IN_PROGRESS: ${sanitizeList(project.inProgress).join(', ')}`);
+  }
+  if (hasContent(project.lastSessionSummary)) {
+    lines.push(`LAST_SESSION: ${sanitize(project.lastSessionSummary)}`);
+  }
+  if (hasContent(project.openQuestion)) {
+    lines.push(`OPEN_QUESTION: ${sanitize(project.openQuestion)}`);
+  }
+  if (task && task.trim()) lines.push(`TASK: ${sanitize(task)}`);
+  lines.push(`GOALS: ${sanitizeList(project.goals).join(', ') || 'none'}`);
+  lines.push(`RULES: ${sanitizeList(project.rules).join(', ') || 'none'}`);
+
+  if (project.decisions.length > 0) {
+    lines.push(`DECISIONS:`);
+    project.decisions.forEach((d) => {
+      lines.push(`  - ${sanitize(d.decision)}`);
+      if (d.rationale) lines.push(`    (${sanitize(d.rationale)})`);
+    });
+  }
+
+  lines.push(`NEXT: ${sanitizeList(project.nextSteps).join(', ') || 'none'}`);
+  lines.push(`QUESTIONS: ${sanitizeList(project.openQuestions).join(', ') || 'none'}`);
+  lines.push(`IMPORTANT_ASSETS: ${sanitizeList(project.importantAssets).join(', ') || 'none'}`);
+
+  if (task && task.trim()) {
+    lines.push(`SCOPE: Focus on the task above. Don't change anything else.`);
+  }
+
+  if (project.aiInstructions) {
+    lines.push('');
+    lines.push(sanitize(project.aiInstructions));
+  }
+
+  lines.push('');
+  lines.push(`Your task: review continuity and architecture.`);
+  lines.push('');
+  lines.push(`Return:`);
+  lines.push(`1. Continuity check: does the proposed work preserve all`);
+  lines.push(`   decisions from the previous session?`);
+  lines.push(`2. Architecture review of the proposed changes.`);
+  lines.push(`3. Risks the previous session may have missed.`);
+  lines.push(`4. Recommended implementation plan as 3-5 ordered steps.`);
+  lines.push(`5. memphant_update JSON block.`);
+  lines.push('');
+  lines.push(RESPONSE_FORMAT);
+
+  return lines.join('\n');
+}
+
 export function formatForPlatform(
   project: ProjectMemory,
   platform: Platform,
@@ -861,6 +996,10 @@ export function formatForPlatform(
       return formatForPerplexity(project, task);
     case 'gemini':
       return formatForGemini(project, task);
+    case 'codex':
+      return formatForCodex(project, task);
+    case 'cowork':
+      return formatForCowork(project, task);
     default:
       return formatGenericForPlatform(project, platform, task, platformConfig);
   }
