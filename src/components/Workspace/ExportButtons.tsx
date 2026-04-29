@@ -381,7 +381,7 @@ const [switchReason, setSwitchReason] = useState('');
           className={`export-pill${isActive ? ' export-pill--active' : ''}`}
           style={{ '--pill-color': platform.color ?? '#64748b' } as CSSProperties}
           onClick={() => handleSelectPlatform(platform.id)}
-          title={age ? `${platform.name} last copied ${age}` : `Select ${platform.name}`}
+          title={age ? `Switch to ${platform.name} — last copied ${age}` : `Switch handoff target to ${platform.name}`}
           aria-pressed={isActive}
         >
           <span className="export-pill__icon">{platform.icon ?? 'AI'}</span>
@@ -425,7 +425,7 @@ const [switchReason, setSwitchReason] = useState('');
             } as CSSProperties}
             onClick={() => void handlePrimaryCopy()}
             disabled={!activeProject}
-            title={`Copy with full context for ${selectedPlatform.name}`}
+            title={`Copy full project context for ${selectedPlatform.name}`}
           >
             {copied ? (
               <>
@@ -468,7 +468,7 @@ const [switchReason, setSwitchReason] = useState('');
                 ? '0 10px 24px rgba(15, 159, 110, 0.24)'
                 : `0 10px 24px ${selectedPlatform.color ?? '#64748b'}47`,
             }}
-            title="Choose how much context to copy"
+            title="Choose a shorter or more focused copy option"
           >
             ▾
           </button>
@@ -502,6 +502,13 @@ const [switchReason, setSwitchReason] = useState('');
                   setMenuOpen(false);
                   void option.onSelect();
                 }}
+                title={
+                  option.id === 'full'
+                    ? `Copy full project context for ${selectedPlatform.name}`
+                    : option.id === 'delta'
+                      ? `Copy essential project context for ${selectedPlatform.name}`
+                      : `Copy task-focused project context for ${selectedPlatform.name}`
+                }
                 style={{
                   display: 'block',
                   width: '100%',
@@ -540,6 +547,7 @@ const [switchReason, setSwitchReason] = useState('');
                       setMenuOpen(false);
                       void option.onSelect();
                     }}
+                    title="Copy full project context with deeper project memory for Claude"
                     style={{
                       display: 'block',
                       width: '100%',
@@ -569,6 +577,13 @@ const [switchReason, setSwitchReason] = useState('');
       key={m}
       type="button"
       onClick={() => setHandoffMode(m)}
+      title={
+        m === 'continue'
+          ? 'Pick up where the last AI left off'
+          : m === 'debug'
+            ? 'Diagnose a problem — returns cause, fix, and verification steps'
+            : 'Check decisions and risks — returns structured critique and next steps'
+      }
       style={{
         flex: 1,
         padding: '6px 0',
@@ -597,6 +612,7 @@ const [switchReason, setSwitchReason] = useState('');
     type="button"
     onClick={() => setContextOpen((o) => !o)}
     aria-expanded={contextOpen}
+    title="Add a note about what you were working on and why you are switching"
     style={{
       background: 'none',
       border: 'none',
@@ -617,6 +633,7 @@ const [switchReason, setSwitchReason] = useState('');
       value={switchReason}
       onChange={(e) => setSwitchReason(e.target.value)}
       placeholder="Why are you switching platforms or starting a new session?"
+      title="Explain why you are switching tools for this handoff"
       rows={2}
       style={{
         width: '100%',
