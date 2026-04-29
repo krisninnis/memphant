@@ -201,7 +201,7 @@ export function ActionBar() {
           type="button"
           className={`action-bar__btn action-bar__btn--activation${activationCopied ? ' action-bar__btn--copied' : ''}`}
           onClick={() => void handleCopyActivation()}
-          title="Copy this once into your AI chat so it automatically sends updates back to Memephant"
+          title="Copy setup instructions so your AI can send updates back to Memephant"
         >
           {activationCopied ? 'Copied — paste into your AI' : 'Set up auto-updates'}
         </button>
@@ -212,7 +212,7 @@ export function ActionBar() {
               type="button"
               className="action-bar__btn"
               onClick={() => void linkFolder()}
-              title="Link a local project folder to enable rescans and Git-aware exports"
+              title="Choose a local project folder so Memephant can scan files and track changes"
             >
               Select project folder
             </button>
@@ -221,7 +221,7 @@ export function ActionBar() {
               type="button"
               className="action-bar__btn"
               onClick={() => void rescanLinkedFolder()}
-              title="Rescan the linked local project folder"
+              title="Scan the linked project folder again for updated files"
             >
               Rescan linked folder
             </button>
@@ -236,8 +236,8 @@ export function ActionBar() {
             disabled={!hasLinkedFolder || gitSyncState === 'syncing'}
             title={
               !hasLinkedFolder
-                ? 'Link a project folder first to sync Git commits'
-                : 'Read recent commits from the linked project folder'
+                ? 'Link a project folder before reading recent Git commits'
+                : 'Read recent Git commits from the linked project folder'
             }
           >
             {syncGitLabel}
@@ -250,7 +250,7 @@ export function ActionBar() {
             className="action-bar__btn"
             onClick={() => void handlePreviewManifest()}
             disabled={manifestLoading}
-            title="Prepare a deeper full-context preview for this project"
+            title="Preview the full project context before copying it"
           >
             {manifestLoading ? 'Preparing full context...' : 'Preview full context'}
           </button>
@@ -260,7 +260,7 @@ export function ActionBar() {
           type="button"
           className="action-bar__btn"
           onClick={() => void exportActiveProjectAsMarkdown()}
-          title="Save a readable snapshot of this project as a .md file"
+          title="Save a readable Markdown snapshot of this project"
         >
           Save as file
         </button>
@@ -270,7 +270,7 @@ export function ActionBar() {
             type="button"
             className="action-bar__btn"
             onClick={() => void exportActiveProjectAsJson()}
-            title="Download this project as a JSON file for web/mobile use"
+            title="Download this project as a JSON backup file"
           >
             Export project JSON
           </button>
@@ -281,6 +281,7 @@ export function ActionBar() {
             type="button"
             className="action-bar__btn action-bar__btn--undo"
             onClick={handleRollback}
+            title="Restore the project to how it looked before the last AI update"
           >
             Undo last AI update
           </button>
@@ -304,6 +305,7 @@ export function ActionBar() {
                 setManifestError(null);
               }}
               aria-label="Close full context preview"
+              title="Close the full context preview"
             >
               Close
             </button>
@@ -323,12 +325,14 @@ export function ActionBar() {
                 readOnly
                 spellCheck={false}
                 aria-label="Full context text"
+                title="Read the full project context that will be copied"
               />
               <div className="state-manifest-preview__actions">
                 <button
                   type="button"
                   className="action-bar__btn"
                   onClick={() => void handleCopyManifestText()}
+                  title="Copy the full project context preview"
                 >
                   Copy with full context
                 </button>
@@ -336,6 +340,7 @@ export function ActionBar() {
                   type="button"
                   className="action-bar__btn"
                   onClick={() => void handleCopyManifestDigest()}
+                  title="Copy the reference ID for this full context preview"
                 >
                   Copy reference ID
                 </button>
