@@ -1,88 +1,90 @@
 /**
- * Prompt Guard — ChatGPT platform adapter
+ * Prompt Guard - ChatGPT platform adapter
  *
  * Phase 2: detects paste events in the ChatGPT input and reports
  * the pasted text to the Prompt Guard entry point. No overlay yet.
  */
 
-'use strict';
+(function () {
+  'use strict';
 
-window.PromptGuard = window.PromptGuard || {};
+  window.PromptGuard = window.PromptGuard || {};
 
-const CHATGPT_INPUT_SELECTORS = [
-  '#prompt-textarea',
-  'div[contenteditable="true"][aria-label="Chat with ChatGPT"]',
-  'div[contenteditable="true"]',
-  'textarea',
-];
+  const CHATGPT_INPUT_SELECTORS = [
+    '#prompt-textarea',
+    'div[contenteditable="true"][aria-label="Chat with ChatGPT"]',
+    'div[contenteditable="true"]',
+    'textarea',
+  ];
 
-function findChatGptInput() {
-  for (const selector of CHATGPT_INPUT_SELECTORS) {
-    const input = document.querySelector(selector);
-    if (input) return input;
+  function findChatGptInput() {
+    for (const selector of CHATGPT_INPUT_SELECTORS) {
+      const input = document.querySelector(selector);
+      if (input) return input;
+    }
+
+    return null;
   }
 
-  return null;
-}
+  window.PromptGuard.attachChatGptPasteListener = function (onPasteText) {
+    let attachedInput = null;
+    let isPasting = false;
 
-window.PromptGuard.attachChatGptPasteListener = function (onPasteText) {
-  let attachedInput = null;
-  let isPasting = false;
+    const handlePaste = () => {
+      isPasting = true;
+    };
 
-  const handlePaste = () => {
-    isPasting = true;
-  };
+    const handleInput = () => {
+      if (!isPasting || !attachedInput) {
+        return;
+      }
 
-  const handleInput = () => {
-    if (!isPasting || !attachedInput) {
-      return;
-    }
+      isPasting = false;
 
-    isPasting = false;
+      const pastedText = attachedInput.innerText || attachedInput.textContent || attachedInput.value || '';
 
-    const pastedText = attachedInput.innerText || attachedInput.textContent || attachedInput.value || '';
+      if (!pastedText.trim()) {
+        return;
+      }
 
-    if (!pastedText.trim()) {
-      return;
-    }
+      onPasteText(pastedText);
+    };
 
-    onPasteText(pastedText);
-  };
+    const attach = () => {
+      const input = findChatGptInput();
 
-  const attach = () => {
-    const input = findChatGptInput();
+      if (!input || input === attachedInput) {
+        return;
+      }
 
-    if (!input || input === attachedInput) {
-      return;
-    }
+      if (attachedInput) {
+        attachedInput.removeEventListener('paste', handlePaste);
+        attachedInput.removeEventListener('input', handleInput);
+      }
 
-    if (attachedInput) {
-      attachedInput.removeEventListener('paste', handlePaste);
-      attachedInput.removeEventListener('input', handleInput);
-    }
+      attachedInput = input;
+      attachedInput.addEventListener('paste', handlePaste);
+      attachedInput.addEventListener('input', handleInput);
+    };
 
-    attachedInput = input;
-    attachedInput.addEventListener('paste', handlePaste);
-    attachedInput.addEventListener('input', handleInput);
-  };
-
-  attach();
-
-  const observer = new MutationObserver(() => {
     attach();
-  });
 
-  observer.observe(document.body, {
-    childList: true,
-    subtree: true,
-  });
+    const observer = new MutationObserver(() => {
+      attach();
+    });
 
-  return () => {
-    if (attachedInput) {
-      attachedInput.removeEventListener('paste', handlePaste);
-      attachedInput.removeEventListener('input', handleInput);
-    }
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+    });
 
-    observer.disconnect();
+    return () => {
+      if (attachedInput) {
+        attachedInput.removeEventListener('paste', handlePaste);
+        attachedInput.removeEventListener('input', handleInput);
+      }
+
+      observer.disconnect();
+    };
   };
-};
+})();

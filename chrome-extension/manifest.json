@@ -5,12 +5,12 @@
   "description": "Auto-detect project updates from AI chats and apply them to Memphant in one click.",
 
   "permissions": [
-  "clipboardWrite",
-  "storage",
-  "activeTab",
-  "scripting",
-  "tabs"
-],
+    "clipboardWrite",
+    "storage",
+    "activeTab",
+    "scripting",
+    "tabs"
+  ],
 
   "host_permissions": [
     "https://chat.openai.com/*",
@@ -32,11 +32,7 @@
         "https://chat.openai.com/*",
         "https://chatgpt.com/*"
       ],
-      "js": [
-        "content.js",
-        "prompt-guard/platforms/chatgpt.js",
-        "prompt-guard/index.js"
-      ],
+      "js": ["content.js"],
       "css": ["content.css"],
       "run_at": "document_idle"
     },
