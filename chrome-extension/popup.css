@@ -1,4 +1,4 @@
-/* Memphant — Extension Popup Styles */
+/* Memephant extension popup styles */
 
 *, *::before, *::after {
   box-sizing: border-box;
@@ -7,7 +7,7 @@
 }
 
 html, body {
-  width: 300px;
+  width: 320px;
   background: #1a1a2e;
   color: #e0e0f0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -21,7 +21,7 @@ html, body {
   gap: 0;
 }
 
-/* ── Header ─────────────────────────────────────────────────────────────── */
+/* Header */
 
 .popup__header {
   display: flex;
@@ -55,7 +55,148 @@ html, body {
   color: #6b7280;
 }
 
-/* ── Panels ──────────────────────────────────────────────────────────────── */
+/* Prompt Guard settings */
+
+.settings-panel {
+  padding: 14px 16px;
+  border-bottom: 1px solid #2a2a3e;
+  background: #141424;
+}
+
+.settings-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.settings-panel__title {
+  font-size: 13px;
+  font-weight: 800;
+  color: #f0f0ff;
+  letter-spacing: -0.01em;
+}
+
+.settings-panel__subtitle {
+  font-size: 11px;
+  color: #8fa0b8;
+  margin-top: 1px;
+}
+
+.setting-row,
+.setting-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid rgba(42, 42, 62, 0.65);
+}
+
+.setting-row span,
+.setting-field span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.setting-row strong,
+.setting-field strong {
+  font-size: 12px;
+  color: #f0f0ff;
+}
+
+.setting-row small,
+.setting-field small {
+  font-size: 11px;
+  color: #6b7280;
+  line-height: 1.35;
+}
+
+.setting-row input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: #d97706;
+  flex-shrink: 0;
+}
+
+.setting-field select {
+  max-width: 132px;
+  background: #0f0f1a;
+  color: #e0e0f0;
+  border: 1px solid #2a2a3e;
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
+}
+
+.setting-field select:focus {
+  border-color: #d97706;
+}
+
+.privacy-note {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 9px;
+  border: 1px solid rgba(217, 119, 6, 0.28);
+  background: rgba(217, 119, 6, 0.08);
+  color: #d6c4aa;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+/* Toggle switch */
+
+.switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.switch input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.switch__track {
+  width: 42px;
+  height: 24px;
+  border-radius: 999px;
+  background: #34344f;
+  border: 1px solid #45456a;
+  transition: background 0.15s, border-color 0.15s;
+  position: relative;
+}
+
+.switch__thumb {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  left: 2px;
+  top: 2px;
+  border-radius: 999px;
+  background: #c7c7d9;
+  transition: transform 0.15s, background 0.15s;
+}
+
+.switch input:checked + .switch__track {
+  background: #d97706;
+  border-color: #d97706;
+}
+
+.switch input:checked + .switch__track .switch__thumb {
+  transform: translateX(18px);
+  background: #ffffff;
+}
+
+/* Panels */
 
 .panel {
   display: flex;
@@ -100,7 +241,7 @@ html, body {
   margin-top: -2px;
 }
 
-/* ── Buttons ──────────────────────────────────────────────────────────────── */
+/* Buttons */
 
 .btn {
   padding: 9px 18px;
@@ -139,7 +280,7 @@ html, body {
   background: #1e2f50;
 }
 
-/* ── Confirmation ────────────────────────────────────────────────────────── */
+/* Confirmation */
 
 .confirmation {
   font-size: 12px;
@@ -149,7 +290,7 @@ html, body {
   font-weight: 600;
 }
 
-/* ── Footer ──────────────────────────────────────────────────────────────── */
+/* Footer */
 
 .popup__footer {
   display: flex;
@@ -175,6 +316,7 @@ html, body {
 }
 
 /* Panel visibility */
+
 [hidden] {
   display: none !important;
 }

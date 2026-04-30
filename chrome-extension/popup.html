@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Memphant</title>
+    <title>Memephant</title>
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
@@ -12,10 +12,50 @@
       <header class="popup__header">
         <span class="popup__logo">🐘</span>
         <div class="popup__title-block">
-          <h1 class="popup__title">Memphant</h1>
+          <h1 class="popup__title">Memephant</h1>
           <p class="popup__subtitle">Remember everything. Explain nothing.</p>
         </div>
       </header>
+
+      <!-- Prompt Guard settings -->
+      <section class="settings-panel" aria-labelledby="prompt-guard-title">
+        <div class="settings-panel__header">
+          <div>
+            <h2 class="settings-panel__title" id="prompt-guard-title">Prompt Guard</h2>
+            <p class="settings-panel__subtitle">Warn before wasting AI usage.</p>
+          </div>
+          <label class="switch" title="Enable Prompt Guard">
+            <input type="checkbox" id="pg-enabled" />
+            <span class="switch__track">
+              <span class="switch__thumb"></span>
+            </span>
+          </label>
+        </div>
+
+        <label class="setting-row">
+          <span>
+            <strong>Enable on ChatGPT</strong>
+            <small>Show warnings inside ChatGPT drafts.</small>
+          </span>
+          <input type="checkbox" id="pg-chatgpt-enabled" />
+        </label>
+
+        <label class="setting-field">
+          <span>
+            <strong>Warning threshold</strong>
+            <small>Choose how sensitive Prompt Guard should be.</small>
+          </span>
+          <select id="pg-threshold">
+            <option value="medium_and_high">Medium and high</option>
+            <option value="high_only">High only</option>
+          </select>
+        </label>
+
+        <p class="privacy-note">
+          Prompt Guard analyzes your draft locally in this browser. It does not upload prompts,
+          store raw prompts, or send messages automatically.
+        </p>
+      </section>
 
       <!-- Status panel — shown when an update is detected on the current page -->
       <section id="update-panel" class="panel panel--update" hidden>
@@ -23,7 +63,7 @@
         <p class="panel__heading">Update detected on this page</p>
         <p class="panel__body" id="update-summary">—</p>
         <button class="btn btn--primary" id="copy-btn">Copy &amp; apply</button>
-        <p class="panel__hint">Then paste into Memphant's update zone.</p>
+        <p class="panel__hint">Then paste into Memephant's update zone.</p>
       </section>
 
       <!-- Idle panel — shown when no update is detected -->
@@ -42,7 +82,7 @@
 
       <!-- Copied confirmation -->
       <p class="confirmation" id="confirmation" hidden>
-        ✅ Copied! Open Memphant and paste.
+        ✅ Copied! Open Memephant and paste.
       </p>
 
       <!-- Footer -->
