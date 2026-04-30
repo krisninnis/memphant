@@ -1,8 +1,8 @@
 /**
  * Prompt Guard - Entry point
  *
- * Phase 3: wires ChatGPT paste/draft detection to the local analyzer.
- * Console-only. No overlay yet.
+ * Phase 4: wires ChatGPT paste/draft detection to the local analyzer
+ * and overlay. The analyzer console log stays enabled for debugging.
  */
 
 (function () {
@@ -23,7 +23,16 @@
       return;
     }
 
-    console.log('Prompt Guard: analyzer result', window.PromptGuard.analyzePrompt(text));
+    const result = window.PromptGuard.analyzePrompt(text);
+
+    console.log('Prompt Guard: analyzer result', result);
+
+    if (typeof window.PromptGuard.updateOverlay === 'function') {
+      window.PromptGuard.updateOverlay(text, result);
+      return;
+    }
+
+    console.warn('Prompt Guard: overlay not available');
   }
 
   function startPromptGuard() {

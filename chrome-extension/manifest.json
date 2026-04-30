@@ -36,6 +36,7 @@
         "content.js",
         "prompt-guard/platforms/chatgpt.js",
         "prompt-guard/promptAnalyzer.js",
+        "prompt-guard/overlay.js",
         "prompt-guard/index.js"
       ],
       "css": ["content.css"],

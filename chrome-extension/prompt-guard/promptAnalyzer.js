@@ -126,6 +126,16 @@
     return 'none';
   }
 
+  function chooseSeverity(score, recommendedAction) {
+    const severity = getSeverity(score);
+
+    if (recommendedAction === 'use_memephant' && severity === 'low') {
+      return 'medium';
+    }
+
+    return severity;
+  }
+
   function analyzePrompt(text) {
     const rawText = String(text || '');
     const trimmedText = rawText.trim();
@@ -199,11 +209,13 @@
       return total + issueWeight;
     }, 0);
 
+    const recommendedAction = chooseRecommendedAction(issues);
+
     return {
       score,
-      severity: getSeverity(score),
+      severity: chooseSeverity(score, recommendedAction),
       issues,
-      recommendedAction: chooseRecommendedAction(issues),
+      recommendedAction,
     };
   }
 
