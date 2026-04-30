@@ -1,5 +1,5 @@
 /**
- * Memphant — Background Service Worker (MV3)
+ * Memephant — Background Service Worker (MV3)
  *
  * Responsibilities:
  * - Badge the extension icon when an update is detected on a tab
@@ -41,13 +41,16 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
     clearBadge(tabId);
   }
 });
+// ─── Prompt Guard injection ───────────────────────────────────────────────────
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status !== 'complete') return;
   if (!tab.url) return;
 
   const isChatGPT =
-    tab.url.includes('chatgpt.com') || tab.url.includes('chat.openai.com');
+    tab.url.includes('chatgpt.com') ||
+    tab.url.includes('chat.openai.com');
+
   if (!isChatGPT) return;
 
   chrome.scripting
@@ -55,8 +58,8 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
       target: { tabId },
       files: [
         'prompt-guard/platforms/chatgpt.js',
-        'prompt-guard/index.js'
-      ]
+        'prompt-guard/index.js',
+      ],
     })
     .catch(() => {});
 });
