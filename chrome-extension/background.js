@@ -1,5 +1,5 @@
 /**
- * Memephant — Background Service Worker (MV3)
+ * Memephant â€” Background Service Worker (MV3)
  *
  * Responsibilities:
  * - Badge the extension icon when an update is detected on a tab
@@ -9,7 +9,7 @@
 
 'use strict';
 
-// ─── Badge helpers ────────────────────────────────────────────────────────────
+// â”€â”€â”€ Badge helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function setBadge(tabId) {
   chrome.action.setBadgeText({ text: '1', tabId });
@@ -20,7 +20,7 @@ function clearBadge(tabId) {
   chrome.action.setBadgeText({ text: '', tabId });
 }
 
-// ─── Message handling ─────────────────────────────────────────────────────────
+// â”€â”€â”€ Message handling â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 chrome.runtime.onMessage.addListener((msg, sender) => {
   const tabId = sender.tab?.id;
@@ -34,32 +34,10 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
   }
 });
 
-// ─── Clear badge when user navigates away ────────────────────────────────────
+// â”€â”€â”€ Clear badge when user navigates away â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
   if (changeInfo.status === 'loading') {
     clearBadge(tabId);
   }
-});
-// ─── Prompt Guard injection ───────────────────────────────────────────────────
-
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.status !== 'complete') return;
-  if (!tab.url) return;
-
-  const isChatGPT =
-    tab.url.includes('chatgpt.com') ||
-    tab.url.includes('chat.openai.com');
-
-  if (!isChatGPT) return;
-
-  chrome.scripting
-    .executeScript({
-      target: { tabId },
-      files: [
-        'prompt-guard/platforms/chatgpt.js',
-        'prompt-guard/index.js',
-      ],
-    })
-    .catch(() => {});
 });

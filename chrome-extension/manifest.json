@@ -32,7 +32,11 @@
         "https://chat.openai.com/*",
         "https://chatgpt.com/*"
       ],
-      "js": ["content.js"],
+      "js": [
+        "content.js",
+        "prompt-guard/platforms/chatgpt.js",
+        "prompt-guard/index.js"
+      ],
       "css": ["content.css"],
       "run_at": "document_idle"
     },
