@@ -29,7 +29,18 @@
     {
       "matches": [
         "https://chat.openai.com/*",
-        "https://chatgpt.com/*",
+        "https://chatgpt.com/*"
+      ],
+      "js": [
+        "content.js",
+        "prompt-guard/platforms/chatgpt.js",
+        "prompt-guard/index.js"
+      ],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
         "https://claude.ai/*",
         "https://x.com/*",
         "https://grok.com/*",
@@ -38,17 +49,6 @@
       ],
       "js": ["content.js"],
       "css": ["content.css"],
-      "run_at": "document_idle"
-    },
-    {
-      "matches": [
-        "https://chat.openai.com/*",
-        "https://chatgpt.com/*"
-      ],
-      "js": [
-        "prompt-guard/platforms/chatgpt.js",
-        "prompt-guard/index.js"
-      ],
       "run_at": "document_idle"
     }
   ],
