@@ -1,12 +1,12 @@
 /**
- * Memphant — Content Script
+ * Memephant — Content Script
  *
  * Runs on ChatGPT, Claude, Grok, Perplexity, and Gemini pages.
  *
  * Two jobs:
- *  1. DETECT — Watch AI responses for memphant_update JSON blocks,
- *              show a floating "Apply to Memphant" button when found.
- *  2. INJECT — Add a small "🐘 Copy for Memphant" button to every AI
+ *  1. DETECT — Watch AI responses for memephant_update JSON blocks,
+ *              show a floating "Apply to Memephant" button when found.
+ *  2. INJECT — Add a small "🐘 Copy for Memephant" button to every AI
  *              message so users can grab the full response easily.
  */
 
@@ -198,6 +198,27 @@ function injectAllButtons() {
 
 let scanDebounce = null;
 
+function sendRuntimeMessageSafely(message) {
+  try {
+    if (
+      typeof chrome === 'undefined' ||
+      !chrome.runtime ||
+      !chrome.runtime.id ||
+      typeof chrome.runtime.sendMessage !== 'function'
+    ) {
+      return;
+    }
+
+    chrome.runtime.sendMessage(message, () => {
+      // Swallow lastError so stale tabs do not throw after extension reloads.
+      void chrome.runtime.lastError;
+    });
+  } catch {
+    // The extension was probably reloaded while this page still had an old
+    // content script instance alive. Ignore safely.
+  }
+}
+
 function scheduleScan() {
   clearTimeout(scanDebounce);
   scanDebounce = setTimeout(() => {
@@ -205,7 +226,7 @@ function scheduleScan() {
     const update = extractUpdateFromText(text);
     if (update && JSON.stringify(update) !== JSON.stringify(lastDetectedJson)) {
       showFloater(update);
-      chrome.runtime.sendMessage({ type: 'UPDATE_FOUND', data: update });
+      sendRuntimeMessageSafely({ type: 'UPDATE_FOUND', data: update });
     }
     injectAllButtons();
   }, 700);
