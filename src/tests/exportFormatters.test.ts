@@ -222,9 +222,13 @@ describe('secret sanitisation', () => {
 describe('linkedFolder path exclusion', () => {
   it('never includes the linked folder path in any platform export', () => {
     const project = makeProject({
-      linkedFolder: { path: '/Users/kris/secret/project-path', scanHash: 'abc', lastScannedAt: '' },
+      linkedFolder: {
+        path: '/Users/kris/secret/project-path',
+        scanHash: 'abc',
+        lastScannedAt: '',
+      },
     });
-    const platforms = ['claude', 'chatgpt', 'grok', 'perplexity', 'gemini'] as const;
+    const platforms = ['claude', 'chatgpt', 'grok', 'perplexity', 'gemini', 'codex', 'cowork'] as const;
     for (const platform of platforms) {
       const output = formatForPlatform(project, platform);
       expect(output).not.toContain('/Users/kris/secret/project-path');
@@ -317,6 +321,56 @@ describe('gemini format', () => {
   });
 });
 
+describe('agent handoff formats', () => {
+  it('formats Codex handoff with repo verification instructions', () => {
+    const project = makeProject({
+      pendingGitCommits: [
+        {
+          hash: 'abc123',
+          message: 'feat: add Prompt Guard preview actions',
+          timestamp: '2026-04-30T10:00:00.000Z',
+          author: 'Kris',
+        },
+      ],
+      importantAssets: [
+        'chrome-extension/prompt-guard/overlay.js',
+        'chrome-extension/content.js',
+      ],
+    });
+
+    const output = formatForPlatform(project, 'codex', 'Verify Prompt Guard changes');
+
+    expect(output).toContain('PROJECT: My SaaS App');
+    expect(output).toContain('STATUS: Pre-launch. MVP is 80% done.');
+    expect(output).toContain('RECENT_GIT_COMMITS:');
+    expect(output).toContain('abc123 2026-04-30: feat: add Prompt Guard preview actions');
+    expect(output).toContain('IMPORTANT_ASSETS: chrome-extension/prompt-guard/overlay.js, chrome-extension/content.js');
+    expect(output).toContain('TASK: Verify Prompt Guard changes');
+    expect(output).toContain('Your task: verify the claims in the previous session against the actual codebase.');
+    expect(output).toContain('VERIFIED, REFUTED, or UNVERIFIED');
+    expect(output).toContain('Files you inspected');
+    expect(output).toContain('memphant_update');
+  });
+
+  it('formats Cowork handoff with continuity and architecture review instructions', () => {
+    const output = formatForPlatform(
+      makeProject(),
+      'cowork',
+      'Review the agent handoff plan',
+    );
+
+    expect(output).toContain('PROJECT: My SaaS App');
+    expect(output).toContain('STATUS: Pre-launch. MVP is 80% done.');
+    expect(output).toContain('TASK: Review the agent handoff plan');
+    expect(output).toContain('Your task: review continuity and architecture.');
+    expect(output).toContain('Continuity check');
+    expect(output).toContain('Architecture review');
+    expect(output).toContain('Risks the previous session may have missed');
+    expect(output).toContain('Recommended implementation plan as 3-5 ordered steps');
+    expect(output).toContain('memphant_update');
+  });
+});
+
 describe('custom platform format', () => {
   it('uses the selected platform config for custom platforms', () => {
     const output = formatForPlatform(
@@ -342,6 +396,7 @@ describe('custom platform format', () => {
     expect(output).toContain('Review the onboarding flow');
   });
 });
+
 describe('response format guardrails', () => {
   it('tells AIs to fill changed fields and only add genuinely new items', () => {
     const output = formatForPlatform(makeProject(), 'chatgpt');
@@ -364,6 +419,7 @@ describe('response format guardrails', () => {
     expect(output).toContain('"openQuestion"');
   });
 });
+
 // ─── Export modes ─────────────────────────────────────────────────────────────
 
 describe('delta mode', () => {
@@ -432,7 +488,7 @@ describe('edge cases', () => {
       importantAssets: [],
       aiInstructions: '',
     });
-    const platforms = ['claude', 'chatgpt', 'grok', 'perplexity', 'gemini'] as const;
+    const platforms = ['claude', 'chatgpt', 'grok', 'perplexity', 'gemini', 'codex', 'cowork'] as const;
     for (const platform of platforms) {
       expect(() => formatForPlatform(project, platform)).not.toThrow();
     }
