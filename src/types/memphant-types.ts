@@ -7,6 +7,8 @@ export type BuiltInPlatformId =
   | 'cursor'
   | 'github-copilot'
   | 'phind'
+  | 'codex'
+  | 'cowork'
   | 'ollama'
   | 'lm-studio'
   | 'jan'
@@ -301,8 +303,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
       cursor: false,
       'github-copilot': false,
       phind: false,
-      codex: false,
-      cowork: false,
+      codex: true,
+      cowork: true,
       ollama: false,
       'lm-studio': false,
       jan: false,
