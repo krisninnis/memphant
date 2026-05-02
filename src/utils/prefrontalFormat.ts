@@ -14,7 +14,6 @@ import {
   removeMemphantPlaceholderStrings,
   removeMemphantPlaceholderText,
 } from './memphantPlaceholders';
-import { countMentionsInText } from './hippocampusFormat';
 
 export const PREFRONTAL_SCHEMA_VERSION = '1.0';
 
@@ -119,6 +118,119 @@ function deduplicateStrings(items: string[]): string[] {
   });
 }
 
+function normalizeAssetPath(path: string): string {
+  return path
+    .trim()
+    .replace(/^["']|["']$/g, '')
+    .replace(/\\/g, '/')
+    .replace(/\/{2,}/g, '/');
+}
+
+function normalizeMentionText(text: string): string {
+  return text.replace(/\\/g, '/').toLowerCase();
+}
+
+function getAssetBasename(path: string): string {
+  return normalizeAssetPath(path).split('/').filter(Boolean).pop()?.toLowerCase() ?? '';
+}
+
+/**
+ * Build mention text from only the working-memory fields that are actually
+ * emitted into prefrontal.md.
+ *
+ * Important: visibleInProgress and visibleNextSteps are already cleaned,
+ * deduplicated, placeholder-filtered, and capped. This prevents hidden stale
+ * nextSteps from creating misleading Referenced Files.
+ */
+function buildReferencedFileMentionText(
+  project: ProjectMemory,
+  visibleInProgress: string[],
+  visibleNextSteps: string[],
+): string {
+  return [
+    removeMemphantPlaceholderText(project.currentState) ?? '',
+    removeMemphantPlaceholderText(project.lastSessionSummary) ?? '',
+    ...visibleInProgress,
+    ...visibleNextSteps,
+    removeMemphantPlaceholderText(project.openQuestion) ?? '',
+  ].join('\n');
+}
+
+function countTextOccurrences(needle: string, haystack: string): number {
+  if (!needle) return 0;
+
+  let count = 0;
+  let position = 0;
+
+  while ((position = haystack.indexOf(needle, position)) !== -1) {
+    count += 1;
+    position += needle.length;
+  }
+
+  return count;
+}
+
+function countBasenameMentions(assetPath: string, text: string): number {
+  const basename = getAssetBasename(assetPath);
+  if (!basename) return 0;
+
+  return countTextOccurrences(basename, normalizeMentionText(text));
+}
+
+/**
+ * Counts explicit path/suffix mentions.
+ *
+ * Example:
+ * - asset: public-site/demo-cafe/index.html
+ * - explicit mentions that match:
+ *   - public-site/demo-cafe/index.html
+ *   - demo-cafe/index.html
+ *
+ * A plain basename like index.html is intentionally not counted here.
+ */
+function countExplicitPathMentions(assetPath: string, text: string): number {
+  const normalizedAsset = normalizeAssetPath(assetPath).toLowerCase();
+  const normalizedText = normalizeMentionText(text);
+  const parts = normalizedAsset.split('/').filter(Boolean);
+
+  if (parts.length < 2) return 0;
+
+  const suffixes = new Set<string>();
+
+  for (let start = 0; start < parts.length - 1; start += 1) {
+    suffixes.add(parts.slice(start).join('/'));
+  }
+
+  return Array.from(suffixes).reduce(
+    (total, suffix) => total + countTextOccurrences(suffix, normalizedText),
+    0,
+  );
+}
+
+function referencedAssetPriority(path: string): number {
+  const lower = normalizeAssetPath(path).toLowerCase();
+
+  // Strong product/page defaults for BrightFoundry-style public sites.
+  if (lower === 'public-site/index.html') return 0;
+  if (lower === 'public-site/website-design.html') return 1;
+  if (lower === 'public-site/pricing.html') return 2;
+  if (lower === 'public-site/services.html') return 3;
+
+  // Prefer primary public pages over demos/examples when only basename is mentioned.
+  if (lower.includes('/demo-')) return 80;
+  if (lower.includes('/examples/')) return 85;
+  if (lower.includes('/fixtures/')) return 86;
+  if (lower.includes('/test/') || lower.includes('/tests/')) return 87;
+
+  if (lower.startsWith('public-site/') && lower.endsWith('.html')) return 20;
+  if (lower.startsWith('src/') && /\.(ts|tsx|js|jsx|css|scss)$/.test(lower)) return 30;
+  if (lower.startsWith('server/') && /\.(js|ts|json)$/.test(lower)) return 40;
+  if (lower.endsWith('.html')) return 50;
+  if (lower.endsWith('.md')) return 55;
+
+  return 60;
+}
+
 /**
  * Filters placeholder strings, deduplicates case-insensitively,
  * then sanitises each item.
@@ -129,22 +241,62 @@ function prepareList(project: ProjectMemory, items: string[]): string[] {
   ).map((item) => clean(project, item));
 }
 
+type MentionedAssetCandidate = {
+  asset: string;
+  basename: string;
+  index: number;
+  basenameMentionCount: number;
+  explicitMentionCount: number;
+  priority: number;
+};
+
+function sortMentionedAssetCandidates(
+  a: MentionedAssetCandidate,
+  b: MentionedAssetCandidate,
+): number {
+  const explicitDiff = b.explicitMentionCount - a.explicitMentionCount;
+  if (explicitDiff !== 0) return explicitDiff;
+
+  const basenameDiff = b.basenameMentionCount - a.basenameMentionCount;
+  if (basenameDiff !== 0) return basenameDiff;
+
+  const priorityDiff = a.priority - b.priority;
+  if (priorityDiff !== 0) return priorityDiff;
+
+  return a.index - b.index;
+}
+
+function chooseBestCandidateForBasenameOnlyMention(
+  candidates: MentionedAssetCandidate[],
+): MentionedAssetCandidate {
+  return [...candidates].sort(sortMentionedAssetCandidates)[0];
+}
+
 /**
  * Returns only importantAssets whose basenames are directly mentioned in
- * currentState, lastSessionSummary, nextSteps, or openQuestion.
+ * the visible prefrontal.md working-memory context.
+ *
+ * If a full path/suffix is mentioned, that exact/suffix asset is included.
+ * If only a basename is mentioned and several assets share it, only the best
+ * priority asset is included to avoid noisy duplicate index.html matches.
+ *
+ * Windows paths are normalised before basename matching and output.
  * Capped to MENTIONED_ASSETS_CAP.
  */
-function prepareMentionedAssets(project: ProjectMemory): string[] {
-  const mentionText = [
-    project.currentState ?? '',
-    project.lastSessionSummary ?? '',
-    ...(project.nextSteps ?? []),
-    project.openQuestion ?? '',
-  ].join('\n');
-
+function prepareMentionedAssets(
+  project: ProjectMemory,
+  visibleInProgress: string[],
+  visibleNextSteps: string[],
+): string[] {
+  const mentionText = buildReferencedFileMentionText(
+    project,
+    visibleInProgress,
+    visibleNextSteps,
+  );
   const seen = new Set<string>();
 
-  return (project.importantAssets ?? [])
+  const candidates = (project.importantAssets ?? [])
+    .map(normalizeAssetPath)
     .filter((asset) => asset.trim())
     .filter((asset) => {
       const key = asset.toLowerCase();
@@ -152,9 +304,48 @@ function prepareMentionedAssets(project: ProjectMemory): string[] {
       seen.add(key);
       return true;
     })
-    .filter((asset) => countMentionsInText(asset, mentionText) > 0)
+    .map((asset, index): MentionedAssetCandidate => {
+      const explicitMentionCount = countExplicitPathMentions(asset, mentionText);
+      const basenameMentionCount = countBasenameMentions(asset, mentionText);
+
+      return {
+        asset,
+        basename: getAssetBasename(asset),
+        index,
+        explicitMentionCount,
+        basenameMentionCount,
+        priority: referencedAssetPriority(asset),
+      };
+    })
+    .filter(
+      (candidate) =>
+        candidate.basename &&
+        (candidate.explicitMentionCount > 0 || candidate.basenameMentionCount > 0),
+    );
+
+  const explicitCandidates = candidates.filter((candidate) => candidate.explicitMentionCount > 0);
+  const explicitBasenames = new Set(explicitCandidates.map((candidate) => candidate.basename));
+
+  const basenameOnlyGroups = new Map<string, MentionedAssetCandidate[]>();
+
+  for (const candidate of candidates) {
+    if (candidate.explicitMentionCount > 0) continue;
+    if (explicitBasenames.has(candidate.basename)) continue;
+
+    const group = basenameOnlyGroups.get(candidate.basename) ?? [];
+    group.push(candidate);
+    basenameOnlyGroups.set(candidate.basename, group);
+  }
+
+  const selected = [
+    ...explicitCandidates,
+    ...Array.from(basenameOnlyGroups.values()).map(chooseBestCandidateForBasenameOnlyMention),
+  ];
+
+  return selected
+    .sort(sortMentionedAssetCandidates)
     .slice(0, MENTIONED_ASSETS_CAP)
-    .map((asset) => clean(project, asset));
+    .map((candidate) => clean(project, candidate.asset));
 }
 
 function formatLastAiSession(project: ProjectMemory): string | null {
@@ -176,10 +367,10 @@ function formatLastAiSession(project: ProjectMemory): string | null {
   const parts: string[] = [`Platform: ${session.platform} | Mode: ${session.mode} | ${date}`];
 
   if (hasContent(session.userTaskSummary)) {
-    parts.push(`Task: ${sanitize(session.userTaskSummary.trim())}`);
+    parts.push(`Task: ${clean(project, session.userTaskSummary.trim())}`);
   }
   if (hasContent(session.userSwitchReason)) {
-    parts.push(`Switch reason: ${sanitize(session.userSwitchReason.trim())}`);
+    parts.push(`Switch reason: ${clean(project, session.userSwitchReason.trim())}`);
   }
 
   return parts.join('\n');
@@ -207,7 +398,7 @@ function formatRecentCheckpoint(project: ProjectMemory): string | null {
     }
   })();
 
-  return `${latest.platform} (${date}): ${sanitize(latest.summary.trim())}`;
+  return `${latest.platform} (${date}): ${clean(project, latest.summary.trim())}`;
 }
 
 // ─── Main formatter ───────────────────────────────────────────────────────────
@@ -308,8 +499,8 @@ export function generatePrefrontalMarkdown(project: ProjectMemory): string {
   }
 
   // ─── Referenced Files ────────────────────────────────────────────────────
-  // Only assets directly mentioned in the working-memory context fields.
-  const mentionedAssets = prepareMentionedAssets(project);
+  // Only assets directly mentioned in the visible working-memory sections.
+  const mentionedAssets = prepareMentionedAssets(project, inProgress, nextSteps);
   if (mentionedAssets.length > 0) {
     lines.push('## Referenced Files');
     lines.push('');
