@@ -936,6 +936,7 @@ select {
 .github-repo-input-row {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
@@ -1004,6 +1005,83 @@ select {
   line-height: 1.45;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.memory-cleanup-preview {
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid #2d3a58;
+  border-radius: 8px;
+  background: #121827;
+}
+
+.memory-cleanup-preview__header,
+.memory-cleanup-preview__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.memory-cleanup-preview__actions {
+  justify-content: flex-start;
+  margin-top: 12px;
+}
+
+.memory-cleanup-preview__title {
+  color: #e5e7eb;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.memory-cleanup-preview__meta,
+.memory-cleanup-preview__empty {
+  margin-top: 3px;
+  color: #8d95a8;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.memory-cleanup-preview__section {
+  margin-top: 10px;
+  color: #c8c8d8;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.memory-cleanup-preview__section p {
+  margin: 4px 0 0;
+  color: #9ca3af;
+}
+
+.memory-cleanup-preview__section ul {
+  max-height: 120px;
+  margin: 6px 0 0;
+  padding-left: 18px;
+  overflow: auto;
+  color: #9ca3af;
+}
+
+.memory-cleanup-preview__section li {
+  margin-bottom: 3px;
+  word-break: break-word;
+}
+
+.memory-cleanup-preview__ghost-btn {
+  flex-shrink: 0;
+  padding: 6px 10px;
+  border: 1px solid #2a3550;
+  border-radius: 7px;
+  background: transparent;
+  color: #aeb6c8;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.memory-cleanup-preview__ghost-btn:hover {
+  border-color: #4a6fa5;
+  color: #d8e3f8;
 }
 
 /* ── GitHub Scan button ───────────────────────────────────────────────────── */

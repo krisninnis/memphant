@@ -7,6 +7,11 @@ import EditableList from './EditableList';
 import { DecisionList } from './DecisionCard';
 import { generateSuggestions } from '../../utils/autoSuggest';
 import { generateHippocampusMarkdown } from '../../utils/hippocampusFormat';
+import { generatePrefrontalMarkdown } from '../../utils/prefrontalFormat';
+import {
+  getProjectMemoryCleanupPreview,
+  type ProjectMemoryCleanupPreview,
+} from '../../utils/projectMemoryCleanup';
 import { GitHubScanPreview } from './GitHubScanPreview';
 import { scanGitHubRepo, mergeScanResult, parseGitHubUrl } from '../../services/githubScanner';
 import { restoreProjectFromHistory } from '../../services/tauriActions';
@@ -33,6 +38,7 @@ export function ProjectEditor() {
   const [scanResult, setScanResult] = useState<GitHubScanResult | null>(null);
   const [scanError, setScanError] = useState<string>('');
   const [restoringId, setRestoringId] = useState<string | null>(null);
+  const [cleanupPreview, setCleanupPreview] = useState<ProjectMemoryCleanupPreview | null>(null);
 
   const project = activeProject;
 
@@ -48,6 +54,11 @@ export function ProjectEditor() {
     : [];
   const hippocampusPreview = useMemo(
     () => (project ? generateHippocampusMarkdown(project) : ''),
+    [project],
+  );
+
+  const prefrontalPreview = useMemo(
+    () => (project ? generatePrefrontalMarkdown(project) : ''),
     [project],
   );
 
@@ -132,6 +143,39 @@ export function ProjectEditor() {
     }
   }, [project, showToast]);
 
+  const handleCopyPrefrontal = useCallback(async () => {
+    if (!project) return;
+
+    try {
+      await navigator.clipboard.writeText(generatePrefrontalMarkdown(project));
+      showToast('Copied prefrontal.md.');
+    } catch {
+      showToast('Could not copy prefrontal.md.');
+    }
+  }, [project, showToast]);
+
+  const handleDownloadPrefrontal = useCallback(() => {
+    if (!project) return;
+
+    try {
+      const content = generatePrefrontalMarkdown(project);
+      const blob = new Blob([content], { type: 'text/markdown; charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = 'prefrontal.md';
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      URL.revokeObjectURL(url);
+
+      showToast('Downloaded prefrontal.md.');
+    } catch {
+      showToast('Could not download prefrontal.md.');
+    }
+  }, [project, showToast]);
+
   const handleDownloadHippocampus = useCallback(() => {
     if (!project) return;
 
@@ -153,6 +197,38 @@ export function ProjectEditor() {
       showToast('Could not download hippocampus.md.');
     }
   }, [project, showToast]);
+
+  const handlePreviewCleanup = useCallback(() => {
+    if (!project) return;
+
+    const preview = getProjectMemoryCleanupPreview(project);
+    setCleanupPreview(preview);
+
+    if (!preview.hasChanges) {
+      showToast('Project memory already looks clean.');
+    }
+  }, [project, showToast]);
+
+  const handleApplyCleanup = useCallback(() => {
+    if (!project || !cleanupPreview?.hasChanges) return;
+
+    updateProject(project.id, {
+      summary: cleanupPreview.draft.summary,
+      currentState: cleanupPreview.draft.currentState,
+      lastSessionSummary: cleanupPreview.draft.lastSessionSummary,
+      openQuestion: cleanupPreview.draft.openQuestion,
+      goals: cleanupPreview.draft.goals,
+      rules: cleanupPreview.draft.rules,
+      nextSteps: cleanupPreview.draft.nextSteps,
+      openQuestions: cleanupPreview.draft.openQuestions,
+      importantAssets: cleanupPreview.draft.importantAssets,
+      projectCharter: cleanupPreview.draft.projectCharter,
+      decisions: cleanupPreview.draft.decisions,
+    } as Parameters<typeof updateProject>[1]);
+
+    setCleanupPreview(null);
+    showToast('Cleaned project memory. Review the fields before exporting.');
+  }, [project, cleanupPreview, updateProject, showToast]);
 
   const handleRestore = useCallback(
     async (restorePointId: string) => {
@@ -408,13 +484,138 @@ export function ProjectEditor() {
           >
             Download hippocampus.md
           </button>
+          <button
+            type="button"
+            className="github-scan-btn"
+            onClick={() => handlePreviewCleanup()}
+            title="Preview cleanup of placeholder, duplicate, and noisy memory values"
+          >
+            Clean project memory
+          </button>
         </div>
         <p className="github-repo-hint">
           Copies or downloads a portable Memory Core markdown file. This does not write to your linked folder yet.
         </p>
+        {cleanupPreview && (
+          <div className="memory-cleanup-preview">
+            <div className="memory-cleanup-preview__header">
+              <div>
+                <div className="memory-cleanup-preview__title">Cleanup preview</div>
+                <div className="memory-cleanup-preview__meta">
+                  {cleanupPreview.hasChanges
+                    ? `${cleanupPreview.fieldsChanged.length} field${cleanupPreview.fieldsChanged.length === 1 ? '' : 's'} would change`
+                    : 'No cleanup changes found'}
+                </div>
+              </div>
+              <button
+                type="button"
+                className="memory-cleanup-preview__ghost-btn"
+                onClick={() => setCleanupPreview(null)}
+              >
+                Dismiss
+              </button>
+            </div>
+
+            {cleanupPreview.hasChanges ? (
+              <>
+                <div className="memory-cleanup-preview__section">
+                  <strong>Fields changed</strong>
+                  <p>{cleanupPreview.fieldsChanged.join(', ')}</p>
+                </div>
+
+                {cleanupPreview.removedPlaceholderValues.length > 0 && (
+                  <div className="memory-cleanup-preview__section">
+                    <strong>Placeholder values removed</strong>
+                    <ul>
+                      {cleanupPreview.removedPlaceholderValues.slice(0, 6).map((item, index) => (
+                        <li key={`${item.field}-${index}`}>
+                          {item.field}: {item.value}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {cleanupPreview.removedDuplicateValues.length > 0 && (
+                  <div className="memory-cleanup-preview__section">
+                    <strong>Duplicates removed</strong>
+                    <ul>
+                      {cleanupPreview.removedDuplicateValues.slice(0, 6).map((item, index) => (
+                        <li key={`${item.field}-${index}`}>
+                          {item.field}: {item.value}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {cleanupPreview.removedNoisyAssets.length > 0 && (
+                  <div className="memory-cleanup-preview__section">
+                    <strong>Noisy assets removed</strong>
+                    <ul>
+                      {cleanupPreview.removedNoisyAssets.slice(0, 6).map((asset) => (
+                        <li key={asset}>{asset}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                <div className="memory-cleanup-preview__actions">
+                  <button
+                    type="button"
+                    className="github-scan-btn"
+                    onClick={() => handleApplyCleanup()}
+                  >
+                    Apply cleanup
+                  </button>
+                  <button
+                    type="button"
+                    className="memory-cleanup-preview__ghost-btn"
+                    onClick={() => setCleanupPreview(null)}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
+            ) : (
+              <p className="memory-cleanup-preview__empty">
+                No known placeholder, duplicate, or noisy memory values were found.
+              </p>
+            )}
+          </div>
+        )}
         <details className="hippocampus-preview">
           <summary>Preview hippocampus.md</summary>
           <pre>{hippocampusPreview}</pre>
+        </details>
+      </div>
+
+      <div className="field-group">
+        <div className="field-label">Working Memory File</div>
+        <div className="github-repo-input-row">
+          <button
+            type="button"
+            className="github-scan-btn"
+            onClick={() => void handleCopyPrefrontal()}
+            title="Copy generated .memephant/prefrontal.md markdown to clipboard"
+          >
+            Copy prefrontal.md
+          </button>
+          <button
+            type="button"
+            className="github-scan-btn"
+            onClick={() => handleDownloadPrefrontal()}
+            title="Download .memephant/prefrontal.md as a file"
+          >
+            Download prefrontal.md
+          </button>
+        </div>
+        <p className="github-repo-hint">
+          Short-term working memory for the current session — what is happening right now. This does not write to your linked folder.
+        </p>
+        <details className="hippocampus-preview">
+          <summary>Preview prefrontal.md</summary>
+          <pre>{prefrontalPreview}</pre>
         </details>
       </div>
 
