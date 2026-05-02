@@ -2915,3 +2915,24 @@ select {
     justify-content: center;
   }
 }
+
+.project-history-card__header--button {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.project-history-card__header--button:hover .field-label {
+  color: #f8fafc;
+}
+
+.project-history-card__chevron {
+  margin-left: 6px;
+  font-size: 0.72rem;
+  opacity: 0.75;
+}

@@ -59,6 +59,7 @@ export function PasteZone() {
   const setPreAiBackup = useProjectStore((s) => s.setPreAiBackup);
   const showToast = useProjectStore((s) => s.showToast);
   const targetPlatform = useProjectStore((s) => s.targetPlatform);
+  const memoryBridgeMode = useProjectStore((s) => s.memoryBridgeMode);
   const platformSettings = useProjectStore((s) => s.settings.platforms);
   const targetPlatformLabel = getPlatformConfig(targetPlatform, platformSettings).name;
   const localAiSettings = useProjectStore((s) => s.settings.localAi);
@@ -517,6 +518,8 @@ const recentChanges = deduplicateChanges(allRecentChanges);
     handleTextChange(droppedText);
     setState('typing');
   };
+
+  if (memoryBridgeMode === 'auto') return null;
 
  return (
   <div className="paste-zone-wrapper" data-tour="paste">

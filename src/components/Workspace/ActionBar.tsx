@@ -38,6 +38,7 @@ type GitSyncState = 'idle' | 'syncing' | 'found' | 'up_to_date';
 
 export function ActionBar() {
   const activeProject = useActiveProject();
+  const memoryBridgeMode = useProjectStore((s) => s.memoryBridgeMode);
   const preAiBackup = useProjectStore((s) => s.preAiBackup);
   const setPreAiBackup = useProjectStore((s) => s.setPreAiBackup);
   const updateProject = useProjectStore((s) => s.updateProject);
@@ -188,9 +189,11 @@ export function ActionBar() {
         <ExportButtons />
       </div>
 
-      <TaskField />
+      {memoryBridgeMode === 'manual' && (
+        <>
+          <TaskField />
 
-      {desktopApp && pendingGitCommits.length > 0 && (
+          {desktopApp && pendingGitCommits.length > 0 && (
         <div className="action-bar__git-note">
           {pendingGitCommits.length} commit{pendingGitCommits.length === 1 ? '' : 's'} will be included in your next AI export.
         </div>
@@ -286,9 +289,11 @@ export function ActionBar() {
             Undo last AI update
           </button>
         )}
-      </div>
+          </div>
+        </>
+      )}
 
-      {(manifestPreview || manifestError) && (
+      {memoryBridgeMode === 'manual' && (manifestPreview || manifestError) && (
         <div className="state-manifest-preview">
           <div className="state-manifest-preview__header">
             <div>

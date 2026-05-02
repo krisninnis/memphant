@@ -70,15 +70,15 @@ export function ExportButtons() {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const [handoffMode, setHandoffMode] = useState<HandoffMode>('continue');
-  const [memoryBridgeMode, setMemoryBridgeMode] = useState<MemoryBridgeMode>('auto');
   const [contextOpen, setContextOpen] = useState(false);
   const [switchReason, setSwitchReason] = useState('');
-
   const targetPlatform = useProjectStore((s) => s.targetPlatform);
   const setTargetPlatform = useProjectStore((s) => s.setTargetPlatform);
   const currentTask = useProjectStore((s) => s.currentTask);
   const showToast = useProjectStore((s) => s.showToast);
   const settings = useProjectStore((s) => s.settings);
+  const memoryBridgeMode = useProjectStore((s) => s.memoryBridgeMode);
+  const setMemoryBridgeMode = useProjectStore((s) => s.setMemoryBridgeMode);
   const updateLastAiSession = useProjectStore((s) => s.updateLastAiSession);
   const updateProject = useProjectStore((s) => s.updateProject);
 
@@ -752,7 +752,7 @@ export function ExportButtons() {
         )}
       </div>
 
-      {quality && (
+      {memoryBridgeMode === 'manual' && quality && (
         <div className="export-quality">
           <div className="export-quality__bar">
             <div
@@ -766,23 +766,25 @@ export function ExportButtons() {
         </div>
       )}
 
-      <div className="export-trust-card">
-        <div className="export-trust-card__row">
-          <span>Checkpoint</span>
-          <span>{checkpointSummary}</span>
-        </div>
-
-        {latestCheckpoint && (
-          <div className="export-trust-card__detail">
-            {selectedPlatform.name} handoff from {formatCheckpointTime(latestCheckpoint.timestamp)}
+      {memoryBridgeMode === 'manual' && (
+        <div className="export-trust-card">
+          <div className="export-trust-card__row">
+            <span>Checkpoint</span>
+            <span>{checkpointSummary}</span>
           </div>
-        )}
 
-        <div className="export-trust-card__row">
-          <span>Ready now</span>
-          <span>{changeSummary}</span>
+          {latestCheckpoint && (
+            <div className="export-trust-card__detail">
+              {selectedPlatform.name} handoff from {formatCheckpointTime(latestCheckpoint.timestamp)}
+            </div>
+          )}
+
+          <div className="export-trust-card__row">
+            <span>Ready now</span>
+            <span>{changeSummary}</span>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

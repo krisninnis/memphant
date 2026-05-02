@@ -9,6 +9,9 @@ function scrollFieldIntoView(target: HTMLInputElement) {
 export function TaskField() {
   const currentTask = useProjectStore((s) => s.currentTask);
   const setCurrentTask = useProjectStore((s) => s.setCurrentTask);
+  const memoryBridgeMode = useProjectStore((s) => s.memoryBridgeMode);
+
+  if (memoryBridgeMode === 'auto') return null;
 
   return (
     <div className="task-field">

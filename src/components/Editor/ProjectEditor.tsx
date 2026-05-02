@@ -38,6 +38,7 @@ export function ProjectEditor() {
   const [scanResult, setScanResult] = useState<GitHubScanResult | null>(null);
   const [scanError, setScanError] = useState<string>('');
   const [restoringId, setRestoringId] = useState<string | null>(null);
+  const [restoreHistoryOpen, setRestoreHistoryOpen] = useState(false);
   const [cleanupPreview, setCleanupPreview] = useState<ProjectMemoryCleanupPreview | null>(null);
 
   const project = activeProject;
@@ -256,7 +257,13 @@ export function ProjectEditor() {
     <div className="project-editor" data-tour="editor">
       {recentRestorePoints.length > 0 && (
         <div className="project-history-card">
-          <div className="project-history-card__header">
+          <button
+            type="button"
+            className="project-history-card__header project-history-card__header--button"
+            onClick={() => setRestoreHistoryOpen((open) => !open)}
+            aria-expanded={restoreHistoryOpen}
+            title="Show or hide restore history"
+          >
             <div>
               <div className="field-label">Restore History</div>
               <div className="project-history-card__hint">
@@ -265,30 +272,35 @@ export function ProjectEditor() {
             </div>
             <span className="project-history-card__badge">
               {recentRestorePoints.length} available
+              <span className="project-history-card__chevron" aria-hidden="true">
+                {restoreHistoryOpen ? '-' : '+'}
+              </span>
             </span>
-          </div>
+          </button>
 
-          <div className="project-history-list">
-            {recentRestorePoints.map((restorePoint) => (
-              <div key={restorePoint.id} className="project-history-item">
-                <div className="project-history-item__meta">
-                  <strong>
-                    {restorePoint.reason === 'rescan' ? 'Before rescan' : 'Before AI apply'}
-                  </strong>
-                  <span>{formatRestorePointTime(restorePoint.timestamp)}</span>
+          {restoreHistoryOpen && (
+            <div className="project-history-list">
+              {recentRestorePoints.map((restorePoint) => (
+                <div key={restorePoint.id} className="project-history-item">
+                  <div className="project-history-item__meta">
+                    <strong>
+                      {restorePoint.reason === 'rescan' ? 'Before rescan' : 'Before AI apply'}
+                    </strong>
+                    <span>{formatRestorePointTime(restorePoint.timestamp)}</span>
+                  </div>
+                  <div className="project-history-item__summary">{restorePoint.summary}</div>
+                  <button
+                    type="button"
+                    className="project-history-item__restore"
+                    onClick={() => void handleRestore(restorePoint.id)}
+                    disabled={restoringId === restorePoint.id}
+                  >
+                    {restoringId === restorePoint.id ? 'Restoring...' : 'Restore'}
+                  </button>
                 </div>
-                <div className="project-history-item__summary">{restorePoint.summary}</div>
-                <button
-                  type="button"
-                  className="project-history-item__restore"
-                  onClick={() => void handleRestore(restorePoint.id)}
-                  disabled={restoringId === restorePoint.id}
-                >
-                  {restoringId === restorePoint.id ? 'Restoring...' : 'Restore'}
-                </button>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

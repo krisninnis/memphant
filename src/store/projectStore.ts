@@ -86,6 +86,7 @@ interface ProjectStore {
   toastType: 'success' | 'error' | 'info';
   settings: AppSettings;
   currentView: 'projects' | 'settings';
+  memoryBridgeMode: 'auto' | 'manual';
 
   // Rollback state -- stores the project snapshot before last AI merge
   preAiBackup: ProjectMemory | null;
@@ -120,6 +121,7 @@ interface ProjectStore {
   showToast: (message: string, type?: 'success' | 'error' | 'info') => void;
   clearToast: () => void;
   setCurrentView: (view: 'projects' | 'settings') => void;
+  setMemoryBridgeMode: (mode: 'auto' | 'manual') => void;
   updateSettings: (updates: Partial<AppSettings>) => void;
 
   // Rollback
@@ -176,6 +178,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   toastType: 'success',
   settings: INITIAL_SETTINGS,
   currentView: 'projects',
+  memoryBridgeMode: 'auto',
   preAiBackup: null,
 
   // Cloud sync state
@@ -215,6 +218,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   },
   clearToast: () => set({ toastMessage: null }),
   setCurrentView: (view) => set({ currentView: view }),
+  setMemoryBridgeMode: (mode) => set({ memoryBridgeMode: mode }),
   updateSettings: (updates) =>
     set((state) => {
       const next = mergeSettings({ ...state.settings, ...updates });
