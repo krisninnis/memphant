@@ -176,13 +176,19 @@ export const MEMPHANT_UPDATE_SCHEMA_VERSION = '1.1.0';
 
 export const RESPONSE_FORMAT = `
 ---
-When you finish your response, you MUST include a project update 
-block. This is not optional — Memephant uses it to automatically 
+When you finish your response, you MUST include a project update
+block. This is not optional — Memephant uses it to automatically
 sync what changed in this session back into the app.
 
-Fill in every field that changed. Do not wait for the user to 
-tell you what changed — you just worked on this project, so you 
+Fill in every field that changed. Do not wait for the user to
+tell you what changed — you just worked on this project, so you
 know what changed.
+
+The update block must begin with the exact word \`memphant_update\`
+on its own line (plain text only — no asterisks, no backticks, no
+other text on that line), followed immediately by the fenced
+\`\`\`json block on the very next line. Do not add any text
+between the label and the code fence.
 
 memphant_update
 \`\`\`json

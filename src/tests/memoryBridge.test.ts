@@ -62,6 +62,15 @@ describe('memoryBridge', () => {
     expect(output).toContain('memphant_update` block using the exact format shown below');
   });
 
+  it('includes the explicit memphant_update label instruction in the response format', () => {
+    const output = buildMemoryBridgeBlock(makeProject());
+
+    // The new explicit instruction telling AIs to keep the label on its own line
+    expect(output).toContain('plain text only');
+    expect(output).toContain('no asterisks');
+    expect(output).toContain('followed immediately by the fenced');
+  });
+
   it('includes the full memphant_update format spec so AIs return the correct structure', () => {
     const output = buildMemoryBridgeBlock(makeProject());
 

@@ -152,6 +152,31 @@ function isSchemaVersionCompatible(parsed: Record<string, unknown>): boolean {
   return true;
 }
 
+/**
+ * Returns true when a parsed JSON object looks like a Memephant update block
+ * that was schema-tagged (contains schemaVersion) but the AI omitted the
+ * `memphant_update` label.  Used by step 1.5 so that properly-formatted
+ * responses from platforms like Perplexity are still accepted even when the
+ * marker line is missing.
+ *
+ * Intentionally requires schemaVersion so that arbitrary JSON blobs and
+ * old-schema responses (snake_case fields, no version) are NOT accepted here.
+ */
+function isMemphantSchemaJson(obj: Record<string, unknown>): boolean {
+  const version = obj.schemaVersion;
+  if (typeof version !== 'string') return false;
+  // Accept any 1.x version string (1.0.0, 1.1.0, 1.2.0, …)
+  if (!/^1\./.test(version)) return false;
+  // Must have at least one recognised v1.1.0 working-memory field
+  return Boolean(
+    obj.currentState ||
+      obj.lastSessionSummary ||
+      Array.isArray(obj.inProgress) ||
+      obj.nextSteps ||
+      obj.openQuestion,
+  );
+}
+
 function parseCandidateJson(candidate: string): DetectedUpdate | null {
   const trimmed = candidate.trim();
 
@@ -330,6 +355,7 @@ function parseNaturalLanguage(text: string): DetectedUpdate | null {
 
 export type DetectionSource =
   | 'strict_json'
+  | 'schema_tagged'
   | 'code_block'
   | 'bare_json'
   | 'natural_language'
@@ -430,6 +456,30 @@ export function detectUpdate(text: string): DetectionResult {
     const parsed = parseCandidateJson(strictJson);
     if (parsed) {
       return { update: parsed, source: 'strict_json', confidence: 1.0 };
+    }
+  }
+
+  // 1.5. schema-tagged code block — AI followed our JSON schema but omitted the
+  //      `memphant_update` label.  We accept this at confidence 0.95 only when
+  //      the block contains a schemaVersion field that matches the Memephant
+  //      format.  This rejects arbitrary JSON blobs and old-schema responses
+  //      (snake_case fields, missing schemaVersion).
+  const allCodeBlocks = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/gi);
+  if (allCodeBlocks) {
+    for (const block of allCodeBlocks) {
+      const cleaned = stripCodeFences(block);
+      if (!cleaned.startsWith('{') || !cleaned.endsWith('}')) continue;
+      try {
+        const parsed = JSON.parse(cleaned) as Record<string, unknown>;
+        if (isMemphantSchemaJson(parsed) && isSchemaVersionCompatible(parsed)) {
+          const update = parseCandidateJson(cleaned);
+          if (update) {
+            return { update, source: 'schema_tagged', confidence: 0.95 };
+          }
+        }
+      } catch {
+        // not valid JSON — try the next block
+      }
     }
   }
 

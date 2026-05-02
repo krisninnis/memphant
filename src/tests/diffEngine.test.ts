@@ -111,6 +111,108 @@ memphant_update
     expect(result.update).not.toBeNull();
     expect(result.update?.goals).toEqual(['Real goal']);
   });
+
+  // ── step 1.5: schema-tagged code block ──────────────────────────────────────
+
+  it('detects a schema-tagged code block (AI forgot the memphant_update label)', () => {
+    const text = `
+Here is my response.
+
+\`\`\`json
+{
+  "schemaVersion": "1.1.0",
+  "currentState": "Memory bridge is wired up.",
+  "lastSessionSummary": "Injected RESPONSE_FORMAT into buildMemoryBridgeBlock.",
+  "inProgress": [],
+  "nextSteps": ["Add tests for new detection strategy"],
+  "openQuestion": "Should step 1.5 run before or after XML?"
+}
+\`\`\`
+    `;
+    const result = detectUpdate(text);
+
+    expect(result.update).not.toBeNull();
+    expect(result.source).toBe('schema_tagged');
+    expect(result.confidence).toBe(0.95);
+    expect(result.update?.currentState).toBe('Memory bridge is wired up.');
+    expect(result.update?.lastSessionSummary).toBe(
+      'Injected RESPONSE_FORMAT into buildMemoryBridgeBlock.',
+    );
+    expect(result.update?.inProgress).toEqual([]);
+    expect(result.update?.openQuestion).toBe(
+      'Should step 1.5 run before or after XML?',
+    );
+  });
+
+  it('still uses strict_json (confidence 1.0) when the memphant_update label is present', () => {
+    const text = `
+memphant_update
+\`\`\`json
+{
+  "schemaVersion": "1.1.0",
+  "currentState": "Done.",
+  "lastSessionSummary": "Fixed the paste detector."
+}
+\`\`\`
+    `;
+    const result = detectUpdate(text);
+
+    expect(result.source).toBe('strict_json');
+    expect(result.confidence).toBe(1.0);
+  });
+
+  it('rejects an old-schema blob that has no schemaVersion (step 1.5 must not fire)', () => {
+    // Perplexity's pre-fix response format: snake_case keys, no schemaVersion
+    const text = `
+\`\`\`json
+{
+  "project": "Memephant",
+  "current_state": "Auto memory is broken.",
+  "next_steps": ["Fix detection"],
+  "open_questions": ["What fields does Memephant use?"],
+  "new_decisions": [{"decision": "Use snake_case", "rationale": "habit"}]
+}
+\`\`\`
+    `;
+    const result = detectUpdate(text);
+
+    // step 1.5 must NOT fire (no schemaVersion)
+    expect(result.source).not.toBe('schema_tagged');
+    // and no valid update should be parsed at all (snake_case fields are unknown)
+    expect(result.update).toBeNull();
+  });
+
+  it('rejects a schema-tagged block with an unsupported major version', () => {
+    const text = `
+\`\`\`json
+{
+  "schemaVersion": "2.0.0",
+  "currentState": "Far future format.",
+  "lastSessionSummary": "This version is not yet supported."
+}
+\`\`\`
+    `;
+    const result = detectUpdate(text);
+
+    // schemaVersion 2.x is a breaking change — must not be accepted
+    expect(result.update).toBeNull();
+  });
+
+  it('accepts a schema-tagged block that has schemaVersion but only camelCase v1 fields', () => {
+    // schemaVersion present, no 1.1.0 fields — but currentState is enough
+    const text = `
+\`\`\`json
+{
+  "schemaVersion": "1.0.0",
+  "currentState": "Old-schema but schema-versioned block."
+}
+\`\`\`
+    `;
+    const result = detectUpdate(text);
+
+    expect(result.source).toBe('schema_tagged');
+    expect(result.update?.currentState).toBe('Old-schema but schema-versioned block.');
+  });
 });
 
 // ─── computeDiff ──────────────────────────────────────────────────────────────
