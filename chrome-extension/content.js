@@ -60,9 +60,20 @@ function canUseChromeStorage() {
 function isAutomaticMemoryMode() {
   return (
     extensionSettings.memephantMemoryMode === 'automatic' ||
+    extensionSettings.memephantMemoryMode === 'auto' ||
     extensionSettings.memephantAutomaticMode === true ||
-    extensionSettings.memoryBridgeMode === 'automatic'
+    extensionSettings.memoryBridgeMode === 'automatic' ||
+    extensionSettings.memoryBridgeMode === 'auto'
   );
+}
+
+/** Remove all previously injected "Copy for Memephant" buttons from the page. */
+function removeAllInjectedButtons() {
+  document.querySelectorAll('.mph-inject-btn').forEach((btn) => btn.remove());
+  // Also reset the injected marker so buttons can be re-added if mode switches back.
+  document.querySelectorAll('[data-mph-injected]').forEach((node) => {
+    delete node.dataset.mphInjected;
+  });
 }
 
 function loadSettings() {
@@ -123,6 +134,7 @@ function listenForSettingsChanges() {
 
     if (isAutomaticMemoryMode()) {
       dismissFloater();
+      removeAllInjectedButtons();
     }
 
     console.log('Memephant: extension settings updated', extensionSettings);
@@ -462,7 +474,9 @@ function scheduleScan() {
       }
     }
 
-    injectAllButtons();
+    if (!isAutomaticMemoryMode()) {
+      injectAllButtons();
+    }
   }, 700);
 }
 
@@ -491,6 +505,52 @@ async function startObserver() {
 
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
+    startObserver().catch((error) => {
+      console.error('Memephant: content script failed to start', error);
+    });
+  });
+} else {
+  startObserver().catch((error) => {
+    console.error('Memephant: content script failed to start', error);
+  });
+}
+
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg.type === 'GET_CURRENT_UPDATE') {
+    return Promise.resolve({ update: lastDetectedJson });
+  }
+
+  if (msg.type === 'COPY_UPDATE') {
+    void handleCopy();
+  }
+
+  if (msg.type === 'HIDE_MEMEPHANT_FLOATER') {
+    dismissFloater();
+  }
+});dEventListener('DOMContentLoaded', () => {
+    startObserver().catch((error) => {
+      console.error('Memephant: content script failed to start', error);
+    });
+  });
+} else {
+  startObserver().catch((error) => {
+    console.error('Memephant: content script failed to start', error);
+  });
+}
+
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg.type === 'GET_CURRENT_UPDATE') {
+    return Promise.resolve({ update: lastDetectedJson });
+  }
+
+  if (msg.type === 'COPY_UPDATE') {
+    void handleCopy();
+  }
+
+  if (msg.type === 'HIDE_MEMEPHANT_FLOATER') {
+    dismissFloater();
+  }
+});dEventListener('DOMContentLoaded', () => {
     startObserver().catch((error) => {
       console.error('Memephant: content script failed to start', error);
     });
