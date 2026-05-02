@@ -522,6 +522,104 @@ memphant_update
   });
 });
 
+describe('memphant_update placeholder filtering', () => {
+  it('filters schema-template placeholders while preserving real update values', () => {
+    const text = `
+memphant_update
+{
+  "currentState": "Write 1-2 sentences describing what is true right now after this session. What was built, fixed, or decided?",
+  "lastSessionSummary": "Write 2-4 sentences recapping exactly what happened in this session. Be specific.",
+  "inProgress": ["List only things actively being worked on right now — not done, not future", "Implement Memory Core cleanup"],
+  "nextSteps": ["List the immediate next actions that should happen after this session", "Run the validation suite"],
+  "openQuestion": "The single most important unresolved question or decision needed to move forward",
+  "goals": ["Only include if a genuinely new goal emerged this session", "Keep project memory clean"],
+  "decisions": [
+    {
+      "decision": "Only include genuinely new decisions made this session",
+      "rationale": "Why this decision was made"
+    },
+    {
+      "decision": "Filter placeholder values deterministically",
+      "rationale": "They are not real project memory"
+    }
+  ]
+}
+    `;
+
+    const result = detectUpdate(text);
+
+    expect(result.update).not.toBeNull();
+    expect(result.update?.currentState).toBeUndefined();
+    expect(result.update?.lastSessionSummary).toBeUndefined();
+    expect(result.update?.openQuestion).toBeUndefined();
+    expect(result.update?.inProgress).toEqual(['Implement Memory Core cleanup']);
+    expect(result.update?.nextSteps).toEqual(['Run the validation suite']);
+    expect(result.update?.goals).toEqual(['Keep project memory clean']);
+    expect(result.update?.decisions).toEqual([
+      {
+        decision: 'Filter placeholder values deterministically',
+        rationale: 'They are not real project memory',
+      },
+    ]);
+  });
+
+  it('returns no update when a block only contains schema-template placeholders', () => {
+    const text = `
+memphant_update
+{
+  "currentState": "Write 1-2 sentences describing what is true right now after this session. What was built, fixed, or decided?",
+  "lastSessionSummary": "Write 2-4 sentences recapping exactly what happened in this session. Be specific.",
+  "nextSteps": ["List the immediate next actions that should happen after this session"],
+  "openQuestion": "The single most important unresolved question or decision needed to move forward",
+  "goals": ["Only include if a genuinely new goal emerged this session"],
+  "decisions": [{"decision": "Only include genuinely new decisions made this session", "rationale": "Why this decision was made"}]
+}
+    `;
+
+    const result = detectUpdate(text);
+
+    expect(result.update).toBeNull();
+    expect(result.source).toBe('none');
+  });
+
+  it('does not compute diffs for placeholder update values', () => {
+    const project = makeProject();
+    const diffs = computeDiff(project, {
+      currentState: 'Write 1-2 sentences describing what is true right now after this session.',
+      nextSteps: ['List the immediate next actions that should happen after this session'],
+      decisions: [{ decision: 'Only include genuinely new decisions made this session' }],
+    });
+
+    expect(diffs).toHaveLength(0);
+  });
+
+  it('does not apply placeholder update values during merge', () => {
+    const project = makeProject({
+      currentState: 'Real state.',
+      nextSteps: ['Real next step'],
+      decisions: [],
+      lastSessionSummary: undefined,
+    });
+
+    const result = applyUpdate(project, {
+      currentState: 'Write 1-2 sentences describing what is true right now after this session.',
+      lastSessionSummary: 'Write 2-4 sentences recapping exactly what happened in this session.',
+      nextSteps: ['List the immediate next actions that should happen after this session'],
+      decisions: [
+        {
+          decision: 'Only include genuinely new decisions made this session',
+          rationale: 'Why this decision was made',
+        },
+      ],
+    });
+
+    expect(result.currentState).toBe('Real state.');
+    expect(result.lastSessionSummary).toBeUndefined();
+    expect(result.nextSteps).toEqual(['Real next step']);
+    expect(result.decisions).toEqual([]);
+  });
+});
+
 // ─── Schema migration (normalizeOldProject) ───────────────────────────────────
 
 describe('normalizeOldProject — schema migration', () => {
@@ -609,4 +707,15 @@ describe('normalizeOldProject — schema migration', () => {
 
     expect(result.inProgress).toEqual(['Valid task', 'Another task']);
   });
+});
+it('does not clear inProgress when update contains only placeholder inProgress values', () => {
+  const project = makeProject({
+    inProgress: ['Real active work'],
+  });
+
+  const result = applyUpdate(project, {
+    inProgress: ['List only things actively being worked on right now — not done, not future'],
+  });
+
+  expect(result.inProgress).toEqual(['Real active work']);
 });

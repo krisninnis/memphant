@@ -7,6 +7,7 @@
 import {
   generateHippocampusMarkdown,
   generateDefaultCharter,
+  countMentionsInText,
   HIPPOCAMPUS_SCHEMA_VERSION,
 } from '../utils/hippocampusFormat';
 import type { ProjectMemory } from '../types/memphant-types';
@@ -396,6 +397,98 @@ describe('generateHippocampusMarkdown - optional sections', () => {
   });
 });
 
+describe('generateHippocampusMarkdown - placeholder filtering', () => {
+  const currentStatePlaceholder =
+    'Write 1-2 sentences describing what is true right now after this session. What was built, fixed, or decided?';
+  const sessionPlaceholder =
+    'Write 2-4 sentences recapping exactly what happened in this session. Be specific.';
+  const inProgressPlaceholder =
+    'List only things actively being worked on right now — not done, not future';
+  const nextStepPlaceholder =
+    'List the immediate next actions that should happen after this session';
+  const openQuestionPlaceholder =
+    'The single most important unresolved question or decision needed to move forward';
+  const goalPlaceholder = 'Only include if a genuinely new goal emerged this session';
+  const decisionPlaceholder = 'Only include genuinely new decisions made this session';
+  const rationalePlaceholder = 'Why this decision was made';
+
+  it('omits placeholder scalar sections from old polluted project data', () => {
+    const output = generateHippocampusMarkdown(
+      makeProject({
+        currentState: currentStatePlaceholder,
+        lastSessionSummary: sessionPlaceholder,
+        openQuestion: openQuestionPlaceholder,
+      }),
+    );
+
+    expect(output).not.toContain(currentStatePlaceholder);
+    expect(output).not.toContain(sessionPlaceholder);
+    expect(output).not.toContain(openQuestionPlaceholder);
+    expect(output).not.toMatch(/^## Current State$/m);
+    expect(output).not.toMatch(/^## Last Session Summary$/m);
+    expect(output).not.toMatch(/^## Open Question$/m);
+  });
+
+  it('omits placeholder list items while preserving real items', () => {
+    const output = generateHippocampusMarkdown(
+      makeProject({
+        goals: [goalPlaceholder, 'Ship clean project memory'],
+        nextSteps: [nextStepPlaceholder, 'Run tests'],
+        inProgress: [inProgressPlaceholder, 'Filtering placeholders'],
+      }),
+    );
+
+    expect(output).not.toContain(goalPlaceholder);
+    expect(output).not.toContain(nextStepPlaceholder);
+    expect(output).not.toContain(inProgressPlaceholder);
+    expect(output).toContain('Ship clean project memory');
+    expect(output).toContain('Run tests');
+    expect(output).toContain('Filtering placeholders');
+  });
+
+  it('omits placeholder decisions and placeholder rationales', () => {
+    const output = generateHippocampusMarkdown(
+      makeProject({
+        decisions: [
+          { decision: decisionPlaceholder, rationale: rationalePlaceholder },
+          { decision: 'Filter template values', rationale: rationalePlaceholder },
+        ],
+      }),
+    );
+
+    expect(output).not.toContain(decisionPlaceholder);
+    expect(output).not.toContain(rationalePlaceholder);
+    expect(output).toContain('Filter template values');
+    expect(output).not.toContain('Rationale:');
+  });
+
+  it('uses a default charter when projectCharter contains only placeholder text', () => {
+    const output = generateHippocampusMarkdown(
+      makeProject({ projectCharter: currentStatePlaceholder }),
+    );
+
+    expect(output).not.toContain(currentStatePlaceholder);
+    expect(output).toContain('## Charter');
+    expect(output).toContain('Auto-generated');
+  });
+
+  it('removes placeholder lines from mixed projectCharter text', () => {
+    const output = generateHippocampusMarkdown(
+      makeProject({
+        projectCharter: [
+          'Prefer small safe changes.',
+          `- ${nextStepPlaceholder}`,
+          'Keep user control visible.',
+        ].join('\n'),
+      }),
+    );
+
+    expect(output).toContain('Prefer small safe changes.');
+    expect(output).toContain('Keep user control visible.');
+    expect(output).not.toContain(nextStepPlaceholder);
+  });
+});
+
 // ─── Important Assets hardening ───────────────────────────────────────────────
 
 describe('generateHippocampusMarkdown - important asset hardening', () => {
@@ -482,6 +575,150 @@ describe('generateHippocampusMarkdown - important asset hardening', () => {
     const bullets = getSectionBullets(output, 'Important Assets');
 
     expect(bullets).toHaveLength(1);
+  });
+});
+
+// ─── Asset mention ranking ────────────────────────────────────────────────────
+
+describe('countMentionsInText', () => {
+  it('counts basename occurrences case-insensitively', () => {
+    expect(countMentionsInText('public-site/index.html', 'review index.html and INDEX.HTML')).toBe(2);
+  });
+
+  it('returns 0 when the basename is not present', () => {
+    expect(countMentionsInText('src/utils.ts', 'update the pricing page')).toBe(0);
+  });
+
+  it('returns 0 for an empty asset path', () => {
+    expect(countMentionsInText('', 'some text')).toBe(0);
+  });
+
+  it('counts multiple non-overlapping occurrences', () => {
+    expect(countMentionsInText('pricing.html', 'fix pricing.html then review pricing.html again')).toBe(2);
+  });
+});
+
+describe('generateHippocampusMarkdown - asset mention ranking', () => {
+  it('promotes assets mentioned in nextSteps above unmentioned ones', () => {
+    const output = generateHippocampusMarkdown(
+      makeProject({
+        nextSteps: ['Review index.html', 'Update pricing.html'],
+        importantAssets: [
+          'src/utils.ts',
+          'public-site/index.html',
+          'public-site/pricing.html',
+          'docs/changelog.md',
+        ],
+      }),
+    );
+    const bullets = getSectionBullets(output, 'Important Assets');
+    const indexPos  = bullets.findIndex((b) => b.includes('index.html'));
+    const pricingPos = bullets.findIndex((b) => b.includes('pricing.html'));
+    const utilsPos  = bullets.findIndex((b) => b.includes('utils.ts'));
+
+    expect(indexPos).toBeGreaterThanOrEqual(0);
+    expect(pricingPos).toBeGreaterThanOrEqual(0);
+    expect(indexPos).toBeLessThan(utilsPos);
+    expect(pricingPos).toBeLessThan(utilsPos);
+  });
+
+  it('promotes assets mentioned in currentState', () => {
+    const output = generateHippocampusMarkdown(
+      makeProject({
+        currentState: 'Working on website-design.html and services.html today.',
+        importantAssets: [
+          'src/utils.ts',
+          'public-site/website-design.html',
+          'public-site/services.html',
+        ],
+      }),
+    );
+    const bullets = getSectionBullets(output, 'Important Assets');
+    const designPos   = bullets.findIndex((b) => b.includes('website-design.html'));
+    const servicesPos = bullets.findIndex((b) => b.includes('services.html'));
+    const utilsPos    = bullets.findIndex((b) => b.includes('utils.ts'));
+
+    expect(designPos).toBeLessThan(utilsPos);
+    expect(servicesPos).toBeLessThan(utilsPos);
+  });
+
+  it('promotes assets mentioned in lastSessionSummary', () => {
+    const output = generateHippocampusMarkdown(
+      makeProject({
+        lastSessionSummary: 'Spent the session fixing errors in auth.ts.',
+        importantAssets: ['src/store.ts', 'src/auth.ts'],
+      }),
+    );
+    const bullets = getSectionBullets(output, 'Important Assets');
+    const authPos  = bullets.findIndex((b) => b.includes('auth.ts'));
+    const storePos = bullets.findIndex((b) => b.includes('store.ts'));
+
+    expect(authPos).toBeLessThan(storePos);
+  });
+
+  it('promotes assets mentioned in openQuestion', () => {
+    const output = generateHippocampusMarkdown(
+      makeProject({
+        openQuestion: 'Should styles.css be split into multiple files?',
+        importantAssets: ['src/utils.ts', 'public-site/css/styles.css'],
+      }),
+    );
+    const bullets = getSectionBullets(output, 'Important Assets');
+    const stylesPos = bullets.findIndex((b) => b.includes('styles.css'));
+    const utilsPos  = bullets.findIndex((b) => b.includes('utils.ts'));
+
+    expect(stylesPos).toBeLessThan(utilsPos);
+  });
+
+  it('ranks more-mentioned assets above less-mentioned ones', () => {
+    const output = generateHippocampusMarkdown(
+      makeProject({
+        nextSteps: [
+          'Update pricing.html header',
+          'Fix pricing.html footer',
+          'Review index.html once',
+        ],
+        importantAssets: ['public-site/index.html', 'public-site/pricing.html', 'src/utils.ts'],
+      }),
+    );
+    const bullets    = getSectionBullets(output, 'Important Assets');
+    const pricingPos = bullets.findIndex((b) => b.includes('pricing.html'));
+    const indexPos   = bullets.findIndex((b) => b.includes('index.html'));
+
+    // pricing.html mentioned twice → should rank above index.html (once)
+    expect(pricingPos).toBeLessThan(indexPos);
+  });
+
+  it('preserves static priority order among unmentioned assets', () => {
+    const output = generateHippocampusMarkdown(
+      makeProject({
+        currentState: 'No specific files mentioned.',
+        importantAssets: ['docs/notes.md', 'src/main.ts', 'README.md'],
+      }),
+    );
+    const bullets  = getSectionBullets(output, 'Important Assets');
+    const readmePos = bullets.findIndex((b) => b.includes('README.md'));
+    const srcPos    = bullets.findIndex((b) => b.includes('src/main.ts'));
+    const docsPos   = bullets.findIndex((b) => b.includes('docs/notes.md'));
+
+    // README (priority 0) < src/ (priority 20) < docs/ (priority 70)
+    expect(readmePos).toBeLessThan(srcPos);
+    expect(srcPos).toBeLessThan(docsPos);
+  });
+
+  it('keeps the 20-asset cap after mention-based re-ranking', () => {
+    const assets = Array.from({ length: 25 }, (_, i) => `src/file-${i + 1}.ts`);
+    assets.push('public-site/pricing.html');
+    const output = generateHippocampusMarkdown(
+      makeProject({
+        nextSteps: ['Update pricing.html'],
+        importantAssets: assets,
+      }),
+    );
+    const bullets = getSectionBullets(output, 'Important Assets');
+    expect(bullets).toHaveLength(20);
+    // The mentioned file must appear despite the cap.
+    expect(bullets.some((b) => b.includes('pricing.html'))).toBe(true);
   });
 });
 

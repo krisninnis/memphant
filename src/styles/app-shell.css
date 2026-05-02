@@ -978,6 +978,34 @@ select {
   line-height: 1.4;
 }
 
+.hippocampus-preview {
+  margin-top: 10px;
+  border: 1px solid #24243a;
+  border-radius: 8px;
+  background: #111120;
+}
+
+.hippocampus-preview summary {
+  cursor: pointer;
+  padding: 10px 12px;
+  color: #c8c8d8;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.hippocampus-preview pre {
+  max-height: 320px;
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+  border-top: 1px solid #24243a;
+  color: #d7d7e2;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 /* ── GitHub Scan button ───────────────────────────────────────────────────── */
 
 .github-scan-badge {

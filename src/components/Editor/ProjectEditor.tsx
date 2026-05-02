@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useProjectStore } from '../../store/projectStore';
 import { useActiveProject } from '../../hooks/useActiveProject';
 import { useRecentActivity } from '../../hooks/useRecentActivity';
@@ -46,6 +46,10 @@ export function ProjectEditor() {
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
         .slice(0, 5)
     : [];
+  const hippocampusPreview = useMemo(
+    () => (project ? generateHippocampusMarkdown(project) : ''),
+    [project],
+  );
 
   const update = (field: string, value: unknown) => {
     if (!project) return;
@@ -125,6 +129,28 @@ export function ProjectEditor() {
       showToast('Copied hippocampus.md.');
     } catch {
       showToast('Could not copy hippocampus.md.');
+    }
+  }, [project, showToast]);
+
+  const handleDownloadHippocampus = useCallback(() => {
+    if (!project) return;
+
+    try {
+      const content = generateHippocampusMarkdown(project);
+      const blob = new Blob([content], { type: 'text/markdown; charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = 'hippocampus.md';
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      URL.revokeObjectURL(url);
+
+      showToast('Downloaded hippocampus.md.');
+    } catch {
+      showToast('Could not download hippocampus.md.');
     }
   }, [project, showToast]);
 
@@ -365,17 +391,31 @@ export function ProjectEditor() {
 
       <div className="field-group">
         <div className="field-label">Memory Core File</div>
-        <button
-          type="button"
-          className="github-scan-btn"
-          onClick={() => void handleCopyHippocampus()}
-          title="Copy generated .memephant/hippocampus.md markdown"
-        >
-          Copy hippocampus.md
-        </button>
+        <div className="github-repo-input-row">
+          <button
+            type="button"
+            className="github-scan-btn"
+            onClick={() => void handleCopyHippocampus()}
+            title="Copy generated .memephant/hippocampus.md markdown to clipboard"
+          >
+            Copy hippocampus.md
+          </button>
+          <button
+            type="button"
+            className="github-scan-btn"
+            onClick={() => handleDownloadHippocampus()}
+            title="Download .memephant/hippocampus.md as a file"
+          >
+            Download hippocampus.md
+          </button>
+        </div>
         <p className="github-repo-hint">
-          Copies a portable Memory Core markdown file. This does not write to your linked folder yet.
+          Copies or downloads a portable Memory Core markdown file. This does not write to your linked folder yet.
         </p>
+        <details className="hippocampus-preview">
+          <summary>Preview hippocampus.md</summary>
+          <pre>{hippocampusPreview}</pre>
+        </details>
       </div>
 
       <EditableField

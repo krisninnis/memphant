@@ -11,6 +11,11 @@ import type {
   PlatformState,
   ProjectMemory,
 } from '../types/memphant-types';
+import {
+  isMemphantPlaceholderValue,
+  removeMemphantPlaceholderStrings,
+  removeMemphantPlaceholderText,
+} from './memphantPlaceholders';
 
 /** The structure of an AI update block */
 export interface DetectedUpdate {
@@ -53,7 +58,8 @@ function normaliseStringArray(value: unknown): string[] | undefined {
   const cleaned = value
     .filter((item): item is string => typeof item === 'string')
     .map((item) => item.trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .filter((item) => !isMemphantPlaceholderValue(item));
 
   return cleaned.length > 0 ? cleaned : undefined;
 }
@@ -67,18 +73,19 @@ function normaliseDecisions(
     .map((item) => {
       if (typeof item === 'string') {
         const decision = item.trim();
-        return decision ? { decision } : null;
+        return decision && !isMemphantPlaceholderValue(decision) ? { decision } : null;
       }
 
       if (typeof item === 'object' && item !== null) {
         const record = item as Record<string, unknown>;
         const decision = typeof record.decision === 'string' ? record.decision.trim() : '';
-        const rationale =
+        const rationaleCandidate =
           typeof record.rationale === 'string' && record.rationale.trim().length > 0
             ? record.rationale.trim()
             : undefined;
+        const rationale = removeMemphantPlaceholderText(rationaleCandidate);
 
-        if (!decision) return null;
+        if (!decision || isMemphantPlaceholderValue(decision)) return null;
 
         return { decision, rationale };
       }
@@ -159,11 +166,11 @@ function parseCandidateJson(candidate: string): DetectedUpdate | null {
 
     const normalised: DetectedUpdate = {};
 
-    if (isNonEmptyString(parsed.summary)) {
+    if (isNonEmptyString(parsed.summary) && !isMemphantPlaceholderValue(parsed.summary)) {
       normalised.summary = parsed.summary.trim();
     }
 
-    if (isNonEmptyString(parsed.currentState)) {
+    if (isNonEmptyString(parsed.currentState) && !isMemphantPlaceholderValue(parsed.currentState)) {
       normalised.currentState = parsed.currentState.trim();
     }
 
@@ -189,19 +196,29 @@ function parseCandidateJson(candidate: string): DetectedUpdate | null {
 
     // inProgress: REPLACE-ALL — preserve [] (means "clear"); absent field → not set.
     if (Array.isArray(parsed.inProgress)) {
-      normalised.inProgress = (parsed.inProgress as unknown[])
+      const rawInProgress = parsed.inProgress as unknown[];
+      const cleanedInProgress = rawInProgress
         .filter((item): item is string => typeof item === 'string')
         .map((s) => s.trim())
-        .filter(Boolean);
-      // Note: if parsed.inProgress was [] or all-blank-strings, normalised.inProgress is [].
+        .filter(Boolean)
+        .filter((item) => !isMemphantPlaceholderValue(item));
+
+      if (rawInProgress.length === 0 || cleanedInProgress.length > 0) {
+        normalised.inProgress = cleanedInProgress;
+      }
+      // Note: if parsed.inProgress was [] then normalised.inProgress is [].
       // This is intentional — an empty array is a valid "clear" instruction.
+      // If a non-empty array contained only placeholder text, it is treated as absent.
     }
 
-    if (isNonEmptyString(parsed.lastSessionSummary)) {
+    if (
+      isNonEmptyString(parsed.lastSessionSummary) &&
+      !isMemphantPlaceholderValue(parsed.lastSessionSummary)
+    ) {
       normalised.lastSessionSummary = parsed.lastSessionSummary.trim();
     }
 
-    if (isNonEmptyString(parsed.openQuestion)) {
+    if (isNonEmptyString(parsed.openQuestion) && !isMemphantPlaceholderValue(parsed.openQuestion)) {
       normalised.openQuestion = parsed.openQuestion.trim();
     }
 
@@ -532,6 +549,7 @@ export function computeDiff(
   update: DetectedUpdate,
   checkpoint?: ProjectCheckpoint | null,
 ): DiffResult[] {
+  update = removePlaceholderUpdateValues(update);
   const diffs: DiffResult[] = [];
   const baseline = getBaselineProject(current, checkpoint);
 
@@ -673,12 +691,58 @@ function findDiffForField(diffs: DiffResult[] | undefined, field: string): DiffR
   return diffs?.find((diff) => diff.field === field && diff.action === 'updated');
 }
 
+function removePlaceholderUpdateValues(update: DetectedUpdate): DetectedUpdate {
+  const cleaned: DetectedUpdate = { ...update };
+
+  for (const field of ['summary', 'currentState', 'lastSessionSummary', 'openQuestion'] as const) {
+    if (cleaned[field] && isMemphantPlaceholderValue(cleaned[field])) {
+      delete cleaned[field];
+    }
+  }
+
+  for (const field of ['goals', 'rules', 'nextSteps', 'openQuestions', 'importantAssets'] as const) {
+    if (cleaned[field]) {
+      const filtered = removeMemphantPlaceholderStrings(cleaned[field]);
+      if (filtered.length > 0) cleaned[field] = filtered;
+      else delete cleaned[field];
+    }
+  }
+
+  if (cleaned.inProgress) {
+  const originalLength = cleaned.inProgress.length;
+  const filtered = removeMemphantPlaceholderStrings(cleaned.inProgress);
+
+  if (originalLength === 0) {
+    cleaned.inProgress = [];
+  } else if (filtered.length > 0) {
+    cleaned.inProgress = filtered;
+  } else {
+    delete cleaned.inProgress;
+  }
+}
+
+  if (cleaned.decisions) {
+    const decisions = cleaned.decisions
+      .filter((decision) => !isMemphantPlaceholderValue(decision.decision))
+      .map((decision) => ({
+        decision: decision.decision,
+        rationale: removeMemphantPlaceholderText(decision.rationale),
+      }));
+
+    if (decisions.length > 0) cleaned.decisions = decisions;
+    else delete cleaned.decisions;
+  }
+
+  return cleaned;
+}
+
 /** Apply a detected update to the current project, producing a new project object */
 export function applyUpdate(
   current: ProjectMemory,
   update: DetectedUpdate,
   options: ApplyUpdateOptions = {},
 ): ProjectMemory {
+  update = removePlaceholderUpdateValues(update);
   const now = new Date().toISOString();
   const changelog = [...current.changelog];
   const merged: ProjectMemory = {
