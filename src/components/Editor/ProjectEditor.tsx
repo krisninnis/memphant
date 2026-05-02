@@ -6,6 +6,7 @@ import EditableField from './EditableField';
 import EditableList from './EditableList';
 import { DecisionList } from './DecisionCard';
 import { generateSuggestions } from '../../utils/autoSuggest';
+import { generateHippocampusMarkdown } from '../../utils/hippocampusFormat';
 import { GitHubScanPreview } from './GitHubScanPreview';
 import { scanGitHubRepo, mergeScanResult, parseGitHubUrl } from '../../services/githubScanner';
 import { restoreProjectFromHistory } from '../../services/tauriActions';
@@ -115,6 +116,17 @@ export function ProjectEditor() {
       showToast('Auto-filled - edit it to make it your own.');
     }
   }
+
+  const handleCopyHippocampus = useCallback(async () => {
+    if (!project) return;
+
+    try {
+      await navigator.clipboard.writeText(generateHippocampusMarkdown(project));
+      showToast('Copied hippocampus.md.');
+    } catch {
+      showToast('Could not copy hippocampus.md.');
+    }
+  }, [project, showToast]);
 
   const handleRestore = useCallback(
     async (restorePointId: string) => {
@@ -350,6 +362,21 @@ export function ProjectEditor() {
         onChange={(v) => update('importantAssets', v)}
         placeholder="Add a file or asset path..."
       />
+
+      <div className="field-group">
+        <div className="field-label">Memory Core File</div>
+        <button
+          type="button"
+          className="github-scan-btn"
+          onClick={() => void handleCopyHippocampus()}
+          title="Copy generated .memephant/hippocampus.md markdown"
+        >
+          Copy hippocampus.md
+        </button>
+        <p className="github-repo-hint">
+          Copies a portable Memory Core markdown file. This does not write to your linked folder yet.
+        </p>
+      </div>
 
       <EditableField
         label="Memory Core"
