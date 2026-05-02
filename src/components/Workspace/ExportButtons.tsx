@@ -20,6 +20,10 @@ import {
   setScannerLevel,
 } from '../../utils/exportFormatters';
 import { buildContinuityPreamble } from '../../utils/platformConfig';
+import {
+  appendMemoryBridgeToExport,
+  type MemoryBridgeMode,
+} from '../../utils/memoryBridge';
 import { getChangesSince } from '../../utils/getChangesSince';
 import { scoreExport } from '../../utils/exportQuality';
 import {
@@ -66,8 +70,9 @@ export function ExportButtons() {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const [handoffMode, setHandoffMode] = useState<HandoffMode>('continue');
-const [contextOpen, setContextOpen] = useState(false);
-const [switchReason, setSwitchReason] = useState('');
+  const [memoryBridgeMode, setMemoryBridgeMode] = useState<MemoryBridgeMode>('auto');
+  const [contextOpen, setContextOpen] = useState(false);
+  const [switchReason, setSwitchReason] = useState('');
 
   const targetPlatform = useProjectStore((s) => s.targetPlatform);
   const setTargetPlatform = useProjectStore((s) => s.setTargetPlatform);
@@ -182,6 +187,18 @@ const [switchReason, setSwitchReason] = useState('');
     }
   };
 
+  const applyMemoryBridgeIfAutomatic = useCallback((exportText: string) => {
+    if (!activeProject || memoryBridgeMode !== 'auto') {
+      return exportText;
+    }
+
+    return appendMemoryBridgeToExport(
+      exportText,
+      activeProject,
+      selectedPlatform.id,
+    );
+  }, [activeProject, memoryBridgeMode, selectedPlatform.id]);
+
   const handleCopyMode = useCallback(async (mode: ExportMode) => {
     if (!activeProject) {
       showToast('Open a project first', 'error');
@@ -209,7 +226,8 @@ const [switchReason, setSwitchReason] = useState('');
         ? { ...activeProject.lastAiSession, filesChangedSince: changedFiles }
         : undefined;
       const preamble = buildContinuityPreamble(sessionForPreamble, selectedPlatform.id);
-      await copyExportToClipboard(preamble + exportText, selectedPlatform.id);
+      const preparedExportText = applyMemoryBridgeIfAutomatic(exportText);
+      await copyExportToClipboard(preamble + preparedExportText, selectedPlatform.id);
 
       setCopied(true);
       const modeLabel =
@@ -246,6 +264,7 @@ const [switchReason, setSwitchReason] = useState('');
   }
 }, [
   activeProject,
+  applyMemoryBridgeIfAutomatic,
   currentTask,
   handoffMode,
   recentActivity,
@@ -285,7 +304,8 @@ const [switchReason, setSwitchReason] = useState('');
         ? { ...activeProject.lastAiSession, filesChangedSince: changedFiles }
         : undefined;
       const preamble = buildContinuityPreamble(sessionForPreamble, selectedPlatform.id);
-      await copyExportToClipboard(preamble + exportText, 'claude');
+      const preparedExportText = applyMemoryBridgeIfAutomatic(exportText);
+      await copyExportToClipboard(preamble + preparedExportText, 'claude');
 
       setManifestCopied(true);
       showToast('Copied with full context and deeper project memory');
@@ -321,6 +341,7 @@ const [switchReason, setSwitchReason] = useState('');
     }
   }, [
     activeProject,
+    applyMemoryBridgeIfAutomatic,
     currentTask,
     handoffMode,
     recentActivity,
@@ -394,6 +415,51 @@ const [switchReason, setSwitchReason] = useState('');
   return (
     <div className="export-controls" data-tour="export">
       <div
+        aria-label="Memory handoff mode"
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: '6px',
+          marginBottom: '10px',
+        }}
+      >
+        {(['auto', 'manual'] as MemoryBridgeMode[]).map((mode) => {
+          const isActive = memoryBridgeMode === mode;
+
+          return (
+            <button
+              key={mode}
+              type="button"
+              aria-pressed={isActive}
+              onClick={() => setMemoryBridgeMode(mode)}
+              title={
+                mode === 'auto'
+                  ? 'Automatic mode includes hippocampus.md and prefrontal.md in the AI handoff.'
+                  : 'Manual mode keeps the classic export without the Memory Bridge files.'
+              }
+              style={{
+                padding: '7px 10px',
+                borderRadius: '999px',
+                border: isActive
+                  ? `1.5px solid ${selectedPlatform.color ?? '#64748b'}`
+                  : '1.5px solid rgba(255,255,255,0.12)',
+                background: isActive
+                  ? `${selectedPlatform.color ?? '#64748b'}22`
+                  : 'rgba(255,255,255,0.04)',
+                color: isActive ? '#f8fafc' : 'rgba(248,250,252,0.58)',
+                fontSize: '0.78rem',
+                fontWeight: isActive ? 700 : 500,
+                cursor: 'pointer',
+                textTransform: 'capitalize',
+              }}
+            >
+              {mode === 'auto' ? 'Auto Memory' : 'Manual'}
+            </button>
+          );
+        })}
+      </div>
+
+      <div
         ref={menuRef}
         style={{
           position: 'relative',
@@ -425,7 +491,11 @@ const [switchReason, setSwitchReason] = useState('');
             } as CSSProperties}
             onClick={() => void handlePrimaryCopy()}
             disabled={!activeProject}
-            title={`Copy full project context for ${selectedPlatform.name}`}
+            title={
+              memoryBridgeMode === 'auto'
+                ? `Copy full context plus hippocampus.md and prefrontal.md for ${selectedPlatform.name}`
+                : `Copy full project context for ${selectedPlatform.name}`
+            }
           >
             {copied ? (
               <>
