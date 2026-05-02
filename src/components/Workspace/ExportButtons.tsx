@@ -21,7 +21,7 @@ import {
 } from '../../utils/exportFormatters';
 import { buildContinuityPreamble } from '../../utils/platformConfig';
 import {
-  appendMemoryBridgeToExport,
+  buildMemoryBridgeBlock,
   type MemoryBridgeMode,
 } from '../../utils/memoryBridge';
 import { getChangesSince } from '../../utils/getChangesSince';
@@ -187,16 +187,12 @@ export function ExportButtons() {
     }
   };
 
-  const applyMemoryBridgeIfAutomatic = useCallback((exportText: string) => {
+  const prepareExportForMemoryMode = useCallback((exportText: string) => {
     if (!activeProject || memoryBridgeMode !== 'auto') {
       return exportText;
     }
 
-    return appendMemoryBridgeToExport(
-      exportText,
-      activeProject,
-      selectedPlatform.id,
-    );
+    return buildMemoryBridgeBlock(activeProject, selectedPlatform.id);
   }, [activeProject, memoryBridgeMode, selectedPlatform.id]);
 
   const handleCopyMode = useCallback(async (mode: ExportMode) => {
@@ -226,7 +222,7 @@ export function ExportButtons() {
         ? { ...activeProject.lastAiSession, filesChangedSince: changedFiles }
         : undefined;
       const preamble = buildContinuityPreamble(sessionForPreamble, selectedPlatform.id);
-      const preparedExportText = applyMemoryBridgeIfAutomatic(exportText);
+      const preparedExportText = prepareExportForMemoryMode(exportText);
       await copyExportToClipboard(preamble + preparedExportText, selectedPlatform.id);
 
       setCopied(true);
@@ -264,7 +260,7 @@ export function ExportButtons() {
   }
 }, [
   activeProject,
-  applyMemoryBridgeIfAutomatic,
+  prepareExportForMemoryMode,
   currentTask,
   handoffMode,
   recentActivity,
@@ -304,7 +300,7 @@ export function ExportButtons() {
         ? { ...activeProject.lastAiSession, filesChangedSince: changedFiles }
         : undefined;
       const preamble = buildContinuityPreamble(sessionForPreamble, selectedPlatform.id);
-      const preparedExportText = applyMemoryBridgeIfAutomatic(exportText);
+      const preparedExportText = prepareExportForMemoryMode(exportText);
       await copyExportToClipboard(preamble + preparedExportText, 'claude');
 
       setManifestCopied(true);
@@ -341,7 +337,7 @@ export function ExportButtons() {
     }
   }, [
     activeProject,
-    applyMemoryBridgeIfAutomatic,
+    prepareExportForMemoryMode,
     currentTask,
     handoffMode,
     recentActivity,
@@ -501,7 +497,7 @@ export function ExportButtons() {
             disabled={!activeProject}
             title={
               memoryBridgeMode === 'auto'
-                ? `Copy full context plus hippocampus.md and prefrontal.md for ${selectedPlatform.name}`
+                ? `Copy Auto Memory protocol with hippocampus.md and prefrontal.md for ${selectedPlatform.name}`
                 : `Copy full project context for ${selectedPlatform.name}`
             }
           >
