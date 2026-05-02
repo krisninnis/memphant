@@ -49,6 +49,34 @@
     /^\s*(import|export|function|const|let|var|class)\s+/m,
   ];
 
+  const FULL_FILE_INTENT_PATTERNS = [
+    /\b(full|whole|entire)\s+(file|component|script|module)\b/i,
+    /\b(check|review|inspect|debug|fix)\s+(this|the)\s+(file|component|script|module)\b/i,
+    /\bhere'?s\s+(the|my)\s+(file|component|script|module)\b/i,
+    /\bpasted?\s+(the\s+)?(full|whole|entire)\s+(file|component|script|module)\b/i,
+  ];
+
+  const FILE_PATH_PATTERNS = [
+    /\b[\w./-]+\.(ts|tsx|js|jsx|mjs|cjs|rs|py|css|scss|html|json|md|toml|yaml|yml|go|java|cs|php|rb|swift|kt|vue|svelte)\b/i,
+    /\b(file|filename|path)\s*:\s*[\w./\\-]+\b/i,
+  ];
+
+  const CODE_LINE_PATTERNS = [
+    /^\s*(import|export)\s+.+/i,
+    /^\s*(function|class|interface|type|enum)\s+\w+/i,
+    /^\s*(const|let|var)\s+\w+\s*=/i,
+    /^\s*(async\s+)?function\s*\w*\s*\(/i,
+    /^\s*(public|private|protected)?\s*(async\s+)?\w+\s*\([^)]*\)\s*[{:]?/i,
+    /^\s*(if|for|while|switch|try|catch)\s*\(/i,
+    /^\s*return\b/i,
+    /^\s*<\/?[A-Za-z][A-Za-z0-9.-]*(\s|>|\/>)/,
+    /^\s*[.#]?[A-Za-z0-9_-]+\s*[{]/,
+    /^\s*use\s+[A-Za-z0-9_:]+;/,
+    /^\s*fn\s+\w+/,
+    /^\s*(impl|struct|enum|trait)\s+\w+/,
+    /^\s*[}\])];?,?\s*$/,
+  ];
+
   function clampConfidence(value) {
     return Math.max(0, Math.min(1, Number(value.toFixed(2))));
   }
@@ -99,6 +127,55 @@
 
   function countBullets(lines) {
     return lines.filter((line) => /^[-*+] |\d+[.)]\s+/.test(line)).length;
+  }
+
+  function countCodeLikeLines(lines) {
+    return lines.filter((line) =>
+      CODE_LINE_PATTERNS.some((pattern) => pattern.test(line)),
+    ).length;
+  }
+
+  function countFencedCodeLines(text) {
+    const fencePattern = /```[\w-]*\n([\s\S]*?)```/g;
+    let match = fencePattern.exec(text);
+    let total = 0;
+
+    while (match) {
+      total += getLines(match[1] || '').length;
+      match = fencePattern.exec(text);
+    }
+
+    return total;
+  }
+
+  function looksLikeStrongProjectContext(text, projectKeywordCount) {
+    return projectKeywordCount >= 3 || /\bmemphant_update\b/i.test(text);
+  }
+
+  function looksLikeIntentionalFullFilePaste(text, lines, projectKeywordCount) {
+    if (lines.length < 20) return false;
+
+    const codeLikeLineCount = countCodeLikeLines(lines);
+    const fencedCodeLineCount = countFencedCodeLines(text);
+    const fileIntentCount = countMatches(text, FULL_FILE_INTENT_PATTERNS);
+    const filePathSignalCount = countMatches(text, FILE_PATH_PATTERNS);
+    const codeRatio = codeLikeLineCount / Math.max(lines.length, 1);
+
+    const hasStrongCodeShape =
+      codeLikeLineCount >= 14 ||
+      codeRatio >= 0.4 ||
+      fencedCodeLineCount >= 20;
+
+    const hasFileSignal =
+      fileIntentCount > 0 ||
+      filePathSignalCount > 0 ||
+      /^\s*(import|export|use\s+[A-Za-z0-9_:]+;|package\s+\w+)/m.test(text);
+
+    if (!hasStrongCodeShape || !hasFileSignal) {
+      return false;
+    }
+
+    return !looksLikeStrongProjectContext(text, projectKeywordCount);
   }
 
   function createIssue(type, confidence, message, suggestedActions) {
@@ -158,6 +235,15 @@
     const taskPhraseCount = countMatches(trimmedText, TASK_PATTERNS);
     const projectKeywordCount = countMatches(trimmedText, PROJECT_CONTEXT_PATTERNS);
     const codeLogSignalCount = countMatches(trimmedText, CODE_OR_LOG_PATTERNS);
+
+    if (looksLikeIntentionalFullFilePaste(trimmedText, lines, projectKeywordCount)) {
+      return {
+        score: 0,
+        severity: 'none',
+        issues,
+        recommendedAction: 'none',
+      };
+    }
 
     if (charCount >= 3000) {
       issues.push(createIssue(
