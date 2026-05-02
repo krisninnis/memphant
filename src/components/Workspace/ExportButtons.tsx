@@ -431,7 +431,13 @@ export function ExportButtons() {
               key={mode}
               type="button"
               aria-pressed={isActive}
-              onClick={() => setMemoryBridgeMode(mode)}
+              onClick={() => {
+                setMemoryBridgeMode(mode);
+                if (mode === 'auto') {
+                  setMenuOpen(false);
+                  setContextOpen(false);
+                }
+              }}
               title={
                 mode === 'auto'
                   ? 'Automatic mode includes hippocampus.md and prefrontal.md in the AI handoff.'
@@ -472,7 +478,9 @@ export function ExportButtons() {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'minmax(0, 1fr) 58px',
+            gridTemplateColumns: memoryBridgeMode === 'manual'
+              ? 'minmax(0, 1fr) 58px'
+              : '1fr',
             gap: '2px',
             width: '100%',
             padding: '2px',
@@ -516,6 +524,7 @@ export function ExportButtons() {
             )}
           </button>
 
+          {memoryBridgeMode === 'manual' && (
           <button
             type="button"
             aria-haspopup="menu"
@@ -542,9 +551,10 @@ export function ExportButtons() {
           >
             ▾
           </button>
+          )}
         </div>
 
-        {menuOpen && activeProject && (
+        {memoryBridgeMode === 'manual' && menuOpen && activeProject && (
           <div
             role="menu"
             aria-label="Copy options"
@@ -641,6 +651,8 @@ export function ExportButtons() {
         )}
       </div>
 
+{memoryBridgeMode === 'manual' && (
+<>
 <div style={{ display: 'flex', gap: '6px', marginTop: '10px' }}>
   {(['continue', 'debug', 'review'] as HandoffMode[]).map((m) => (
     <button
@@ -720,6 +732,8 @@ export function ExportButtons() {
     />
   )}
 </div>
+</>
+)}
       <div className="export-platform-pills" role="tablist">
         {chatPlatforms.length > 0 && (
           <div className="export-pill-group">{renderPillGroup(chatPlatforms)}</div>
