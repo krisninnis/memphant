@@ -174,7 +174,7 @@ function recentGitCommitsBlock(commits: GitCommit[] | undefined, indent = '  '):
 // MINOR for new optional fields, PATCH for doc-only fixes.
 export const MEMPHANT_UPDATE_SCHEMA_VERSION = '1.1.0';
 
-const RESPONSE_FORMAT = `
+export const RESPONSE_FORMAT = `
 ---
 When you finish your response, you MUST include a project update 
 block. This is not optional — Memephant uses it to automatically 

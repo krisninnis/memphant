@@ -59,7 +59,24 @@ describe('memoryBridge', () => {
     expect(output).toContain('hippocampus.md` is long-term project memory');
     expect(output).toContain('prefrontal.md` is short-term working memory');
     expect(output).toContain('Do not invent missing facts');
-    expect(output).toContain('return a valid `memphant_update` block');
+    expect(output).toContain('memphant_update` block using the exact format shown below');
+  });
+
+  it('includes the full memphant_update format spec so AIs return the correct structure', () => {
+    const output = buildMemoryBridgeBlock(makeProject());
+
+    // Schema version present so AIs know the version
+    expect(output).toContain('"schemaVersion"');
+    // All critical fields present in the example JSON
+    expect(output).toContain('"currentState"');
+    expect(output).toContain('"lastSessionSummary"');
+    expect(output).toContain('"inProgress"');
+    expect(output).toContain('"nextSteps"');
+    expect(output).toContain('"openQuestion"');
+    // Rules section present
+    expect(output).toContain('currentState and lastSessionSummary are ALWAYS required');
+    // The JSON block is fenced
+    expect(output).toContain('memphant_update\n```json');
   });
 
   it('appends Memory Bridge after an existing export', () => {

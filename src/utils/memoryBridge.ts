@@ -1,6 +1,7 @@
 import type { Platform, ProjectMemory } from '../types/memphant-types';
 import { generateHippocampusMarkdown } from './hippocampusFormat';
 import { generatePrefrontalMarkdown } from './prefrontalFormat';
+import { RESPONSE_FORMAT } from './exportFormatters';
 
 export const MEMORY_BRIDGE_SCHEMA_VERSION = '1.0';
 
@@ -29,7 +30,7 @@ export function buildMemoryBridgeBlock(project: ProjectMemory, platform?: Platfo
   lines.push('- Treat these files as project memory, not source code.');
   lines.push('- Do not invent missing facts. If something is not present, say what needs to be inspected.');
   lines.push('- For code claims, verify against the actual repo/files when possible.');
-  lines.push('- At the end, return a valid `memphant_update` block with only real changes.');
+  lines.push('- At the end, return a `memphant_update` block using the exact format shown below.');
   lines.push('');
   lines.push('## .memephant/hippocampus.md');
   lines.push('');
@@ -42,6 +43,8 @@ export function buildMemoryBridgeBlock(project: ProjectMemory, platform?: Platfo
   lines.push('```markdown');
   lines.push(prefrontal);
   lines.push('```');
+  lines.push('');
+  lines.push(RESPONSE_FORMAT);
   lines.push('');
 
   return lines.join('\n');
