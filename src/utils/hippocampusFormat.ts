@@ -1,37 +1,34 @@
 /**
  * Memory Core File Protocol v1
- * Generates the content for `.memephant/hippocampus.md`
+ * Generates the content for `.memephant/hippocampus.md`.
  *
  * This file represents the project's persistent memory snapshot,
  * readable by AI agents directly from the filesystem.
  *
  * CRITICAL: linkedFolder.path is NEVER included in output.
- * All secrets are always sanitised (standard + strict patterns).
- * This module does NOT write to the filesystem — the caller is responsible.
+ * All secrets are always sanitised using standard and strict patterns.
+ * This module does NOT write to the filesystem. The caller is responsible.
  */
 import type { ProjectMemory } from '../types/memphant-types';
 
-// Current protocol version — increment MAJOR for breaking schema changes,
-// MINOR for new optional fields, PATCH for doc-only fixes.
 export const HIPPOCAMPUS_SCHEMA_VERSION = '1.0';
 
-// ─── Secret sanitisation ──────────────────────────────────────────────────────
-// hippocampus.md is written to disk and may be read by any AI agent,
-// so we always run both standard and strict patterns regardless of app settings.
+const IMPORTANT_ASSET_LIMIT = 20;
 
+// hippocampus.md may be written to disk and read by AI agents, so it always
+// applies both standard and strict sanitisation patterns regardless of app settings.
 const ALL_PATTERNS: RegExp[] = [
   // OpenAI
   /sk-[A-Za-z0-9]{20,}/g,
-  // Anthropic (sk-ant-api03-... or any sk-ant- variant)
+  // Anthropic
   /sk-ant-[A-Za-z0-9_-]{20,}/g,
   // AWS access key IDs
   /AKIA[0-9A-Z]{16}/g,
-  // GitHub personal access tokens (classic + fine-grained)
+  // GitHub personal access tokens
   /ghp_[A-Za-z0-9]{36}/g,
   /github_pat_[A-Za-z0-9_]{82}/g,
-  // Slack bot tokens
+  // Slack tokens
   /xoxb-[A-Za-z0-9-]+/g,
-  // Slack user tokens
   /xoxp-[A-Za-z0-9-]+/g,
   // Stripe live secret keys
   /sk_live_[A-Za-z0-9]{24,}/g,
@@ -41,9 +38,9 @@ const ALL_PATTERNS: RegExp[] = [
   /hf_[A-Za-z0-9]{30,}/g,
   // PEM private key headers
   /-----BEGIN [A-Z ]+ KEY-----/g,
-  // JWT tokens (base64url header prefix)
+  // JWT tokens
   /eyJ[A-Za-z0-9+/=]{20,}/g,
-  // Database connection strings (any protocol)
+  // Database connection strings
   /(postgres|postgresql|mysql|mongodb|redis|mongodb\+srv):\/\/[^\s"']+/gi,
   // SendGrid API keys
   /SG\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{40,}/g,
@@ -58,11 +55,40 @@ const ALL_PATTERNS: RegExp[] = [
   /api[_-]?key\s*[=:]\s*["']?[A-Za-z0-9_-]{16,}["']?/gi,
 ];
 
+const SUSPICIOUS_ASSET_PATTERNS: RegExp[] = [
+  /(^|[/\\])\.env(\.|$)/i,
+  /(^|[/\\])id_rsa($|\.)/i,
+  /(^|[/\\])id_dsa($|\.)/i,
+  /(^|[/\\])id_ed25519($|\.)/i,
+  /(^|[/\\])pword/i,
+  /\bpassword/i,
+  /\bpasswd/i,
+  /\bsecret/i,
+  /\btoken/i,
+  /\bcredential/i,
+  /\bprivate[-_ ]?key/i,
+  /\.(pem|p12|pfx|key|crt|cer)$/i,
+];
+
+const NOISY_ASSET_PATTERNS: RegExp[] = [
+  /(^|[/\\])task name\d*\.txt$/i,
+  /(^|[/\\])untitled\.txt$/i,
+  /(^|[/\\])new text document\.txt$/i,
+  /(^|[/\\])desktop\.ini$/i,
+  /(^|[/\\])thumbs\.db$/i,
+];
+
+// Common mojibake / broken filename characters seen when old file names were
+// decoded with the wrong encoding. Emoji are allowed; these characters are not.
+const MOJIBAKE_PATTERN = /[�┤┼ÈÔ÷Ã¡â▄¨╔¯]/;
+
 function sanitize(text: string): string {
   let out = text;
+
   for (const pattern of ALL_PATTERNS) {
     out = out.replace(pattern, '[REDACTED]');
   }
+
   return out;
 }
 
@@ -87,7 +113,7 @@ function redactPath(project: ProjectMemory, text: string): string {
   );
 }
 
-/** Sanitise secrets then redact the linked folder path. */
+/** Sanitise secrets, then redact the linked folder path. */
 function clean(project: ProjectMemory, text: string): string {
   return redactPath(project, sanitize(text));
 }
@@ -96,201 +122,269 @@ function cleanList(project: ProjectMemory, items: string[]): string[] {
   return items.map((item) => clean(project, item));
 }
 
-// ─── Default charter synthesis ───────────────────────────────────────────────
-
-/**
- * Synthesises a Memory Core from project fields when no explicit charter has
- * been authored.  Returns unsanitised text — the caller must pass the result
- * through clean() before writing to output.
- *
- * Exported so it can be unit-tested independently.
- */
-export function generateDefaultCharter(project: ProjectMemory): string {
-  const parts: string[] = [];
-
-  // Opening sentence: what the project is doing right now.
-  const state = project.currentState?.trim() || project.summary?.trim();
-  if (state) parts.push(state);
-
-  // Goals.
-  const goals = project.goals.filter((g) => g.trim());
-  if (goals.length === 1) {
-    parts.push(`Goal: ${goals[0]}.`);
-  } else if (goals.length > 1) {
-    parts.push(`Goals: ${goals.join('; ')}.`);
-  }
-
-  // Rules.
-  const rules = (project.rules ?? []).filter((r) => r.trim());
-  if (rules.length === 1) {
-    parts.push(`Working rule: ${rules[0]}.`);
-  } else if (rules.length > 1) {
-    parts.push(`Working rules: ${rules.join('; ')}.`);
-  }
-
-  // Key decisions (text only — rationale lives in the Decisions section).
-  const decisions = project.decisions.filter((d) => d.decision.trim());
-  if (decisions.length === 1) {
-    parts.push(`Key decision: ${decisions[0].decision}.`);
-  } else if (decisions.length > 1) {
-    parts.push(`Key decisions: ${decisions.map((d) => d.decision).join('; ')}.`);
-  }
-
-  if (parts.length === 0) return '';
-
-  return [
-    '*Auto-generated from project fields — add a Memory Core in the app to customise.*',
-    '',
-    parts.join(' '),
-  ].join('\n');
-}
-
-// ─── Markdown helpers ─────────────────────────────────────────────────────────
-
-function bulletList(items: string[]): string {
-  if (!items.length) return '(none)';
-  return items.map((i) => `- ${i}`).join('\n');
-}
-
 function hasContent(value: string | undefined | null): value is string {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
 function hasItems(arr: string[] | undefined | null): arr is string[] {
-  return Array.isArray(arr) && arr.some((s) => typeof s === 'string' && s.trim().length > 0);
+  return Array.isArray(arr) && arr.some((item) => typeof item === 'string' && item.trim().length > 0);
 }
 
-// ─── Main formatter ───────────────────────────────────────────────────────────
+function bulletList(items: string[]): string {
+  return items.map((item) => `- ${item}`).join('\n');
+}
+
+function normalizeAssetPath(path: string): string {
+  return path
+    .trim()
+    .replace(/^["']|["']$/g, '')
+    .replace(/\\/g, '/')
+    .replace(/\/{2,}/g, '/');
+}
+
+function isNoisyOrSuspiciousAsset(path: string): boolean {
+  if (!path.trim()) return true;
+  if (MOJIBAKE_PATTERN.test(path)) return true;
+  if (SUSPICIOUS_ASSET_PATTERNS.some((pattern) => pattern.test(path))) return true;
+  if (NOISY_ASSET_PATTERNS.some((pattern) => pattern.test(path))) return true;
+
+  return false;
+}
+
+function assetPriority(path: string): number {
+  const lower = path.toLowerCase();
+
+  if (/(^|\/)readme\.md$/.test(lower)) return 0;
+  if (/(^|\/)package\.json$/.test(lower)) return 1;
+  if (/(^|\/)tauri\.conf\.json$/.test(lower)) return 2;
+  if (/(^|\/)cargo\.toml$/.test(lower)) return 3;
+  if (/(^|\/)vite\.config\.(ts|js)$/.test(lower)) return 4;
+
+  if (lower === 'public-site/index.html') return 5;
+  if (lower === 'public-site/website-design.html') return 6;
+  if (lower === 'public-site/pricing.html') return 7;
+  if (lower === 'public-site/services.html') return 8;
+  if (lower === 'public-site/css/styles.css') return 9;
+
+  if (lower.startsWith('src/') && /\.(ts|tsx|js|jsx|css|scss)$/.test(lower)) return 20;
+  if (lower.startsWith('public-site/') && /\.(html|css|js)$/.test(lower)) return 30;
+  if (lower.startsWith('server/') && /\.(js|ts|json)$/.test(lower)) return 40;
+  if (lower.startsWith('docs/')) return 70;
+
+  if (/(^|\/)package-lock\.json$/.test(lower)) return 80;
+  if (/(^|\/)pnpm-lock\.yaml$/.test(lower)) return 81;
+  if (lower.includes('/migrations/')) return 90;
+  if (lower.endsWith('.txt')) return 95;
+
+  return 60;
+}
+
+function prepareImportantAssets(project: ProjectMemory): string[] {
+  const seen = new Set<string>();
+
+  return (project.importantAssets ?? [])
+    .map(normalizeAssetPath)
+    .filter((path) => !isNoisyOrSuspiciousAsset(path))
+    .filter((path) => {
+      const key = path.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .sort((a, b) => {
+      const priorityDiff = assetPriority(a) - assetPriority(b);
+      return priorityDiff !== 0 ? priorityDiff : a.localeCompare(b);
+    })
+    .slice(0, IMPORTANT_ASSET_LIMIT)
+    .map((path) => clean(project, path));
+}
+
+/**
+ * Synthesises a Memory Core from project fields when no explicit charter has
+ * been authored. Returns unsanitised text; callers must pass it through clean().
+ */
+export function generateDefaultCharter(project: ProjectMemory): string {
+  const lines: string[] = [];
+
+  lines.push('This project should be handled with small, safe, user-controlled changes.');
+  lines.push('');
+  lines.push('- Preserve the existing project structure.');
+  lines.push('- Prefer focused changes over broad rewrites.');
+  lines.push('- Do not rewrite unrelated files.');
+  lines.push('- Protect secrets, tokens, credentials, and private local paths.');
+  lines.push('- Use the project state, goals, rules, and decisions below as long-term working context.');
+
+  const context: string[] = [];
+  const state = project.currentState?.trim() || project.summary?.trim();
+
+  if (state) {
+    context.push(state);
+  }
+
+  const goals = project.goals.filter((goal) => goal.trim()).slice(0, 3);
+  if (goals.length > 0) {
+    context.push(`Primary goals: ${goals.join('; ')}.`);
+  }
+
+  const rules = (project.rules ?? []).filter((rule) => rule.trim()).slice(0, 3);
+  if (rules.length > 0) {
+    context.push(`Working rules: ${rules.join('; ')}.`);
+  }
+
+  const decisions = project.decisions
+    .filter((decision) => decision.decision.trim())
+    .slice(0, 3);
+
+  if (decisions.length > 0) {
+    context.push(`Key decisions: ${decisions.map((decision) => decision.decision).join('; ')}.`);
+  }
+
+  if (context.length > 0) {
+    lines.push('');
+    lines.push('*Auto-generated from project fields. Edit the Memory Core in Memephant to customise.*');
+    lines.push('');
+    lines.push(context.join(' '));
+  }
+
+  return lines.join('\n');
+}
+
+function pushSection(lines: string[], heading: string, content: string | null | undefined): void {
+  if (!hasContent(content)) return;
+
+  lines.push(`## ${heading}`);
+  lines.push('');
+  lines.push(content.trim());
+  lines.push('');
+}
+
+function pushListSection(lines: string[], heading: string, items: string[]): void {
+  const usefulItems = items.filter((item) => item.trim());
+  if (usefulItems.length === 0) return;
+
+  lines.push(`## ${heading}`);
+  lines.push('');
+  lines.push(bulletList(usefulItems));
+  lines.push('');
+}
+
+function formatDecisions(project: ProjectMemory): string | null {
+  const decisions = project.decisions.filter((decision) => decision.decision.trim());
+  if (decisions.length === 0) return null;
+
+  return decisions
+    .map((decision) => {
+      const lines = [`- **${clean(project, decision.decision)}**`];
+
+      if (hasContent(decision.rationale)) {
+        lines.push(`  Rationale: ${clean(project, decision.rationale)}`);
+      }
+
+      return lines.join('\n');
+    })
+    .join('\n');
+}
 
 /**
  * Generates the markdown content for `.memephant/hippocampus.md`.
  *
  * All secrets and the linkedFolder path are always sanitised.
- * Does not write to the filesystem — caller is responsible for that.
+ * Does not write to the filesystem.
  */
 export function generateHippocampusMarkdown(project: ProjectMemory): string {
   const now = new Date().toISOString();
   const lines: string[] = [];
 
-  // ─── Header ─────────────────────────────────────────────────────────────
-  lines.push(`<!-- hippocampus.md — Memory Core File Protocol v1 -->`);
-  lines.push(`<!-- Generated by Memephant. Do not edit manually. -->`);
+  lines.push('<!-- hippocampus.md — Memory Core File Protocol v1 -->');
+  lines.push('<!-- Generated by Memephant. Edit in Memephant or regenerate. -->');
   lines.push(
-    `<!-- schema: hippocampus/${HIPPOCAMPUS_SCHEMA_VERSION} | project-id: ${project.id} | generated: ${now} -->`,
+    `<!-- schema: hippocampus/${HIPPOCAMPUS_SCHEMA_VERSION} | project-id: ${clean(
+      project,
+      project.id,
+    )} | generated: ${now} -->`,
   );
   lines.push('');
 
-  // ─── Title ──────────────────────────────────────────────────────────────
   lines.push(`# ${clean(project, project.name)} — Memory Core`);
   lines.push('');
 
-  // ─── Charter ────────────────────────────────────────────────────────────
-  lines.push('## Charter');
-  lines.push('');
+  const identityLines = [
+    `Name: ${clean(project, project.name)}`,
+    hasContent(project.summary) ? `Summary: ${clean(project, project.summary)}` : '',
+    hasContent(project.githubRepo) ? `Repository: ${clean(project, project.githubRepo)}` : '',
+  ].filter(Boolean);
+
+  pushSection(lines, 'Project Identity', identityLines.join('\n'));
+
   const charterSource = hasContent(project.projectCharter)
     ? project.projectCharter.trim()
     : generateDefaultCharter(project);
-  lines.push(charterSource ? clean(project, charterSource) : '*(no content yet)*');
-  lines.push('');
 
-  // ─── Current State ──────────────────────────────────────────────────────
-  lines.push('## Current State');
-  lines.push('');
-  lines.push(
-    hasContent(project.currentState) ? clean(project, project.currentState) : '(none)',
+  pushSection(lines, 'Charter', clean(project, charterSource));
+
+  pushSection(
+    lines,
+    'Current State',
+    hasContent(project.currentState) ? clean(project, project.currentState) : null,
   );
-  lines.push('');
 
-  // ─── Goals ──────────────────────────────────────────────────────────────
-  lines.push('## Goals');
-  lines.push('');
-  lines.push(bulletList(cleanList(project, project.goals.filter((g) => g.trim()))));
-  lines.push('');
+  pushListSection(lines, 'Goals', cleanList(project, project.goals.filter((goal) => goal.trim())));
+  pushListSection(lines, 'Rules', cleanList(project, project.rules.filter((rule) => rule.trim())));
 
-  // ─── Rules ──────────────────────────────────────────────────────────────
-  if (hasItems(project.rules)) {
-    lines.push('## Rules');
-    lines.push('');
-    lines.push(bulletList(cleanList(project, project.rules.filter((r) => r.trim()))));
-    lines.push('');
-  }
+  pushSection(lines, 'Decisions', formatDecisions(project));
 
-  // ─── Decisions ──────────────────────────────────────────────────────────
-  if (project.decisions.length > 0) {
-    lines.push('## Decisions');
-    lines.push('');
-    for (const d of project.decisions) {
-      lines.push(`- **${clean(project, d.decision)}**`);
-      if (hasContent(d.rationale)) {
-        lines.push(`  Rationale: ${clean(project, d.rationale)}`);
-      }
-    }
-    lines.push('');
-  }
+  pushListSection(
+    lines,
+    'Next Steps',
+    cleanList(project, project.nextSteps.filter((step) => step.trim())),
+  );
 
-  // ─── Next Steps ─────────────────────────────────────────────────────────
-  if (hasItems(project.nextSteps)) {
-    lines.push('## Next Steps');
-    lines.push('');
-    lines.push(bulletList(cleanList(project, project.nextSteps.filter((s) => s.trim()))));
-    lines.push('');
-  }
+  pushListSection(
+    lines,
+    'Open Questions',
+    cleanList(project, project.openQuestions.filter((question) => question.trim())),
+  );
 
-  // ─── Open Questions ─────────────────────────────────────────────────────
-  if (hasItems(project.openQuestions)) {
-    lines.push('## Open Questions');
-    lines.push('');
-    lines.push(bulletList(cleanList(project, project.openQuestions.filter((q) => q.trim()))));
-    lines.push('');
-  }
+  pushListSection(
+    lines,
+    'In Progress',
+    cleanList(project, (project.inProgress ?? []).filter((item) => item.trim())),
+  );
 
-  // ─── In Progress ────────────────────────────────────────────────────────
-  if (hasItems(project.inProgress)) {
-    lines.push('## In Progress');
-    lines.push('');
-    lines.push(
-      bulletList(cleanList(project, (project.inProgress ?? []).filter((i) => i.trim()))),
-    );
-    lines.push('');
-  }
+  pushListSection(lines, 'Important Assets', prepareImportantAssets(project));
 
-  // ─── Important Assets ───────────────────────────────────────────────────
-  if (hasItems(project.importantAssets)) {
-    lines.push('## Important Assets');
-    lines.push('');
-    lines.push(bulletList(cleanList(project, project.importantAssets.filter((a) => a.trim()))));
-    lines.push('');
-  }
-
-  // ─── Stack ──────────────────────────────────────────────────────────────
   if (hasItems(project.detectedStack)) {
-    lines.push('## Stack');
-    lines.push('');
-    lines.push(cleanList(project, project.detectedStack!).join(', '));
-    lines.push('');
+    pushSection(lines, 'Stack', cleanList(project, project.detectedStack ?? []).join(', '));
   }
 
-  // ─── Last Session Summary ───────────────────────────────────────────────
-  if (hasContent(project.lastSessionSummary)) {
-    lines.push('## Last Session Summary');
-    lines.push('');
-    lines.push(clean(project, project.lastSessionSummary));
-    lines.push('');
-  }
+  pushSection(
+    lines,
+    'AI Collaboration Instructions',
+    hasContent(project.aiInstructions) ? clean(project, project.aiInstructions) : null,
+  );
 
-  // ─── Open Question ──────────────────────────────────────────────────────
-  if (hasContent(project.openQuestion)) {
-    lines.push('## Open Question');
-    lines.push('');
-    lines.push(clean(project, project.openQuestion));
-    lines.push('');
-  }
+  pushSection(
+    lines,
+    'Last Session Summary',
+    hasContent(project.lastSessionSummary) ? clean(project, project.lastSessionSummary) : null,
+  );
 
-  // ─── Footer ─────────────────────────────────────────────────────────────
+  pushSection(
+    lines,
+    'Open Question',
+    hasContent(project.openQuestion) ? clean(project, project.openQuestion) : null,
+  );
+
+  pushListSection(lines, 'Boundaries', [
+    'Never expose secrets, tokens, credentials, or private local paths.',
+    'Never claim tests passed unless they were run.',
+    'Follow this Memory Core unless the user explicitly overrides it.',
+  ]);
+
   lines.push('---');
   lines.push('');
   lines.push(
-    `*Memephant Memory Core File Protocol v1 — do not edit this file manually.*`,
+    '*Generated by Memephant Memory Core File Protocol v1. Edit the Memory Core in Memephant or regenerate when project memory changes.*',
   );
 
   return lines.join('\n');
