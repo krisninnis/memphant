@@ -343,6 +343,7 @@ const recentChanges = deduplicateChanges(allRecentChanges);
           nextSteps: [...checkpoint.snapshot.nextSteps],
           openQuestions: [...checkpoint.snapshot.openQuestions],
           importantAssets: [...checkpoint.snapshot.importantAssets],
+          projectCharter: checkpoint.snapshot.projectCharter,
           changelog: checkpoint.snapshot.changelog.map((entry) => ({ ...entry })),
           platformState: { ...checkpoint.snapshot.platformState },
           linkedFolder: checkpoint.snapshot.linkedFolder

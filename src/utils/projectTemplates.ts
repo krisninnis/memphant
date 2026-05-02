@@ -51,6 +51,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         'Free tier or trial-only?',
       ],
       importantAssets: [],
+      projectCharter: '',
       aiInstructions:
         'Help me think through product decisions, marketing copy, and technical architecture. Challenge assumptions. Ask clarifying questions before suggesting features.',
     }),
@@ -87,6 +88,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         'What is the hard deadline?',
       ],
       importantAssets: [],
+      projectCharter: '',
       aiInstructions:
         'Help me draft client communications, scope documents, and technical deliverables. Keep a professional, confident tone.',
     }),
@@ -123,6 +125,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         'What is the ideal length?',
       ],
       importantAssets: [],
+      projectCharter: '',
       aiInstructions:
         'Help me write, edit, and structure my work. Match my voice. When I paste a draft, suggest improvements without rewriting entirely unless I ask.',
     }),
@@ -159,6 +162,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         'Are there known gaps in current knowledge?',
       ],
       importantAssets: [],
+      projectCharter: '',
       aiInstructions:
         'Help me analyse sources, spot patterns, and summarise findings. Flag contradictions in evidence. Do not speculate without labelling it as such.',
     }),
@@ -195,6 +199,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
         'What salary range am I targeting?',
       ],
       importantAssets: [],
+      projectCharter: '',
       aiInstructions:
         'Help me tailor CVs, write cover letters, prep for interviews, and draft follow-up emails. Keep a professional but confident tone.',
     }),

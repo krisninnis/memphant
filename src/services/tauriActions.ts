@@ -274,6 +274,7 @@ type LegacyProject = Record<string, unknown> & {
   nextSteps?: unknown;
   openQuestions?: unknown;
   importantAssets?: unknown;
+  projectCharter?: string;
   aiInstructions?: string | { focus?: string };
   linkedFolder?: LegacyLinkedFolder;
   changelog?: unknown;
@@ -349,6 +350,7 @@ export function normalizeOldProject(raw: Record<string, unknown>): ProjectMemory
     nextSteps: Array.isArray(raw.nextSteps) ? raw.nextSteps : [],
     openQuestions: Array.isArray(raw.openQuestions) ? raw.openQuestions : [],
     importantAssets: Array.isArray(raw.importantAssets) ? raw.importantAssets : [],
+    projectCharter: typeof legacy.projectCharter === 'string' ? legacy.projectCharter : '',
     aiInstructions:
       typeof legacy.aiInstructions === 'string'
         ? legacy.aiInstructions
@@ -504,6 +506,7 @@ export function toOldFormat(project: ProjectMemory): Record<string, unknown> {
     nextSteps: project.nextSteps,
     openQuestions: project.openQuestions,
     importantAssets: project.importantAssets,
+    projectCharter: project.projectCharter ?? '',
     aiInstructions: {
       role: 'You are a project collaborator.',
       tone: 'Clear, direct, structured',
@@ -711,7 +714,9 @@ function serializeProjectAsMarkdown(project: ProjectMemory): string {
   const linkedFolder = project.linkedFolder?.path
     ? `\n## Linked Folder\n- Connected\n- Last scanned: ${project.linkedFolder.lastScannedAt ?? 'Unknown'}`
     : '';
-
+  const memoryCoreSection = project.projectCharter?.trim()
+    ? ['', '## Memory Core', project.projectCharter.trim()]
+    : [];
   return [
     `# ${project.name}`,
     '',
@@ -740,6 +745,7 @@ function serializeProjectAsMarkdown(project: ProjectMemory): string {
     '',
     '## Important Assets',
     toMarkdownList(project.importantAssets),
+    ...memoryCoreSection,
     linkedFolder,
     '',
   ].join('\n');
@@ -975,6 +981,7 @@ export async function createProject(name: string): Promise<void> {
     nextSteps: [],
     openQuestions: [],
     importantAssets: [],
+    projectCharter: '',
     checkpoints: [],
     restorePoints: [],
     changelog: [{ timestamp: now, field: 'general', action: 'added', summary: 'Project created', source: 'app' }],
@@ -1088,6 +1095,7 @@ export async function createProjectFromFolder(): Promise<void> {
       nextSteps: [],
       openQuestions: [],
       importantAssets: result.files.slice(0, 200),
+      projectCharter: '',
       checkpoints: [],
       restorePoints: [],
       linkedFolder: { path: selected, scanHash: result.scan_hash, lastScannedAt: now },

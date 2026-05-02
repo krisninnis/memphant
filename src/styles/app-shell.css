@@ -858,6 +858,13 @@ select {
   letter-spacing: 0.03em;
 }
 
+.editable-field__help {
+  margin: 0 0 4px;
+  color: #8a8aa3;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
 .editable-field__textarea,
 .editable-field__input,
 .field-input,

@@ -59,6 +59,7 @@ function buildFirstProject(name: string, summary: string, firstStep: string): Pr
     nextSteps: firstStep.trim() ? [firstStep.trim()] : [],
     openQuestions: [],
     importantAssets: [],
+    projectCharter: '',
     checkpoints: [],
     restorePoints: [],
     changelog: [

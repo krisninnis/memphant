@@ -100,6 +100,50 @@ function hasItems(arr: string[] | undefined | null): arr is string[] {
   return Array.isArray(arr) && arr.some((s) => typeof s === 'string' && s.trim().length > 0);
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function redactProjectLinkedFolderPath(project: ProjectMemory, text: string): string {
+  const path = project.linkedFolder?.path;
+  if (!path) return text;
+
+  const variants = new Set([
+    path,
+    path.replace(/\\/g, '/'),
+    path.replace(/\//g, '\\'),
+  ]);
+
+  return Array.from(variants).reduce(
+    (out, variant) =>
+      variant ? out.replace(new RegExp(escapeRegExp(variant), 'g'), '[REDACTED]') : out,
+    text,
+  );
+}
+
+function sanitizeProjectCharter(project: ProjectMemory): string | null {
+  if (!hasContent(project.projectCharter)) return null;
+  return redactProjectLinkedFolderPath(project, sanitize(project.projectCharter.trim()));
+}
+
+function pushMarkdownMemoryCore(lines: string[], project: ProjectMemory): void {
+  const charter = sanitizeProjectCharter(project);
+  if (!charter) return;
+
+  lines.push('## Memory Core');
+  lines.push(charter);
+  lines.push('');
+}
+
+function pushAgentCharter(lines: string[], project: ProjectMemory): void {
+  const charter = sanitizeProjectCharter(project);
+  if (!charter) return;
+
+  lines.push('AGENT_CHARTER:');
+  lines.push(charter);
+  lines.push('Follow this project charter unless the user explicitly overrides it.');
+}
+
 function decisionsBlock(decisions: ProjectMemory['decisions'], indent = '  '): string {
   if (!decisions.length) return `${indent}(none)`;
 
@@ -176,6 +220,12 @@ function formatForClaude(project: ProjectMemory, task?: string, recentActivity?:
   }
   lines.push(`  <summary>${sanitize(project.summary || '(no summary yet)')}</summary>`);
   lines.push(`  <current_state>${sanitize(project.currentState || '(not set)')}</current_state>`);
+  const projectCharter = sanitizeProjectCharter(project);
+  if (projectCharter) {
+    lines.push(`  <memory_core>`);
+    lines.push(projectCharter);
+    lines.push(`  </memory_core>`);
+  }
 
   const gitBlock = recentGitCommitsBlock(project.pendingGitCommits);
   if (gitBlock) {
@@ -291,6 +341,8 @@ function formatForChatGPT(project: ProjectMemory, task?: string, recentActivity?
   lines.push(sanitize(project.summary || '(no summary yet)'));
   lines.push('');
 
+  pushMarkdownMemoryCore(lines, project);
+
   lines.push(`## Current Status`);
   lines.push(sanitize(project.currentState || '(not set)'));
   lines.push('');
@@ -380,6 +432,10 @@ function formatForGrok(project: ProjectMemory, task?: string): string {
     lines.push(`STACK: ${sanitize(project.detectedStack.join(', '))}`);
   }
   lines.push(`STATUS: ${sanitize(project.currentState || 'not set')}`);
+  const grokCharter = sanitizeProjectCharter(project);
+  if (grokCharter) {
+    lines.push(`MEMORY_CORE: ${grokCharter}`);
+  }
 
   if (project.pendingGitCommits?.length) {
     lines.push(`RECENT_GIT_COMMITS:`);
@@ -443,6 +499,11 @@ function formatForPerplexity(project: ProjectMemory, task?: string): string {
   }
   lines.push(sanitize(project.summary || '(no summary yet)'));
   lines.push('');
+  const perplexityCharter = sanitizeProjectCharter(project);
+  if (perplexityCharter) {
+    lines.push(`Memory Core: ${perplexityCharter}`);
+    lines.push('');
+  }
   lines.push(`Current state: ${sanitize(project.currentState || 'not set')}`);
   lines.push('');
 
@@ -513,6 +574,8 @@ function formatForGemini(project: ProjectMemory, task?: string): string {
   }
   lines.push(sanitize(project.summary || '(no summary yet)'));
   lines.push('');
+
+  pushMarkdownMemoryCore(lines, project);
 
   lines.push(`## Current Status`);
   lines.push(`**${sanitize(project.currentState || 'not set')}**`);
@@ -598,6 +661,10 @@ function formatGenericForPlatform(
   lines.push(`Project: ${sanitize(project.name)}`);
   lines.push(`Summary: ${sanitize(project.summary || '(no summary yet)')}`);
   lines.push(`Current state: ${sanitize(project.currentState || '(not set)')}`);
+  const genericCharter = sanitizeProjectCharter(project);
+  if (genericCharter) {
+    lines.push(`Memory Core: ${genericCharter}`);
+  }
 
   const gitBlock = recentGitCommitsBlock(project.pendingGitCommits, '');
   if (gitBlock) {
@@ -765,6 +832,10 @@ function formatDelta(project: ProjectMemory, task?: string): string {
 
   lines.push(`Project: ${sanitize(project.name)}`);
   lines.push(`Status: ${sanitize(project.currentState || 'not set')}`);
+  const deltaCharter = sanitizeProjectCharter(project);
+  if (deltaCharter) {
+    lines.push(`Memory Core: ${deltaCharter}`);
+  }
   lines.push('');
 
   const gitBlock = recentGitCommitsBlock(project.pendingGitCommits, '');
@@ -803,6 +874,8 @@ function formatSpecialist(project: ProjectMemory, task?: string): string {
   lines.push(`Project: ${sanitize(project.name)}`);
   lines.push(sanitize(project.summary || '(no summary yet)'));
   lines.push('');
+
+  pushMarkdownMemoryCore(lines, project);
 
   const gitBlock = recentGitCommitsBlock(project.pendingGitCommits, '');
   if (gitBlock) {
@@ -847,6 +920,7 @@ function formatForCodex(project: ProjectMemory, task?: string): string {
     lines.push(`STACK: ${sanitize(project.detectedStack.join(', '))}`);
   }
   lines.push(`STATUS: ${sanitize(project.currentState || 'not set')}`);
+  pushAgentCharter(lines, project);
 
   if (project.pendingGitCommits?.length) {
     lines.push(`RECENT_GIT_COMMITS:`);
@@ -914,6 +988,7 @@ function formatForCowork(project: ProjectMemory, task?: string): string {
     lines.push(`STACK: ${sanitize(project.detectedStack.join(', '))}`);
   }
   lines.push(`STATUS: ${sanitize(project.currentState || 'not set')}`);
+  pushAgentCharter(lines, project);
 
   if (project.pendingGitCommits?.length) {
     lines.push(`RECENT_GIT_COMMITS:`);

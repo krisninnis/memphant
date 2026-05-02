@@ -238,6 +238,92 @@ describe('linkedFolder path exclusion', () => {
 
 // ─── Platform-specific formatting ─────────────────────────────────────────────
 
+describe('Memory Core export', () => {
+  it('includes projectCharter in ChatGPT export when present', () => {
+    const output = formatForPlatform(
+      makeProject({ projectCharter: 'Prefer small safe changes and preview risky edits.' }),
+      'chatgpt',
+    );
+
+    expect(output).toContain('## Memory Core');
+    expect(output).toContain('Prefer small safe changes and preview risky edits.');
+  });
+
+  it('includes projectCharter in Claude export when present', () => {
+    const output = formatForPlatform(
+      makeProject({ projectCharter: 'Use careful, user-controlled AI collaboration.' }),
+      'claude',
+    );
+
+    expect(output).toContain('<memory_core>');
+    expect(output).toContain('Use careful, user-controlled AI collaboration.');
+    expect(output).toContain('</memory_core>');
+  });
+
+  it('includes projectCharter in Codex export as AGENT_CHARTER', () => {
+    const output = formatForPlatform(
+      makeProject({ projectCharter: 'Inspect before editing and keep changes minimal.' }),
+      'codex',
+    );
+
+    expect(output).toContain('AGENT_CHARTER:');
+    expect(output).toContain('Inspect before editing and keep changes minimal.');
+    expect(output).toContain('Follow this project charter unless the user explicitly overrides it.');
+  });
+
+  it('includes projectCharter in Cowork export as AGENT_CHARTER', () => {
+    const output = formatForPlatform(
+      makeProject({ projectCharter: 'Preserve continuity and call out architecture risks.' }),
+      'cowork',
+    );
+
+    expect(output).toContain('AGENT_CHARTER:');
+    expect(output).toContain('Preserve continuity and call out architecture risks.');
+    expect(output).toContain('Follow this project charter unless the user explicitly overrides it.');
+  });
+
+  it('omits Memory Core sections when projectCharter is empty', () => {
+    const platforms = ['claude', 'chatgpt', 'grok', 'perplexity', 'gemini', 'codex', 'cowork'] as const;
+
+    for (const platform of platforms) {
+      const output = formatForPlatform(makeProject({ projectCharter: '' }), platform);
+      expect(output).not.toContain('Memory Core');
+      expect(output).not.toContain('<memory_core>');
+      expect(output).not.toContain('MEMORY_CORE');
+      expect(output).not.toContain('AGENT_CHARTER');
+    }
+  });
+
+  it('redacts secrets inside projectCharter', () => {
+    const secret = makeOpenAiKey();
+    const output = formatForPlatform(
+      makeProject({ projectCharter: `Never expose ${secret}` }),
+      'chatgpt',
+    );
+
+    expect(output).not.toContain(secret);
+    expect(output).toContain('[REDACTED]');
+  });
+
+  it('redacts linkedFolder.path inside projectCharter', () => {
+    const linkedPath = 'C:\\Users\\kris\\private\\memephant';
+    const output = formatForPlatform(
+      makeProject({
+        projectCharter: `Do not expose ${linkedPath}`,
+        linkedFolder: {
+          path: linkedPath,
+          scanHash: 'abc',
+          lastScannedAt: '',
+        },
+      }),
+      'codex',
+    );
+
+    expect(output).not.toContain(linkedPath);
+    expect(output).toContain('[REDACTED]');
+  });
+});
+
 describe('claude format', () => {
   it('wraps content in XML tags', () => {
     const output = formatForPlatform(makeProject(), 'claude');

@@ -42,6 +42,7 @@ function buildProject(): ProjectMemory {
     nextSteps: ['Confirm all formatters are clean'],
     openQuestions: ['Any other fields we should sanitise?'],
     importantAssets: ['src/index.ts', 'README.md'],
+    projectCharter: `Never expose the local project folder: ${SENSITIVE_PATH}`,
     aiInstructions: 'Be concise and stay on-task.',
     checkpoints: [],
     restorePoints: [],

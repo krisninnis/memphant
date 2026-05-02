@@ -194,6 +194,7 @@ export function normalizeOldProject(raw: LegacyProject): ProjectMemory {
     openQuestions: normalizeStringArray(raw.openQuestions),
     openQuestionIds: normalizeStableIdArray(raw.openQuestionIds),
     importantAssets: normalizeStringArray(raw.importantAssets),
+    projectCharter: typeof raw.projectCharter === 'string' ? raw.projectCharter : undefined,
     aiInstructions: typeof raw.aiInstructions === 'string' ? raw.aiInstructions : undefined,
     githubRepo: typeof raw.githubRepo === 'string' ? raw.githubRepo : undefined,
     detectedStack: normalizeOptionalStringArray(raw.detectedStack),

@@ -220,6 +220,7 @@ memphant_update
         nextSteps: ['Open the generated folder in your editor', 'Copy project context into your preferred AI tool'],
         openQuestions: [],
         importantAssets: result.filesCreated.slice(0, 200),
+        projectCharter: '',
         aiInstructions: '',
         linkedFolder: {
           path: result.folderPath,

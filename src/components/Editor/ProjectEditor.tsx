@@ -352,6 +352,15 @@ export function ProjectEditor() {
       />
 
       <EditableField
+        label="Memory Core"
+        value={activeProject.projectCharter || ''}
+        onChange={(v) => update('projectCharter', v)}
+        multiline
+        helpText="The permanent project identity layer: values, working rules, boundaries, communication style, and long-term context every AI should remember."
+        placeholder="Describe how AI agents should understand this project: values, working style, boundaries, communication rules, and things that must not be forgotten."
+      />
+
+      <EditableField
         label="How the AI should help"
         value={activeProject.aiInstructions || ''}
         onChange={(v) => update('aiInstructions', v)}

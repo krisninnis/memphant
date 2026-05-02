@@ -89,6 +89,7 @@ export interface ProjectMemory {
   nextSteps: string[];
   openQuestions: string[];
   importantAssets: string[];
+  projectCharter?: string;
   aiInstructions?: string;
   linkedFolder?: LinkedFolder;
   changelog: ChangelogEntry[];

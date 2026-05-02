@@ -4,6 +4,7 @@ interface EditableFieldProps {
   onChange: (value: string) => void;
   multiline?: boolean;
   placeholder?: string;
+  helpText?: string;
   /** When provided, a ✨ button appears next to the label */
   onSuggest?: () => void;
   suggestLabel?: string;
@@ -15,6 +16,7 @@ export function EditableField({
   onChange,
   multiline = false,
   placeholder,
+  helpText,
   onSuggest,
   suggestLabel = 'Auto-fill',
 }: EditableFieldProps) {
@@ -33,6 +35,7 @@ export function EditableField({
           </button>
         )}
       </div>
+      {helpText && <p className="editable-field__help">{helpText}</p>}
       {multiline ? (
         <textarea
           className="editable-field__textarea"

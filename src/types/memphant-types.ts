@@ -149,6 +149,7 @@ export interface ProjectCheckpointSnapshot {
   openQuestions: string[];
   openQuestionIds?: string[];
   importantAssets: string[];
+  projectCharter?: string;
   aiInstructions?: string;
   githubRepo?: string;
   detectedStack?: string[];
@@ -332,6 +333,7 @@ export function cloneCheckpointSnapshot(project: ProjectCheckpointSnapshot): Pro
     openQuestions: [...project.openQuestions],
     openQuestionIds: project.openQuestionIds ? [...project.openQuestionIds] : undefined,
     importantAssets: [...project.importantAssets],
+    projectCharter: project.projectCharter,
     aiInstructions: project.aiInstructions,
     githubRepo: project.githubRepo,
     detectedStack: project.detectedStack ? [...project.detectedStack] : undefined,
