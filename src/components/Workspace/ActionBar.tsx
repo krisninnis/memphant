@@ -13,6 +13,7 @@ import {
 } from '../../services/tauriActions';
 import ExportButtons from './ExportButtons';
 import TaskField from './TaskField';
+import { compressPrompt, splitPrompt } from '../../utils/promptUtils';
 
 /** The prompt users paste into their AI to activate the memphant_update protocol */
 const ACTIVATION_PROMPT = `After every response, please include a project update block at the end so I can sync your changes back to my Memephant app:
@@ -43,6 +44,8 @@ export function ActionBar() {
   const setPreAiBackup = useProjectStore((s) => s.setPreAiBackup);
   const updateProject = useProjectStore((s) => s.updateProject);
   const showToast = useProjectStore((s) => s.showToast);
+  const currentTask = useProjectStore((s) => s.currentTask);
+  const setCurrentTask = useProjectStore((s) => s.setCurrentTask);
 
   const [activationCopied, setActivationCopied] = useState(false);
   const [gitSyncState, setGitSyncState] = useState<GitSyncState>('idle');
@@ -158,6 +161,38 @@ export function ActionBar() {
     }
   };
 
+  const handleCompress = async () => {
+    if (!currentTask.trim()) return;
+    const compressed = compressPrompt(currentTask);
+    if (compressed === currentTask.trim()) {
+      showToast('Nothing to compress', 'info');
+      return;
+    }
+    setCurrentTask(compressed);
+    try {
+      await navigator.clipboard.writeText(compressed);
+      showToast('Prompt compressed and copied to clipboard');
+    } catch {
+      showToast('Prompt compressed');
+    }
+  };
+
+  const handleSplit = async () => {
+    if (!currentTask.trim()) return;
+    const [part1, part2] = splitPrompt(currentTask);
+    if (!part2) {
+      showToast('Prompt is too short to split', 'info');
+      return;
+    }
+    setCurrentTask(part1);
+    try {
+      await navigator.clipboard.writeText(part2);
+      showToast('Part 1 is ready. Part 2 copied to clipboard for the next message.');
+    } catch {
+      showToast('Part 1 is ready. Paste Part 2 manually: ' + part2, 'info');
+    }
+  };
+
   useEffect(() => {
     setGitSyncState('idle');
     setGitSyncCount(0);
@@ -192,6 +227,27 @@ export function ActionBar() {
       {memoryBridgeMode === 'manual' && (
         <>
           <TaskField />
+
+          {currentTask.trim() && (
+            <div className="task-field__actions">
+              <button
+                type="button"
+                className="task-field__action-btn"
+                onClick={() => void handleCompress()}
+                title="Strip filler words and shorten the prompt"
+              >
+                ✂️ Compress
+              </button>
+              <button
+                type="button"
+                className="task-field__action-btn"
+                onClick={() => void handleSplit()}
+                title="Split the prompt into two parts — Part 1 stays here, Part 2 is copied to clipboard"
+              >
+                ✂️ Split
+              </button>
+            </div>
+          )}
 
           {desktopApp && pendingGitCommits.length > 0 && (
         <div className="action-bar__git-note">

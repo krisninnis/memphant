@@ -2936,3 +2936,32 @@ select {
   font-size: 0.72rem;
   opacity: 0.75;
 }
+
+.task-field__actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.task-field__action-btn {
+  flex: 1;
+  padding: 5px 10px;
+  background: #1a2540;
+  border: 1px solid #2a3a5a;
+  border-radius: 7px;
+  color: #94a3b8;
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
+}
+
+.task-field__action-btn:hover {
+  background: #1e3a5f;
+  color: #e2e8f0;
+}
+
+.task-field__action-btn:active {
+  transform: scale(0.97);
+}
