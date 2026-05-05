@@ -32,6 +32,7 @@ import {
   getPlatformConfig,
 } from '../../utils/platformRegistry';
 import type { ExportMode, HandoffMode } from '../../types/memphant-types';
+import { ContextPassportModal } from './ContextPassportModal';
 
 function formatSyncAge(isoString: string): string {
   const diffMs = Date.now() - new Date(isoString).getTime();
@@ -68,6 +69,7 @@ export function ExportButtons() {
   const [manifestCopied, setManifestCopied] = useState(false);
   const [manifestLoading, setManifestLoading] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [passportOpen, setPassportOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const [handoffMode, setHandoffMode] = useState<HandoffMode>('continue');
   const [contextOpen, setContextOpen] = useState(false);
@@ -409,8 +411,22 @@ export function ExportButtons() {
     });
 
   return (
+    <>
     <div className="export-controls" data-tour="export">
-      <div
+      {/* Context Passport button */}
+      {activeProject && (
+        <button
+          type="button"
+          className="action-bar__btn"
+          onClick={() => setPassportOpen(true)}
+          title="Generate a portable Context Passport you can copy into any AI tool"
+          style={{ width: '100%', marginBottom: '8px', fontWeight: 600 }}
+        >
+          🗺️ Generate Context Passport
+        </button>
+      )}
+
+            <div
         aria-label="Memory handoff mode"
         style={{
           display: 'grid',
@@ -782,6 +798,15 @@ export function ExportButtons() {
         </div>
       )}
     </div>
+
+      {/* Context Passport modal — rendered outside the scroll container so it overlays the full app */}
+      {passportOpen && activeProject && (
+        <ContextPassportModal
+          project={activeProject}
+          onClose={() => setPassportOpen(false)}
+        />
+      )}
+    </>
   );
 }
 
