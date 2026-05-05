@@ -17,6 +17,26 @@
         </div>
       </header>
 
+      <!-- Memory mode -->
+      <section class="settings-panel" aria-labelledby="memory-mode-title">
+        <div class="settings-panel__header">
+          <div>
+            <h2 class="settings-panel__title" id="memory-mode-title">Memory Mode</h2>
+            <p class="settings-panel__subtitle" id="memory-mode-subtitle">Auto — silent background updates</p>
+          </div>
+          <label class="switch" title="Toggle between Auto and Manual Memory mode">
+            <input type="checkbox" id="memory-mode-manual" />
+            <span class="switch__track">
+              <span class="switch__thumb"></span>
+            </span>
+          </label>
+        </div>
+        <p class="privacy-note">
+          <strong>Auto</strong>: Memephant receives updates silently — no buttons on the AI page.<br />
+          <strong>Manual</strong>: Shows a "Copy for Memephant" button on every AI response.
+        </p>
+      </section>
+
       <!-- Prompt Guard settings -->
       <section class="settings-panel" aria-labelledby="prompt-guard-title">
         <div class="settings-panel__header">

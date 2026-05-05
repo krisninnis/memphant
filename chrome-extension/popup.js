@@ -1,7 +1,8 @@
 /**
  * Memephant — Popup Script
  * Queries the active tab's content script for any detected update,
- * renders the appropriate panel, and manages Prompt Guard settings.
+ * renders the appropriate panel, manages Memory Mode, and manages
+ * Prompt Guard settings.
  */
 
 'use strict';
@@ -30,6 +31,10 @@ const HINT_PROMPT =
   'Please end your reply with a memphant_update JSON block summarising ' +
   'any new goals, decisions, next steps, or changes to current state. ' +
   'Format: memphant_update\n{ "goals": [], "decisions": [], "nextSteps": [] }';
+
+const DEFAULT_MEMORY_MODE_SETTINGS = {
+  memephantMemoryMode: 'auto',
+};
 
 const DEFAULT_PROMPT_GUARD_SETTINGS = {
   promptGuardEnabled: true,
@@ -176,6 +181,55 @@ async function initPromptGuardSettings() {
   });
 }
 
+// ─── Memory mode toggle ───────────────────────────────────────────────────────
+
+/**
+ * Reads memephantMemoryMode from storage and wires the popup toggle.
+ * Unchecked = Auto (default, silent). Checked = Manual (inject buttons).
+ * Writing to storage fires chrome.storage.onChanged in the content script,
+ * which immediately hides/shows manual helpers without a page reload.
+ */
+async function initMemoryModeToggle() {
+  const toggle = document.getElementById('memory-mode-manual');
+  const subtitle = document.getElementById('memory-mode-subtitle');
+
+  if (!toggle) return;
+
+  const settings = await storageGet(DEFAULT_MEMORY_MODE_SETTINGS);
+  const isManual = settings.memephantMemoryMode === 'manual';
+
+  toggle.checked = isManual;
+  if (subtitle) {
+    subtitle.textContent = isManual
+      ? 'Manual — copy buttons shown on AI pages'
+      : 'Auto — silent background updates';
+  }
+
+  toggle.addEventListener('change', async () => {
+    const newMode = toggle.checked ? 'manual' : 'auto';
+
+    if (subtitle) {
+      subtitle.textContent = newMode === 'manual'
+        ? 'Manual — copy buttons shown on AI pages'
+        : 'Auto — silent background updates';
+    }
+
+    try {
+      await storageSet({ memephantMemoryMode: newMode });
+    } catch (err) {
+      console.error('[Memephant] Could not save memory mode:', err);
+      showConfirmation('⚠️ Could not save memory mode setting.');
+      // Revert visual state on failure
+      toggle.checked = !toggle.checked;
+      if (subtitle) {
+        subtitle.textContent = toggle.checked
+          ? 'Manual — copy buttons shown on AI pages'
+          : 'Auto — silent background updates';
+      }
+    }
+  });
+}
+
 function isSupportedAiPage(tabUrl) {
   const supportedHosts = [
     'chat.openai.com',
@@ -198,6 +252,7 @@ function isSupportedAiPage(tabUrl) {
 // Init
 
 async function init() {
+  await initMemoryModeToggle();
   await initPromptGuardSettings();
 
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });

@@ -37,14 +37,17 @@ const PLATFORM_LABEL = {
 
 const DEFAULT_SETTINGS = {
   /**
-   * manual:
-   *   Show the bottom-right "Memphant update detected" floater.
+   * auto (default):
+   *   Hide the "Copy for Memephant" inject buttons and the floater.
+   *   Automatic Memory Bridge handles updates silently.
    *
-   * automatic:
-   *   Suppress the floater. Automatic bridge mode should not ask the user
-   *   to copy/apply visible memphant_update blocks from the AI page.
+   * manual:
+   *   Show the bottom-right "Memphant update detected" floater and
+   *   inject "Copy for Memephant" buttons on AI responses.
+   *   Only active when the user has explicitly selected Manual mode
+   *   in the extension popup.
    */
-  memephantMemoryMode: 'manual',
+  memephantMemoryMode: 'auto',
 };
 
 let extensionSettings = { ...DEFAULT_SETTINGS };
